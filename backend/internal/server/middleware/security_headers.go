@@ -28,6 +28,16 @@ const (
 	AirwallexDemoStaticDomain = "https://static-demo.airwallex.com"
 	// AirwallexDemoCheckoutDomain 是 Airwallex 沙箱环境收银台元素和 iframe 域名。
 	AirwallexDemoCheckoutDomain = "https://checkout-demo.airwallex.com"
+	// CrispHTTPSDomain 是 Crisp Web SDK、静态资源和 HTTPS API 域名。
+	CrispHTTPSDomain = "https://*.crisp.chat"
+	// CrispWSSRelayDomain 是 Crisp Web SDK 使用的 WebSocket relay 域名。
+	CrispWSSRelayDomain = "wss://*.relay.crisp.chat"
+	// CrispWSSRescueRelayDomain 是 Crisp 远程协助能力使用的 WebSocket relay 域名。
+	CrispWSSRescueRelayDomain = "wss://*.relay.rescue.crisp.chat"
+	// CSPBlobScheme 允许 Crisp 将跨域 Worker 转为本地 blob URL 执行。
+	CSPBlobScheme = "blob:"
+	// CSPDataScheme 允许 Crisp 使用 Base64 data URI 图片。
+	CSPDataScheme = "data:"
 )
 
 var requiredCSPDirectiveValues = []struct {
@@ -47,6 +57,18 @@ var requiredCSPDirectiveValues = []struct {
 	{"style-src", AirwallexDemoStaticDomain},
 	{"style-src", AirwallexDemoCheckoutDomain},
 	{"frame-src", AirwallexDemoCheckoutDomain},
+	{"script-src", CrispHTTPSDomain},
+	{"style-src", CrispHTTPSDomain},
+	{"img-src", CrispHTTPSDomain},
+	{"img-src", CSPDataScheme},
+	{"font-src", CrispHTTPSDomain},
+	{"connect-src", CrispHTTPSDomain},
+	{"connect-src", CrispWSSRelayDomain},
+	{"connect-src", CrispWSSRescueRelayDomain},
+	{"frame-src", CrispHTTPSDomain},
+	{"media-src", CrispHTTPSDomain},
+	{"worker-src", CSPBlobScheme},
+	{"worker-src", CrispHTTPSDomain},
 }
 
 // GenerateNonce generates a cryptographically secure random nonce.

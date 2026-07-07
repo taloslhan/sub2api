@@ -5842,9 +5842,18 @@ export default {
         security: '安全与认证',
         users: '用户默认值',
         gateway: '网关服务',
+        customerService: '客服设置',
         email: '邮件设置',
         backup: '数据备份',
         payment: '支付设置',
+      },
+      customerService: {
+        title: '客服设置',
+        description: '配置用户端在线客服入口',
+        enableCrisp: '启用 Crisp',
+        enableCrispHint: '开启后，用户端页面右下角显示 Crisp 聊天气泡',
+        websiteId: 'Website ID',
+        websiteIdHint: '在 Crisp 后台 Settings → Website Settings 中获取 Website ID'
       },
       features: {
         channelMonitor: {

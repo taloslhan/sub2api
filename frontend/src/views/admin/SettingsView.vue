@@ -6295,6 +6295,52 @@
 
         </div><!-- /Tab: Features -->
 
+        <!-- Tab: Customer Service -->
+        <div v-show="activeTab === 'customerService'" class="space-y-6">
+          <div class="card">
+            <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{ t("admin.settings.customerService.title") }}
+              </h2>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {{ t("admin.settings.customerService.description") }}
+              </p>
+            </div>
+            <div class="space-y-5 p-6">
+              <div class="flex items-center justify-between gap-4">
+                <div>
+                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t("admin.settings.customerService.enableCrisp") }}
+                  </label>
+                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.customerService.enableCrispHint") }}
+                  </p>
+                </div>
+                <Toggle v-model="form.crisp_enabled" />
+              </div>
+
+              <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <div :class="!form.crisp_enabled && 'opacity-60'">
+                  <label class="input-label">
+                    {{ t("admin.settings.customerService.websiteId") }}
+                    <span v-if="form.crisp_enabled" class="text-red-500">*</span>
+                  </label>
+                  <input
+                    v-model.trim="form.crisp_website_id"
+                    type="text"
+                    class="input font-mono text-sm"
+                    :disabled="!form.crisp_enabled"
+                    placeholder="00000000-0000-0000-0000-000000000000"
+                  />
+                  <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.customerService.websiteIdHint") }}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Tab: Email -->
         <!-- Tab: Payment -->
         <div v-show="activeTab === 'payment'" class="space-y-6">
@@ -7407,6 +7453,7 @@ type SettingsTab =
   | "security"
   | "users"
   | "gateway"
+  | "customerService"
   | "payment"
   | "email"
   | "backup";
@@ -7418,6 +7465,7 @@ const settingsTabs = [
   { key: "security" as SettingsTab, icon: "shield" as const },
   { key: "users" as SettingsTab, icon: "user" as const },
   { key: "gateway" as SettingsTab, icon: "server" as const },
+  { key: "customerService" as SettingsTab, icon: "chat" as const },
   { key: "payment" as SettingsTab, icon: "creditCard" as const },
   { key: "email" as SettingsTab, icon: "mail" as const },
   { key: "backup" as SettingsTab, icon: "database" as const },
@@ -8108,6 +8156,8 @@ const form = reactive<SettingsForm>({
   turnstile_site_key: "",
   turnstile_secret_key: "",
   turnstile_secret_key_configured: false,
+  crisp_enabled: false,
+  crisp_website_id: "",
   api_key_acl_trust_forwarded_ip: false,
   // LinuxDo Connect OAuth 登录
   linuxdo_connect_enabled: false,
@@ -9423,6 +9473,8 @@ async function saveSettings() {
       turnstile_enabled: form.turnstile_enabled,
       turnstile_site_key: form.turnstile_site_key,
       turnstile_secret_key: form.turnstile_secret_key || undefined,
+      crisp_enabled: form.crisp_enabled,
+      crisp_website_id: form.crisp_website_id,
       api_key_acl_trust_forwarded_ip: form.api_key_acl_trust_forwarded_ip,
       linuxdo_connect_enabled: form.linuxdo_connect_enabled,
       linuxdo_connect_client_id: form.linuxdo_connect_client_id,

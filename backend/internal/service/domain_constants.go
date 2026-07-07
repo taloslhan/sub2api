@@ -161,6 +161,10 @@ const (
 	SettingKeyTurnstileSiteKey   = "turnstile_site_key"   // Turnstile Site Key
 	SettingKeyTurnstileSecretKey = "turnstile_secret_key" // Turnstile Secret Key
 
+	// Crisp 在线客服设置
+	SettingKeyCrispEnabled   = "crisp_enabled"    // 是否启用 Crisp 在线客服
+	SettingKeyCrispWebsiteID = "crisp_website_id" // Crisp Website ID
+
 	// API Key IP 访问控制设置
 	SettingKeyAPIKeyACLTrustForwardedIP = "api_key_acl_trust_forwarded_ip" // API Key IP 白/黑名单是否信任转发 IP
 

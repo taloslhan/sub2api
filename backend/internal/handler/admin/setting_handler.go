@@ -27,6 +27,9 @@ var semverPattern = regexp.MustCompile(`^\d+\.\d+\.\d+$`)
 // menuItemIDPattern validates custom menu item IDs: alphanumeric, hyphens, underscores only.
 var menuItemIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
+// crispWebsiteIDPattern 校验 Crisp Website ID（UUID）。
+var crispWebsiteIDPattern = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+
 // generateMenuItemID generates a short random hex ID for a custom menu item.
 func generateMenuItemID() (string, error) {
 	b := make([]byte, 8)
@@ -142,6 +145,8 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		TurnstileEnabled:                                       settings.TurnstileEnabled,
 		TurnstileSiteKey:                                       settings.TurnstileSiteKey,
 		TurnstileSecretKeyConfigured:                           settings.TurnstileSecretKeyConfigured,
+		CrispEnabled:                                           settings.CrispEnabled,
+		CrispWebsiteID:                                         settings.CrispWebsiteID,
 		APIKeyACLTrustForwardedIP:                              settings.APIKeyACLTrustForwardedIP,
 		LinuxDoConnectEnabled:                                  settings.LinuxDoConnectEnabled,
 		LinuxDoConnectClientID:                                 settings.LinuxDoConnectClientID,
@@ -444,6 +449,10 @@ type UpdateSettingsRequest struct {
 	TurnstileEnabled   bool   `json:"turnstile_enabled"`
 	TurnstileSiteKey   string `json:"turnstile_site_key"`
 	TurnstileSecretKey string `json:"turnstile_secret_key"`
+
+	// Crisp 在线客服设置
+	CrispEnabled   bool   `json:"crisp_enabled"`
+	CrispWebsiteID string `json:"crisp_website_id"`
 
 	// API Key IP 访问控制设置
 	APIKeyACLTrustForwardedIP *bool `json:"api_key_acl_trust_forwarded_ip"`
@@ -847,6 +856,18 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 				response.ErrorFrom(c, err)
 				return
 			}
+		}
+	}
+
+	req.CrispWebsiteID = strings.TrimSpace(req.CrispWebsiteID)
+	if req.CrispEnabled {
+		if req.CrispWebsiteID == "" {
+			response.BadRequest(c, "Crisp Website ID is required when enabled")
+			return
+		}
+		if !crispWebsiteIDPattern.MatchString(req.CrispWebsiteID) {
+			response.BadRequest(c, "Crisp Website ID must be a valid UUID")
+			return
 		}
 	}
 
@@ -1584,6 +1605,8 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		TurnstileEnabled:                 req.TurnstileEnabled,
 		TurnstileSiteKey:                 req.TurnstileSiteKey,
 		TurnstileSecretKey:               req.TurnstileSecretKey,
+		CrispEnabled:                     req.CrispEnabled,
+		CrispWebsiteID:                   req.CrispWebsiteID,
 		APIKeyACLTrustForwardedIP: func() bool {
 			if req.APIKeyACLTrustForwardedIP != nil {
 				return *req.APIKeyACLTrustForwardedIP
@@ -2096,6 +2119,8 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		TurnstileEnabled:                                       updatedSettings.TurnstileEnabled,
 		TurnstileSiteKey:                                       updatedSettings.TurnstileSiteKey,
 		TurnstileSecretKeyConfigured:                           updatedSettings.TurnstileSecretKeyConfigured,
+		CrispEnabled:                                           updatedSettings.CrispEnabled,
+		CrispWebsiteID:                                         updatedSettings.CrispWebsiteID,
 		APIKeyACLTrustForwardedIP:                              updatedSettings.APIKeyACLTrustForwardedIP,
 		LinuxDoConnectEnabled:                                  updatedSettings.LinuxDoConnectEnabled,
 		LinuxDoConnectClientID:                                 updatedSettings.LinuxDoConnectClientID,
@@ -2417,6 +2442,12 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if req.TurnstileSecretKey != "" {
 		changed = append(changed, "turnstile_secret_key")
+	}
+	if before.CrispEnabled != after.CrispEnabled {
+		changed = append(changed, "crisp_enabled")
+	}
+	if before.CrispWebsiteID != after.CrispWebsiteID {
+		changed = append(changed, "crisp_website_id")
 	}
 	if before.APIKeyACLTrustForwardedIP != after.APIKeyACLTrustForwardedIP {
 		changed = append(changed, "api_key_acl_trust_forwarded_ip")

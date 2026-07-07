@@ -327,6 +327,8 @@ export const useAppStore = defineStore('app', () => {
         invitation_code_enabled: false,
         turnstile_enabled: false,
         turnstile_site_key: '',
+        crisp_enabled: false,
+        crisp_website_id: '',
         site_name: siteName.value,
         site_logo: siteLogo.value,
         site_subtitle: '',

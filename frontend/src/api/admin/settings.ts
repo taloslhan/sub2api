@@ -450,6 +450,8 @@ export interface SystemSettings {
   turnstile_enabled: boolean;
   turnstile_site_key: string;
   turnstile_secret_key_configured: boolean;
+  crisp_enabled: boolean;
+  crisp_website_id: string;
   api_key_acl_trust_forwarded_ip: boolean;
 
   // LinuxDo Connect OAuth settings
@@ -744,6 +746,8 @@ export interface UpdateSettingsRequest {
   turnstile_enabled?: boolean;
   turnstile_site_key?: string;
   turnstile_secret_key?: string;
+  crisp_enabled?: boolean;
+  crisp_website_id?: string;
   api_key_acl_trust_forwarded_ip?: boolean;
   linuxdo_connect_enabled?: boolean;
   linuxdo_connect_client_id?: string;

@@ -5683,9 +5683,18 @@ export default {
         security: 'Security',
         users: 'Users',
         gateway: 'Gateway',
+        customerService: 'Customer Support',
         email: 'Email',
         backup: 'Backup',
         payment: 'Payment',
+      },
+      customerService: {
+        title: 'Customer Support',
+        description: 'Configure the live support entry shown to end users',
+        enableCrisp: 'Enable Crisp',
+        enableCrispHint: 'Show the Crisp chat bubble on end-user pages',
+        websiteId: 'Website ID',
+        websiteIdHint: 'Find the Website ID in Crisp Settings → Website Settings'
       },
       features: {
         channelMonitor: {

@@ -201,6 +201,8 @@ export interface PublicSettings {
   login_agreement_documents?: LoginAgreementDocument[]
   turnstile_enabled: boolean
   turnstile_site_key: string
+  crisp_enabled?: boolean
+  crisp_website_id?: string
   site_name: string
   site_logo: string
   site_subtitle: string
