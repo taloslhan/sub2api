@@ -42,7 +42,7 @@ usage() {
 
 选项:
   --image IMAGE        镜像名，默认 taloslhan/sub2api
-  --tag TAG            版本 tag，默认 git 短 hash + UTC 日期，如 a1b2c3d-20260703
+  --tag TAG            版本 tag，默认上游版本 + git 短 hash + UTC 日期，如 0.1.155.a1b2c3d-20260703
   --platform PLATFORM  本地构建平台，默认按当前机器推断 linux/arm64 或 linux/amd64
   --builder NAME       buildx builder 名称，默认 multiarch
   --current            使用当前工作区作为构建上下文，包含当前已检出代码
@@ -170,17 +170,34 @@ resolve_build_source() {
 resolve_tag() {
     local build_day
     local build_time
+    local upstream_version=""
+    local version_file="${BUILD_CONTEXT}/backend/cmd/server/VERSION"
 
     if [[ -n "${TAG}" ]]; then
         return
     fi
 
     build_day="$(date -u +%Y%m%d)"
+    if [[ -f "${version_file}" ]]; then
+        upstream_version="$(tr -d '[:space:]' <"${version_file}")"
+    fi
+
+    if [[ -z "${upstream_version}" ]]; then
+        log "警告: 未从 ${version_file} 读取到上游版本，使用兼容格式生成 tag"
+    fi
+
     if [[ -n "${BUILD_COMMIT}" ]]; then
         TAG="${BUILD_COMMIT}-${build_day}"
-    else
-        build_time="$(date -u +%H%M%S)"
-        TAG="nogit-${build_day}-${build_time}"
+        if [[ -n "${upstream_version}" ]]; then
+            TAG="${upstream_version}.${TAG}"
+        fi
+        return
+    fi
+
+    build_time="$(date -u +%H%M%S)"
+    TAG="nogit-${build_day}-${build_time}"
+    if [[ -n "${upstream_version}" ]]; then
+        TAG="${upstream_version}.${TAG}"
     fi
 }
 
