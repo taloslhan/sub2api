@@ -21,6 +21,8 @@ RUN_TEST=false
 RUN_PUSH=false
 CLEANUP_AFTER_TEST=false
 NO_CACHE=false
+PRUNE_AFTER=true
+PRUNE_KEEP_STORAGE="10gb"
 
 usage() {
     cat <<'EOF'
@@ -52,6 +54,8 @@ usage() {
   --push               buildx 双架构构建并推送到远程仓库
   --all                等同于 --test --push
   --no-cache           Docker 构建禁用缓存
+  --no-prune           跳过构建后的旧镜像 tag 与构建缓存自动回收（默认开启，
+                       保留本次 tag 与 local，构建缓存回收至 10GB 以内）
   -h, --help           显示帮助
 
 前置条件:
@@ -116,6 +120,10 @@ parse_args() {
                 ;;
             --no-cache)
                 NO_CACHE=true
+                shift
+                ;;
+            --no-prune)
+                PRUNE_AFTER=false
                 shift
                 ;;
             -h|--help)
@@ -380,6 +388,34 @@ push_multiarch_image() {
     docker buildx imagetools inspect "${IMAGE}:latest"
 }
 
+# 删除本仓库除本次 TAG 和 local 之外的旧镜像 tag（历史版本均可从 Docker Hub 拉回）
+prune_old_image_tags() {
+    local old_tags
+
+    old_tags="$(docker images "${IMAGE}" --format '{{.Tag}}' \
+        | grep -Fxv -e "${TAG}" -e "local" -e "<none>" || true)"
+    [[ -n "${old_tags}" ]] || return 0
+
+    log "清理旧镜像 tag（保留 ${IMAGE}:${TAG} 与 ${IMAGE}:local）"
+    while IFS= read -r old_tag; do
+        docker rmi "${IMAGE}:${old_tag}" >/dev/null 2>&1 || true
+    done <<<"${old_tags}"
+}
+
+# 构建后回收：旧镜像 tag、悬空镜像、超出上限的构建缓存
+prune_build_artifacts() {
+    [[ "${PRUNE_AFTER}" == "true" ]] || return 0
+
+    prune_old_image_tags
+    docker image prune -f >/dev/null 2>&1 || true
+
+    log "回收构建缓存（保留 ${PRUNE_KEEP_STORAGE} 以内近期缓存）"
+    docker builder prune --max-used-space "${PRUNE_KEEP_STORAGE}" -f >/dev/null 2>&1 || true
+    if [[ "${RUN_PUSH}" == "true" ]]; then
+        docker buildx prune --builder "${BUILDER}" --max-used-space "${PRUNE_KEEP_STORAGE}" -f >/dev/null 2>&1 || true
+    fi
+}
+
 main() {
     parse_args "$@"
     ensure_docker_ready
@@ -397,6 +433,8 @@ main() {
     if [[ "${RUN_PUSH}" == "true" ]]; then
         push_multiarch_image
     fi
+
+    prune_build_artifacts
 
     log "完成: ${IMAGE}:${TAG}"
 }
