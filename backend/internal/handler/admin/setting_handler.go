@@ -58,6 +58,7 @@ type SettingHandler struct {
 	settingService           *service.SettingService
 	emailService             *service.EmailService
 	turnstileService         *service.TurnstileService
+	aliyunCaptchaService     *service.AliyunCaptchaService
 	opsService               *service.OpsService
 	paymentConfigService     *service.PaymentConfigService
 	paymentService           *service.PaymentService
@@ -84,6 +85,12 @@ func NewSettingHandler(settingService *service.SettingService, emailService *ser
 // the constructor signature used by existing unit tests.
 func (h *SettingHandler) SetNotificationEmailService(notificationEmailService *service.NotificationEmailService) {
 	h.notificationEmailService = notificationEmailService
+}
+
+// SetAliyunCaptchaService attaches the Aliyun captcha credential validator without
+// changing the constructor signature used by existing unit tests.
+func (h *SettingHandler) SetAliyunCaptchaService(aliyunCaptchaService *service.AliyunCaptchaService) {
+	h.aliyunCaptchaService = aliyunCaptchaService
 }
 
 // SetStepUpDeps attaches the services backing the step-up switch preconditions
@@ -130,36 +137,48 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 	passkeyConfigured, passkeyRPID, passkeyRPOrigins := h.settingService.PasskeyConfiguration()
 
 	payload := dto.SystemSettings{
-		RegistrationEnabled:                                    settings.RegistrationEnabled,
-		EmailVerifyEnabled:                                     settings.EmailVerifyEnabled,
-		RegistrationEmailSuffixWhitelist:                       settings.RegistrationEmailSuffixWhitelist,
-		PromoCodeEnabled:                                       settings.PromoCodeEnabled,
-		PasswordResetEnabled:                                   settings.PasswordResetEnabled,
-		FrontendURL:                                            settings.FrontendURL,
-		InvitationCodeEnabled:                                  settings.InvitationCodeEnabled,
-		TotpEnabled:                                            settings.TotpEnabled,
-		TotpEncryptionKeyConfigured:                            h.settingService.IsTotpEncryptionKeyConfigured(),
-		PasskeyEnabled:                                         settings.PasskeyEnabled,
-		PasskeyConfigured:                                      passkeyConfigured,
-		PasskeyRPID:                                            passkeyRPID,
-		PasskeyRPOrigins:                                       passkeyRPOrigins,
-		SessionBindingEnabled:                                  settings.SessionBindingEnabled,
-		StepUpEnabled:                                          settings.StepUpEnabled,
-		AuditLogRetentionDays:                                  settings.AuditLogRetentionDays,
-		LoginAgreementEnabled:                                  settings.LoginAgreementEnabled,
-		LoginAgreementMode:                                     settings.LoginAgreementMode,
-		LoginAgreementUpdatedAt:                                settings.LoginAgreementUpdatedAt,
-		LoginAgreementDocuments:                                loginAgreementDocumentsToDTO(settings.LoginAgreementDocuments),
-		SMTPHost:                                               settings.SMTPHost,
-		SMTPPort:                                               settings.SMTPPort,
-		SMTPUsername:                                           settings.SMTPUsername,
-		SMTPPasswordConfigured:                                 settings.SMTPPasswordConfigured,
-		SMTPFrom:                                               settings.SMTPFrom,
-		SMTPFromName:                                           settings.SMTPFromName,
-		SMTPUseTLS:                                             settings.SMTPUseTLS,
-		TurnstileEnabled:                                       settings.TurnstileEnabled,
-		TurnstileSiteKey:                                       settings.TurnstileSiteKey,
-		TurnstileSecretKeyConfigured:                           settings.TurnstileSecretKeyConfigured,
+		RegistrationEnabled:                    settings.RegistrationEnabled,
+		EmailVerifyEnabled:                     settings.EmailVerifyEnabled,
+		RegistrationEmailSuffixWhitelist:       settings.RegistrationEmailSuffixWhitelist,
+		PromoCodeEnabled:                       settings.PromoCodeEnabled,
+		PasswordResetEnabled:                   settings.PasswordResetEnabled,
+		FrontendURL:                            settings.FrontendURL,
+		InvitationCodeEnabled:                  settings.InvitationCodeEnabled,
+		TotpEnabled:                            settings.TotpEnabled,
+		TotpEncryptionKeyConfigured:            h.settingService.IsTotpEncryptionKeyConfigured(),
+		PasskeyEnabled:                         settings.PasskeyEnabled,
+		PasskeyConfigured:                      passkeyConfigured,
+		PasskeyRPID:                            passkeyRPID,
+		PasskeyRPOrigins:                       passkeyRPOrigins,
+		SessionBindingEnabled:                  settings.SessionBindingEnabled,
+		StepUpEnabled:                          settings.StepUpEnabled,
+		AuditLogRetentionDays:                  settings.AuditLogRetentionDays,
+		LoginAgreementEnabled:                  settings.LoginAgreementEnabled,
+		LoginAgreementMode:                     settings.LoginAgreementMode,
+		LoginAgreementUpdatedAt:                settings.LoginAgreementUpdatedAt,
+		LoginAgreementDocuments:                loginAgreementDocumentsToDTO(settings.LoginAgreementDocuments),
+		SMTPHost:                               settings.SMTPHost,
+		SMTPPort:                               settings.SMTPPort,
+		SMTPUsername:                           settings.SMTPUsername,
+		SMTPPasswordConfigured:                 settings.SMTPPasswordConfigured,
+		SMTPFrom:                               settings.SMTPFrom,
+		SMTPFromName:                           settings.SMTPFromName,
+		SMTPUseTLS:                             settings.SMTPUseTLS,
+		TurnstileEnabled:                       settings.TurnstileEnabled,
+		TurnstileSiteKey:                       settings.TurnstileSiteKey,
+		TurnstileSecretKeyConfigured:           settings.TurnstileSecretKeyConfigured,
+		TencentCaptchaEnabled:                  settings.TencentCaptchaEnabled,
+		TencentCaptchaAppID:                    settings.TencentCaptchaAppID,
+		TencentCaptchaAppSecretKeyConfigured:   settings.TencentCaptchaAppSecretKeyConfigured,
+		TencentCaptchaCloudSecretIDConfigured:  settings.TencentCaptchaCloudSecretIDConfigured,
+		TencentCaptchaCloudSecretKeyConfigured: settings.TencentCaptchaCloudSecretKeyConfigured,
+		AliyunCaptchaEnabled:                   settings.AliyunCaptchaEnabled,
+		AliyunCaptchaAccessKeyID:               settings.AliyunCaptchaAccessKeyID,
+		AliyunCaptchaAccessKeySecretConfigured: settings.AliyunCaptchaAccessKeySecretConfigured,
+		AliyunCaptchaSceneID:                   settings.AliyunCaptchaSceneID,
+		AliyunCaptchaPrefix:                    settings.AliyunCaptchaPrefix,
+		AliyunCaptchaRegion:                    settings.AliyunCaptchaRegion,
+		// CAPYBARA-PATCH: Crisp 在线客服设置
 		CrispEnabled:                                           settings.CrispEnabled,
 		CrispWebsiteID:                                         settings.CrispWebsiteID,
 		APIKeyACLTrustForwardedIP:                              settings.APIKeyACLTrustForwardedIP,
@@ -285,6 +304,9 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		EnableClientDatelineNormalization:                      settings.EnableClientDatelineNormalization,
 		AntigravityUserAgentVersion:                            settings.AntigravityUserAgentVersion,
 		OpenAICodexUserAgent:                                   settings.OpenAICodexUserAgent,
+		OpenAICodexClientVersion:                               settings.OpenAICodexClientVersion,
+		OpenAICodexClientVersionSynced:                         settings.OpenAICodexClientVersionSynced,
+		OpenAICodexVersionAutoSyncEnabled:                      settings.OpenAICodexVersionAutoSyncEnabled,
 		MinCodexVersion:                                        settings.MinCodexVersion,
 		MaxCodexVersion:                                        settings.MaxCodexVersion,
 		CodexCLIOnlyBlacklist:                                  settings.CodexCLIOnlyBlacklist,

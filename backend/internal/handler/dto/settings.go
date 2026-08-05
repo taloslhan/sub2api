@@ -56,9 +56,20 @@ type SystemSettings struct {
 	SMTPFromName           string `json:"smtp_from_name"`
 	SMTPUseTLS             bool   `json:"smtp_use_tls"`
 
-	TurnstileEnabled             bool   `json:"turnstile_enabled"`
-	TurnstileSiteKey             string `json:"turnstile_site_key"`
-	TurnstileSecretKeyConfigured bool   `json:"turnstile_secret_key_configured"`
+	TurnstileEnabled                       bool   `json:"turnstile_enabled"`
+	TurnstileSiteKey                       string `json:"turnstile_site_key"`
+	TurnstileSecretKeyConfigured           bool   `json:"turnstile_secret_key_configured"`
+	TencentCaptchaEnabled                  bool   `json:"tencent_captcha_enabled"`
+	TencentCaptchaAppID                    string `json:"tencent_captcha_app_id"`
+	TencentCaptchaAppSecretKeyConfigured   bool   `json:"tencent_captcha_app_secret_key_configured"`
+	TencentCaptchaCloudSecretIDConfigured  bool   `json:"tencent_captcha_cloud_secret_id_configured"`
+	TencentCaptchaCloudSecretKeyConfigured bool   `json:"tencent_captcha_cloud_secret_key_configured"`
+	AliyunCaptchaEnabled                   bool   `json:"aliyun_captcha_enabled"`
+	AliyunCaptchaAccessKeyID               string `json:"aliyun_captcha_access_key_id"`
+	AliyunCaptchaAccessKeySecretConfigured bool   `json:"aliyun_captcha_access_key_secret_configured"`
+	AliyunCaptchaSceneID                   string `json:"aliyun_captcha_scene_id"`
+	AliyunCaptchaPrefix                    string `json:"aliyun_captcha_prefix"`
+	AliyunCaptchaRegion                    string `json:"aliyun_captcha_region"`
 	// CAPYBARA-PATCH: Crisp 在线客服设置
 	CrispEnabled              bool     `json:"crisp_enabled"`
 	CrispWebsiteID            string   `json:"crisp_website_id"`
@@ -202,6 +213,9 @@ type SystemSettings struct {
 	EnableClientDatelineNormalization      bool   `json:"enable_client_dateline_normalization"`
 	AntigravityUserAgentVersion            string `json:"antigravity_user_agent_version"`
 	OpenAICodexUserAgent                   string `json:"openai_codex_user_agent"`
+	OpenAICodexClientVersion               string `json:"openai_codex_client_version"`
+	OpenAICodexClientVersionSynced         string `json:"openai_codex_client_version_synced"`
+	OpenAICodexVersionAutoSyncEnabled      bool   `json:"openai_codex_version_auto_sync_enabled"`
 
 	// codex_cli_only 加固
 	MinCodexVersion                      string `json:"min_codex_version"`
@@ -341,37 +355,44 @@ type PublicSettings struct {
 	LoginAgreementDocuments          []LoginAgreementDocument `json:"login_agreement_documents"`
 	TurnstileEnabled                 bool                     `json:"turnstile_enabled"`
 	TurnstileSiteKey                 string                   `json:"turnstile_site_key"`
-	CrispEnabled                     bool                     `json:"crisp_enabled"`
-	CrispWebsiteID                   string                   `json:"crisp_website_id"`
-	SiteName                         string                   `json:"site_name"`
-	SiteLogo                         string                   `json:"site_logo"`
-	SiteSubtitle                     string                   `json:"site_subtitle"`
-	APIBaseURL                       string                   `json:"api_base_url"`
-	ContactInfo                      string                   `json:"contact_info"`
-	DocURL                           string                   `json:"doc_url"`
-	HomeContent                      string                   `json:"home_content"`
-	CompactHomeEnabled               bool                     `json:"compact_home_enabled"`
-	HideCcsImportButton              bool                     `json:"hide_ccs_import_button"`
-	PurchaseSubscriptionEnabled      bool                     `json:"purchase_subscription_enabled"`
-	PurchaseSubscriptionURL          string                   `json:"purchase_subscription_url"`
-	TableDefaultPageSize             int                      `json:"table_default_page_size"`
-	TablePageSizeOptions             []int                    `json:"table_page_size_options"`
-	CustomMenuItems                  []CustomMenuItem         `json:"custom_menu_items"`
-	CustomEndpoints                  []CustomEndpoint         `json:"custom_endpoints"`
-	DingTalkOAuthEnabled             bool                     `json:"dingtalk_oauth_enabled"`
-	LinuxDoOAuthEnabled              bool                     `json:"linuxdo_oauth_enabled"`
-	WeChatOAuthEnabled               bool                     `json:"wechat_oauth_enabled"`
-	WeChatOAuthOpenEnabled           bool                     `json:"wechat_oauth_open_enabled"`
-	WeChatOAuthMPEnabled             bool                     `json:"wechat_oauth_mp_enabled"`
-	WeChatOAuthMobileEnabled         bool                     `json:"wechat_oauth_mobile_enabled"`
-	OIDCOAuthEnabled                 bool                     `json:"oidc_oauth_enabled"`
-	OIDCOAuthProviderName            string                   `json:"oidc_oauth_provider_name"`
-	GitHubOAuthEnabled               bool                     `json:"github_oauth_enabled"`
-	GoogleOAuthEnabled               bool                     `json:"google_oauth_enabled"`
-	SoraClientEnabled                bool                     `json:"sora_client_enabled"`
-	BackendModeEnabled               bool                     `json:"backend_mode_enabled"`
-	PaymentEnabled                   bool                     `json:"payment_enabled"`
-	Version                          string                   `json:"version"`
+	TencentCaptchaEnabled            bool                     `json:"tencent_captcha_enabled"`
+	TencentCaptchaAppID              string                   `json:"tencent_captcha_app_id"`
+	AliyunCaptchaEnabled             bool                     `json:"aliyun_captcha_enabled"`
+	AliyunCaptchaSceneID             string                   `json:"aliyun_captcha_scene_id"`
+	AliyunCaptchaPrefix              string                   `json:"aliyun_captcha_prefix"`
+	AliyunCaptchaRegion              string                   `json:"aliyun_captcha_region"`
+	// CAPYBARA-PATCH: Crisp 在线客服设置
+	CrispEnabled                bool             `json:"crisp_enabled"`
+	CrispWebsiteID              string           `json:"crisp_website_id"`
+	SiteName                    string           `json:"site_name"`
+	SiteLogo                    string           `json:"site_logo"`
+	SiteSubtitle                string           `json:"site_subtitle"`
+	APIBaseURL                  string           `json:"api_base_url"`
+	ContactInfo                 string           `json:"contact_info"`
+	DocURL                      string           `json:"doc_url"`
+	HomeContent                 string           `json:"home_content"`
+	CompactHomeEnabled          bool             `json:"compact_home_enabled"`
+	HideCcsImportButton         bool             `json:"hide_ccs_import_button"`
+	PurchaseSubscriptionEnabled bool             `json:"purchase_subscription_enabled"`
+	PurchaseSubscriptionURL     string           `json:"purchase_subscription_url"`
+	TableDefaultPageSize        int              `json:"table_default_page_size"`
+	TablePageSizeOptions        []int            `json:"table_page_size_options"`
+	CustomMenuItems             []CustomMenuItem `json:"custom_menu_items"`
+	CustomEndpoints             []CustomEndpoint `json:"custom_endpoints"`
+	DingTalkOAuthEnabled        bool             `json:"dingtalk_oauth_enabled"`
+	LinuxDoOAuthEnabled         bool             `json:"linuxdo_oauth_enabled"`
+	WeChatOAuthEnabled          bool             `json:"wechat_oauth_enabled"`
+	WeChatOAuthOpenEnabled      bool             `json:"wechat_oauth_open_enabled"`
+	WeChatOAuthMPEnabled        bool             `json:"wechat_oauth_mp_enabled"`
+	WeChatOAuthMobileEnabled    bool             `json:"wechat_oauth_mobile_enabled"`
+	OIDCOAuthEnabled            bool             `json:"oidc_oauth_enabled"`
+	OIDCOAuthProviderName       string           `json:"oidc_oauth_provider_name"`
+	GitHubOAuthEnabled          bool             `json:"github_oauth_enabled"`
+	GoogleOAuthEnabled          bool             `json:"google_oauth_enabled"`
+	SoraClientEnabled           bool             `json:"sora_client_enabled"`
+	BackendModeEnabled          bool             `json:"backend_mode_enabled"`
+	PaymentEnabled              bool             `json:"payment_enabled"`
+	Version                     string           `json:"version"`
 	// 服务器全局时区（IANA 名称与当前 UTC 偏移，如 "Asia/Shanghai" / "+08:00"）。
 	// 高峰时段等按服务器本地时间判定的窗口，前端展示时据此标注，避免用户按浏览器本地时间误读。
 	ServerTimezone              string  `json:"server_timezone"`
