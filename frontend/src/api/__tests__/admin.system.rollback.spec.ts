@@ -14,6 +14,10 @@ vi.mock('../client', () => ({
 
 import { getRollbackVersions, rollback, type RollbackVersionInfo } from '@/api/admin/system'
 
+// CAPYBARA-PATCH: 上游 35b5edb24 给 rollback 请求加了 timeout 选项但未同步本文件断言（v0.1.162~v0.1.172 持续失败）。
+// system.ts 中的 UPDATE_REQUEST_TIMEOUT_MS 未导出，此处镜像其值；上游修复后本补丁可撤除。
+const UPDATE_REQUEST_TIMEOUT_MS = 15 * 60 * 1000
+
 describe('admin system rollback API', () => {
   beforeEach(() => {
     get.mockReset()
@@ -41,7 +45,9 @@ describe('admin system rollback API', () => {
 
     const result = await rollback('0.1.146')
 
-    expect(post).toHaveBeenCalledWith('/admin/system/rollback', { version: '0.1.146' })
+    expect(post).toHaveBeenCalledWith('/admin/system/rollback', { version: '0.1.146' }, {
+      timeout: UPDATE_REQUEST_TIMEOUT_MS
+    })
     expect(result.need_restart).toBe(true)
   })
 
@@ -50,6 +56,8 @@ describe('admin system rollback API', () => {
 
     await rollback()
 
-    expect(post).toHaveBeenCalledWith('/admin/system/rollback', undefined)
+    expect(post).toHaveBeenCalledWith('/admin/system/rollback', undefined, {
+      timeout: UPDATE_REQUEST_TIMEOUT_MS
+    })
   })
 })
