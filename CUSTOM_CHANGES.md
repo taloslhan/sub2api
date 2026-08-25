@@ -4,7 +4,7 @@
 
 | 日期 | 文件 | 原因 |
 | --- | --- | --- |
-| 2026-07-13 | `backend/internal/handler/admin/grok_oauth_handler.go` | 修复上游 `v0.1.153` 中 Grok 配额重置错误分支触发的 staticcheck SA4023；该接口按设计始终返回“不支持”错误。 |
+| ~~2026-07-13~~<br>2026-08-25 撤除 | ~~`backend/internal/handler/admin/grok_oauth_handler.go`~~ | ~~修复上游 `v0.1.153` 中 Grok 配额重置错误分支触发的 staticcheck SA4023；该接口按设计始终返回“不支持”错误。~~ **已撤除**：上游 `v0.1.181` 的 `cbe258fd1` 已用 `//nolint:staticcheck` 修复同一问题，同步时采用上游版本。 |
 | 2026-07-21 | `backend/Makefile` | 固定默认 `LDFLAGS`，避免 shell 环境变量意外覆盖 Go 链接参数，同时保留命令行显式覆盖能力。 |
 | 2026-07-21 | `deploy/Makefile` | 固定默认 `LDFLAGS`，避免 shell 环境变量意外覆盖 Go 链接参数，同时保留命令行显式覆盖能力。 |
 | 2026-08-08 | `backend/internal/handler/dto/settings.go`<br>`backend/internal/handler/admin/setting_handler.go`<br>`backend/internal/handler/admin/setting_handler_update.go` | Crisp 在线客服设置项（`crisp_enabled` / `crisp_website_id`）的 DTO 字段、读取与更新映射、Website ID UUID 校验。补登记 2026-07 的 `feat(settings): add Crisp customer support widget`。 |

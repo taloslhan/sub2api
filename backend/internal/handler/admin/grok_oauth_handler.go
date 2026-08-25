@@ -615,9 +615,14 @@ func (h *GrokOAuthHandler) ResetQuota(c *gin.Context) {
 		response.BadRequest(c, "grok quota service is not enabled")
 		return
 	}
-	// CAPYBARA-PATCH: ResetQuota is intentionally unsupported and always returns an error.
-	_, err = h.quotaService.ResetQuota(c.Request.Context(), accountID)
-	response.ErrorFrom(c, err)
+	// ResetQuota 恒返回 GROK_QUOTA_RESET_UNSUPPORTED（xAI 无 OAuth 配额重置接口），err != nil 恒真为预期。
+	//nolint:staticcheck // SA4023
+	result, err := h.quotaService.ResetQuota(c.Request.Context(), accountID)
+	if err != nil { //nolint:staticcheck // SA4023
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, result)
 }
 
 func (h *GrokOAuthHandler) RuntimeSanity(c *gin.Context) {

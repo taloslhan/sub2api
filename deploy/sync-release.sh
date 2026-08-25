@@ -268,8 +268,8 @@ run_backend_validation() {
 
     validation_step "后端验证: go test ./..." backend_cmd go test ./... || return 1
 
-    validation_step "后端验证: golangci-lint v2.9.0" \
-        backend_cmd go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.9.0 run --timeout=30m ./... || return 1
+    validation_step "后端验证: golangci-lint v2.13.1" \
+        backend_cmd go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.1 run --timeout=30m ./... || return 1
 }
 
 run_frontend_validation() {
