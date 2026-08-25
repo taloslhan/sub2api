@@ -253,6 +253,83 @@ func TestUsageLogFromService_PreservesHistoricalMissingImageSize(t *testing.T) {
 	require.NotContains(t, string(body), `"image_size":"2K"`)
 }
 
+// CAPYBARA-PATCH: 用量页请求级输出吞吐
+func TestUsageLogFromService_OutputTokensPerSecond(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		outputTokens int
+		durationMs   *int
+		want         *float64
+	}{
+		{name: "正常计算", outputTokens: 100, durationMs: intPtr(2000), want: f64Ptr(50)},
+		{name: "耗时不足 1 秒", outputTokens: 30, durationMs: intPtr(500), want: f64Ptr(60)},
+		{name: "耗时为 nil", outputTokens: 100, durationMs: nil, want: nil},
+		{name: "耗时为 0", outputTokens: 100, durationMs: intPtr(0), want: nil},
+		{name: "耗时为负", outputTokens: 100, durationMs: intPtr(-1), want: nil},
+		{name: "输出 token 为 0", outputTokens: 0, durationMs: intPtr(2000), want: nil},
+		{name: "输出 token 与耗时同时缺失", outputTokens: 0, durationMs: nil, want: nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			log := &service.UsageLog{
+				RequestID:    "req_tps",
+				Model:        "gpt-5.4",
+				OutputTokens: tt.outputTokens,
+				DurationMs:   tt.durationMs,
+			}
+
+			userDTO := UsageLogFromService(log)
+			adminDTO := UsageLogFromServiceAdmin(log)
+
+			if tt.want == nil {
+				require.Nil(t, userDTO.OutputTokensPerSecond)
+				require.Nil(t, adminDTO.OutputTokensPerSecond)
+			} else {
+				require.NotNil(t, userDTO.OutputTokensPerSecond)
+				require.InDelta(t, *tt.want, *userDTO.OutputTokensPerSecond, 1e-9)
+				require.NotNil(t, adminDTO.OutputTokensPerSecond)
+				require.InDelta(t, *tt.want, *adminDTO.OutputTokensPerSecond, 1e-9)
+			}
+			// 管理员 DTO 通过嵌入继承该字段，取值必须与普通用户 DTO 完全一致。
+			require.Equal(t, userDTO.OutputTokensPerSecond, adminDTO.OutputTokensPerSecond)
+		})
+	}
+}
+
+// CAPYBARA-PATCH: 用量页请求级输出吞吐
+func TestUsageLogFromService_OutputTokensPerSecondSerializesNull(t *testing.T) {
+	t.Parallel()
+
+	invalid := UsageLogFromService(&service.UsageLog{
+		RequestID:    "req_tps_null",
+		Model:        "gpt-5.4",
+		OutputTokens: 0,
+		DurationMs:   intPtr(2000),
+	})
+	body, err := json.Marshal(invalid)
+	require.NoError(t, err)
+	require.Contains(t, string(body), `"output_tokens_per_second":null`)
+
+	valid := UsageLogFromService(&service.UsageLog{
+		RequestID:    "req_tps_value",
+		Model:        "gpt-5.4",
+		OutputTokens: 100,
+		DurationMs:   intPtr(2000),
+	})
+	body, err = json.Marshal(valid)
+	require.NoError(t, err)
+	require.Contains(t, string(body), `"output_tokens_per_second":50`)
+}
+
 func f64Ptr(value float64) *float64 {
+	return &value
+}
+
+func intPtr(value int) *int {
 	return &value
 }

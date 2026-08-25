@@ -39,6 +39,9 @@ const messages: Record<string, string> = {
 	'usage.upstreamModelMismatch': 'Upstream model mismatch',
 	'common.yes': 'Yes',
 	'common.no': 'No',
+	'usage.firstToken': 'First token',
+	'usage.duration': 'Duration',
+	'usage.exportOutputSpeed': 'Output Speed (tok/s)',
 }
 
 const formatLocalDate = (date: Date): string => {
@@ -95,9 +98,14 @@ vi.mock('@/stores/app', () => ({
   }),
 }))
 
-vi.mock('@/utils/format', () => ({
-  formatReasoningEffort: (value: string | null | undefined) => value ?? '-',
-}))
+// CAPYBARA-PATCH: 保留真实 formatOutputTokensPerSecond，导出列断言才有意义
+vi.mock('@/utils/format', async () => {
+  const actual = await vi.importActual<typeof import('@/utils/format')>('@/utils/format')
+  return {
+    ...actual,
+    formatReasoningEffort: (value: string | null | undefined) => value ?? '-',
+  }
+})
 
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
@@ -684,6 +692,50 @@ describe('admin UsageView model audit export', () => {
 		])
 		const row = sheetAddAoa.mock.calls[0][1][0]
 		expect(row.slice(4, 8)).toEqual(['gpt-5.6-sol', 'gpt-5.5', 'gpt-5.4', 'Yes'])
+		expect(saveAs).toHaveBeenCalledTimes(1)
+	})
+
+	// CAPYBARA-PATCH: 用量导出输出吞吐列
+	it('exports output speed right after duration, blank for invalid samples', async () => {
+		const base = {
+			id: 1,
+			created_at: '2026-08-04T00:00:00Z',
+			model: 'gpt-5.6-sol',
+			request_type: 'sync',
+			input_tokens: 1,
+			output_tokens: 1,
+			cache_read_tokens: 0,
+			cache_creation_tokens: 0,
+			duration_ms: 10,
+		}
+		exportList.mockResolvedValue({
+			items: [
+				{ ...base, request_id: 'speed-valid', output_tokens_per_second: 12.345 },
+				{ ...base, request_id: 'speed-null', output_tokens_per_second: null },
+				// 历史记录可能整个字段缺失
+				{ ...base, request_id: 'speed-missing' },
+			],
+			total: 3,
+			pages: 1,
+		})
+
+		const wrapper = mountRouteFilteredUsageView()
+		vi.advanceTimersByTime(120)
+		await flushPromises()
+
+		await (wrapper.vm as any).exportToExcel()
+		await flushPromises()
+
+		const headers = aoaToSheet.mock.calls[0][0][0]
+		expect(headers).toHaveLength(32)
+		expect(headers.slice(26, 29)).toEqual(['First token', 'Duration', 'Output Speed (tok/s)'])
+
+		const rows = sheetAddAoa.mock.calls[0][1]
+		expect(rows[0]).toHaveLength(32)
+		expect(rows[0][28]).toBe('12.35')
+		expect(rows[1][28]).toBe('')
+		expect(rows[2][28]).toBe('')
+		// 导出的取消与进度逻辑不受影响
 		expect(saveAs).toHaveBeenCalledTimes(1)
 	})
 })

@@ -521,6 +521,13 @@ type UsageLog struct {
 	DurationMs   *int   `json:"duration_ms"`
 	FirstTokenMs *int   `json:"first_token_ms"`
 
+	// CAPYBARA-PATCH: 用量页请求级输出吞吐
+	// OutputTokensPerSecond 为请求级输出吞吐（tokens/秒），口径：
+	// output_tokens × 1000 / duration_ms，分母为整请求耗时，因此包含首 Token 等待时间。
+	// 仅在 output_tokens > 0 且 duration_ms > 0 时有值；样本无效时为 nil 并序列化为 null，
+	// 不用 0 冒充有效速度。
+	OutputTokensPerSecond *float64 `json:"output_tokens_per_second"`
+
 	// 图片生成字段
 	ImageCount         int            `json:"image_count"`
 	ImageSize          *string        `json:"image_size"`

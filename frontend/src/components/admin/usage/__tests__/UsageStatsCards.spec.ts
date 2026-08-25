@@ -17,6 +17,11 @@ const messages: Record<string, string> = {
   'usage.accountCost': 'Cost',
   'usage.standardCost': 'Standard',
   'usage.avgDuration': 'Avg Duration',
+  'usage.avgFirstToken': 'Avg First Token',
+  'usage.avgOutputSpeed': 'Avg Speed',
+  'usage.speedSamples': '{count} valid samples',
+  'usage.outputSpeedHint':
+    'Output speed = output tokens / end-to-end duration, including the first-token wait',
 }
 
 vi.mock('vue-i18n', async () => {
@@ -24,7 +29,11 @@ vi.mock('vue-i18n', async () => {
   return {
     ...actual,
     useI18n: () => ({
-      t: (key: string) => messages[key] ?? key,
+      t: (key: string, params?: Record<string, unknown>) => {
+        const template = messages[key] ?? key
+        if (!params) return template
+        return template.replace(/\{(\w+)\}/g, (_match, name: string) => String(params[name] ?? ''))
+      },
     }),
   }
 })
@@ -43,18 +52,15 @@ const stats = {
   average_duration_ms: 250,
 }
 
+const mountCards = (statsProp: typeof stats & Record<string, unknown>) =>
+  mount(UsageStatsCards, {
+    props: { stats: statsProp },
+    global: { stubs: { Icon: true } },
+  })
+
 describe('UsageStatsCards', () => {
   it('shows cache token breakdown values', () => {
-    const wrapper = mount(UsageStatsCards, {
-      props: {
-        stats,
-      },
-      global: {
-        stubs: {
-          Icon: true,
-        },
-      },
-    })
+    const wrapper = mountCards(stats)
 
     const text = wrapper.text()
     expect(text).toContain('Cache: 34')
@@ -63,5 +69,110 @@ describe('UsageStatsCards', () => {
     expect(text).toContain('12')
     expect(text).toContain('Cache Read')
     expect(text).toContain('22')
+  })
+})
+
+describe('UsageStatsCards performance card', () => {
+  it('shows average first token, average output speed and their sample counts', () => {
+    const wrapper = mountCards({
+      ...stats,
+      average_first_token_ms: 850,
+      first_token_ms_samples: 12,
+      average_output_tokens_per_second: 42.5,
+      output_tokens_per_second_samples: 10,
+    })
+
+    const detail = wrapper.get('[data-testid="usage-perf-detail"]')
+    const text = detail.text()
+    expect(text).toContain('Avg First Token')
+    expect(text).toContain('850ms')
+    expect(text).toContain('12 valid samples')
+    expect(text).toContain('Avg Speed')
+    expect(text).toContain('42.50 tok/s')
+    expect(text).toContain('10 valid samples')
+    // 平均耗时主值不受影响
+    expect(wrapper.text()).toContain('250ms')
+  })
+
+  it('exposes the output speed hint on the card', () => {
+    const wrapper = mountCards({
+      ...stats,
+      average_output_tokens_per_second: 42.5,
+      output_tokens_per_second_samples: 10,
+    })
+
+    expect(wrapper.get('[data-testid="usage-perf-detail"]').attributes('title')).toBe(
+      messages['usage.outputSpeedHint']
+    )
+  })
+
+  it('degrades to a dash when there is no valid sample', () => {
+    const wrapper = mountCards({
+      ...stats,
+      average_first_token_ms: null,
+      first_token_ms_samples: 0,
+      // 后端不应返回 0 均值，这里断言 0 样本时前端不会把 0 冒充成真实吞吐
+      average_output_tokens_per_second: 0,
+      output_tokens_per_second_samples: 0,
+    })
+
+    const detail = wrapper.get('[data-testid="usage-perf-detail"]')
+    const values = detail.findAll('span')
+    expect(values.map((span) => span.text())).toEqual([
+      'Avg First Token',
+      '-',
+      '0 valid samples',
+      'Avg Speed',
+      '-',
+      '0 valid samples',
+    ])
+    expect(detail.text()).not.toContain('NaN')
+    expect(detail.text()).not.toContain('Infinity')
+    expect(detail.text()).not.toContain('0.00 tok/s')
+  })
+
+  it('degrades to a dash and hides sample counts when the fields are missing (old backend)', () => {
+    const wrapper = mountCards(stats)
+
+    const detail = wrapper.get('[data-testid="usage-perf-detail"]')
+    expect(detail.findAll('span').map((span) => span.text())).toEqual([
+      'Avg First Token',
+      '-',
+      'Avg Speed',
+      '-',
+    ])
+    expect(detail.text()).not.toContain('NaN')
+    expect(detail.text()).not.toContain('valid samples')
+  })
+
+  it('degrades to a dash for non-finite values', () => {
+    const wrapper = mountCards({
+      ...stats,
+      average_first_token_ms: Number.NaN,
+      first_token_ms_samples: 5,
+      average_output_tokens_per_second: Number.POSITIVE_INFINITY,
+      output_tokens_per_second_samples: 5,
+    })
+
+    const detail = wrapper.get('[data-testid="usage-perf-detail"]')
+    expect(detail.findAll('span').map((span) => span.text())).toEqual([
+      'Avg First Token',
+      '-',
+      '5 valid samples',
+      'Avg Speed',
+      '-',
+      '5 valid samples',
+    ])
+  })
+
+  it('renders null stats without crashing', () => {
+    const wrapper = mount(UsageStatsCards, {
+      props: { stats: null },
+      global: { stubs: { Icon: true } },
+    })
+
+    const detail = wrapper.get('[data-testid="usage-perf-detail"]')
+    expect(detail.text()).toContain('-')
+    expect(detail.text()).not.toContain('NaN')
   })
 })

@@ -66,6 +66,9 @@ const messages: Record<string, string> = {
 	'usage.upstreamResponseModel': 'Upstream response',
 	'usage.modelVariant': 'Possible version variant',
 	'usage.modelMismatch': 'Different model',
+  'usage.latencyFirstToken': 'First token',
+  'usage.latencyDuration': 'Duration',
+  'usage.latencyOutputSpeed': 'Speed',
 }
 
 vi.mock('vue-i18n', async () => {
@@ -550,6 +553,89 @@ describe('admin UsageTable IP geolocation batch toolbar', () => {
     })
     expect(wrapper.text()).toContain('121.35.47.43')
     expect(wrapper.text()).toContain('CN · Guangdong · Shenzhen')
+  })
+})
+
+describe('admin UsageTable latency cell', () => {
+  const DataTableStubWithLatency = {
+    props: ['data'],
+    template: `
+      <div>
+        <div v-for="row in data" :key="row.request_id">
+          <slot name="cell-latency" :row="row" />
+        </div>
+      </div>
+    `,
+  }
+
+  const mountLatency = (row: Record<string, unknown>) =>
+    mount(UsageTable, {
+      props: {
+        data: [row],
+        loading: false,
+        columns: [{ key: 'latency', label: 'Latency' }],
+      },
+      global: {
+        stubs: {
+          DataTable: DataTableStubWithLatency,
+          EmptyState: true,
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+  it('renders first token, duration and output speed in the same cell', () => {
+    const wrapper = mountLatency({
+      request_id: 'req-latency-ok',
+      first_token_ms: 800,
+      duration_ms: 2000,
+      output_tokens_per_second: 42.5,
+    })
+
+    const rows = wrapper.get('.grid').findAll('span')
+    expect(rows.map((span) => span.text())).toEqual([
+      'First token',
+      '800ms',
+      'Duration',
+      '2.00s',
+      'Speed',
+      '42.50 tok/s',
+    ])
+  })
+
+  it('shows a dash when output speed is null', () => {
+    const wrapper = mountLatency({
+      request_id: 'req-latency-null-speed',
+      first_token_ms: 800,
+      duration_ms: 2000,
+      output_tokens_per_second: null,
+    })
+
+    const rows = wrapper.get('.grid').findAll('span')
+    expect(rows[4].text()).toBe('Speed')
+    expect(rows[5].text()).toBe('-')
+    expect(wrapper.text()).not.toContain('NaN')
+  })
+
+  it('shows a dash when the output speed field is missing (old backend)', () => {
+    const wrapper = mountLatency({
+      request_id: 'req-latency-missing-speed',
+      first_token_ms: null,
+      duration_ms: 2000,
+    })
+
+    const rows = wrapper.get('.grid').findAll('span')
+    expect(rows.map((span) => span.text())).toEqual([
+      'First token',
+      '-',
+      'Duration',
+      '2.00s',
+      'Speed',
+      '-',
+    ])
+    expect(wrapper.text()).not.toContain('NaN')
+    expect(wrapper.text()).not.toContain('Infinity')
   })
 })
 

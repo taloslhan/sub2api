@@ -60,6 +60,7 @@ const messages: Record<string, string> = {
   'usage.preparingExport': 'Preparing export',
   'usage.exportSuccess': 'Export success',
   'usage.exportFailed': 'Export failed',
+  'usage.exportOutputSpeed': 'Output Speed (tok/s)',
   'common.refresh': 'Refresh',
   'common.reset': 'Reset',
 }
@@ -117,6 +118,7 @@ const usageLog = {
   image_size: null,
   first_token_ms: 12,
   duration_ms: 345,
+  output_tokens_per_second: 50,
   created_at: '2026-03-08T00:00:00Z',
   model: 'gpt-5.4',
   reasoning_effort: null,
@@ -145,6 +147,31 @@ function mountUsageView() {
       },
     },
   })
+}
+
+// CAPYBARA-PATCH: 用量导出输出吞吐列 —— 复用 CSV 导出的 Blob/URL/click 打桩
+function captureCsvExport() {
+  let csvContent = ''
+  const OriginalBlob = globalThis.Blob
+  vi.stubGlobal('Blob', vi.fn((parts: BlobPart[], options?: BlobPropertyBag) => {
+    csvContent = parts.map((part) => String(part)).join('')
+    return new OriginalBlob(parts, options)
+  }))
+  const originalCreateObjectURL = window.URL.createObjectURL
+  const originalRevokeObjectURL = window.URL.revokeObjectURL
+  window.URL.createObjectURL = vi.fn(() => 'blob:usage-export') as typeof window.URL.createObjectURL
+  window.URL.revokeObjectURL = vi.fn(() => {}) as typeof window.URL.revokeObjectURL
+  const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+  return {
+    getCsv: () => csvContent,
+    restore: () => {
+      window.URL.createObjectURL = originalCreateObjectURL
+      window.URL.revokeObjectURL = originalRevokeObjectURL
+      vi.unstubAllGlobals()
+      clickSpy.mockRestore()
+    },
+  }
 }
 
 describe('user UsageView', () => {
@@ -239,8 +266,8 @@ describe('user UsageView', () => {
     expect(showSuccess).toHaveBeenCalled()
     expect(csvContent.startsWith('\uFEFF')).toBe(true)
     expect(csvContent.slice(1)).toBe([
-      'Time,API Key Name,Model,Reasoning Effort,Inbound Endpoint,IP Address,Type,Billing Mode,Input Tokens,Output Tokens,Cache Read Tokens,Cache Creation Tokens,Rate Multiplier,Billed Cost,Original Cost,First Token (ms),Duration (ms)',
-      '2026-03-08T00:00:00Z,demo-key,gpt-5.4,"\'-",,203.0.113.10,Sync,Token,4057,101,278272,4,1,0.09288300,0.09288300,12,345',
+      'Time,API Key Name,Model,Reasoning Effort,Inbound Endpoint,IP Address,Type,Billing Mode,Input Tokens,Output Tokens,Cache Read Tokens,Cache Creation Tokens,Rate Multiplier,Billed Cost,Original Cost,First Token (ms),Duration (ms),Output Speed (tok/s)',
+      '2026-03-08T00:00:00Z,demo-key,gpt-5.4,"\'-",,203.0.113.10,Sync,Token,4057,101,278272,4,1,0.09288300,0.09288300,12,345,50.00',
     ].join('\n'))
     expect(csvContent).toContain('IP Address')
     expect(csvContent).toContain('203.0.113.10')
@@ -307,5 +334,36 @@ describe('user UsageView', () => {
     window.URL.revokeObjectURL = originalRevokeObjectURL
     vi.unstubAllGlobals()
     clickSpy.mockRestore()
+  })
+
+  // CAPYBARA-PATCH: 用量导出输出吞吐列
+  it('exports output speed right after duration, blank for invalid samples', async () => {
+    query.mockResolvedValue({
+      items: [
+        { ...usageLog, request_id: 'req-speed-valid', output_tokens_per_second: 12.345 },
+        { ...usageLog, request_id: 'req-speed-null', output_tokens_per_second: null },
+        // 历史记录可能整个字段缺失
+        (() => { const { output_tokens_per_second: _omitted, ...rest } = usageLog; return { ...rest, request_id: 'req-speed-missing' } })(),
+      ],
+      total: 3,
+      pages: 1,
+    })
+
+    const wrapper = mountUsageView()
+    await flushPromises()
+
+    const { getCsv, restore } = captureCsvExport()
+    await (wrapper.vm as any).exportToCSV()
+    const lines = getCsv().slice(1).split('\n')
+    restore()
+
+    const headerCells = lines[0].split(',')
+    expect(headerCells).toHaveLength(18)
+    expect(headerCells[16]).toBe('Duration (ms)')
+    expect(headerCells[17]).toBe('Output Speed (tok/s)')
+
+    expect(lines[1].split(',')[17]).toBe('12.35')
+    expect(lines[2].split(',')[17]).toBe('')
+    expect(lines[3].split(',')[17]).toBe('')
   })
 })

@@ -230,6 +230,12 @@
               <span v-else class="text-gray-400 dark:text-gray-500">-</span>
               <span class="text-gray-400 dark:text-gray-500">{{ t('usage.latencyDuration') }}</span>
               <span class="font-medium tabular-nums" :class="LATENCY_TEXT_CLASSES[durationSeverity(row.duration_ms ?? 0)]">{{ formatDuration(row.duration_ms) }}</span>
+              <!-- CAPYBARA-PATCH: 用量页输出吞吐（复用延迟单元格，不新增独立列） -->
+              <span class="text-gray-400 dark:text-gray-500">{{ t('usage.latencyOutputSpeed') }}</span>
+              <span
+                class="font-medium tabular-nums"
+                :class="row.output_tokens_per_second != null ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500'"
+              >{{ formatOutputTokensPerSecond(row.output_tokens_per_second) }}</span>
             </div>
           </div>
         </template>
@@ -500,7 +506,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
-import { formatDateTime, formatReasoningEffort } from '@/utils/format'
+import { formatDateTime, formatOutputTokensPerSecond, formatReasoningEffort } from '@/utils/format'
 import { formatCacheTokens, formatMultiplier } from '@/utils/formatters'
 import { formatTokenPricePerMillion } from '@/utils/usagePricing'
 import { getUsageServiceTierLabel } from '@/utils/usageServiceTier'

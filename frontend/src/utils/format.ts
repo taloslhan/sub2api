@@ -281,6 +281,25 @@ export function formatTokensK(tokens: number): string {
   return tokens.toString()
 }
 
+// CAPYBARA-PATCH: 用量页输出吞吐指标格式化
+/**
+ * 格式化输出吞吐（输出 Token / 端到端总耗时，包含首 Token 等待时间）
+ * @param value 速度值（tok/s），无效样本传入 null/undefined
+ * @param options withUnit 是否附加 tok/s 单位（默认 true）；emptyText 无效值占位（默认 '-'）
+ * @returns 形如 "50.00 tok/s"；非有限值、负值或空值返回 emptyText
+ */
+export function formatOutputTokensPerSecond(
+  value: number | null | undefined,
+  options?: { withUnit?: boolean; emptyText?: string }
+): string {
+  const emptyText = options?.emptyText ?? '-'
+  if (value === null || value === undefined) return emptyText
+  if (!Number.isFinite(value) || value < 0) return emptyText
+
+  const formatted = value.toFixed(2)
+  return options?.withUnit === false ? formatted : `${formatted} tok/s`
+}
+
 /**
  * 格式化大数字（K/M/B，保留 1 位小数）
  * @param num 数字

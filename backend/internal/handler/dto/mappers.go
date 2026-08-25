@@ -635,6 +635,13 @@ func usageLogFromServiceUser(l *service.UsageLog) UsageLog {
 	if requestedModel == "" {
 		requestedModel = l.Model
 	}
+	// CAPYBARA-PATCH: 用量页请求级输出吞吐
+	// 仅在样本有效（有输出 token 且耗时为正）时计算，否则保持 nil，避免用 0 冒充有效速度。
+	var outputTokensPerSecond *float64
+	if l.OutputTokens > 0 && l.DurationMs != nil && *l.DurationMs > 0 {
+		tps := float64(l.OutputTokens) * 1000.0 / float64(*l.DurationMs)
+		outputTokensPerSecond = &tps
+	}
 	return UsageLog{
 		ID:                        l.ID,
 		UserID:                    l.UserID,
@@ -667,6 +674,7 @@ func usageLogFromServiceUser(l *service.UsageLog) UsageLog {
 		OpenAIWSMode:              openAIWSMode,
 		DurationMs:                l.DurationMs,
 		FirstTokenMs:              l.FirstTokenMs,
+		OutputTokensPerSecond:     outputTokensPerSecond,
 		ImageCount:                l.ImageCount,
 		ImageSize:                 l.ImageSize,
 		ImageInputSize:            l.ImageInputSize,

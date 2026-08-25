@@ -83,7 +83,31 @@
       <div class="rounded-lg bg-purple-100 p-2 dark:bg-purple-900/30 text-purple-600">
         <Icon name="clock" size="md" />
       </div>
-      <div><p class="text-xs font-medium text-gray-500">{{ t('usage.avgDuration') }}</p><p class="text-xl font-bold">{{ formatDuration(stats?.average_duration_ms || 0) }}</p></div>
+      <div class="min-w-0 flex-1">
+        <p class="text-xs font-medium text-gray-500">{{ t('usage.avgDuration') }}</p>
+        <p class="text-xl font-bold">{{ formatDuration(stats?.average_duration_ms || 0) }}</p>
+        <!-- CAPYBARA-PATCH: 用量页首 Token / 输出吞吐均值，无有效样本时显示 '-' -->
+        <div
+          class="mt-1 space-y-0.5 text-xs"
+          data-testid="usage-perf-detail"
+          :title="t('usage.outputSpeedHint')"
+        >
+          <p class="flex flex-wrap items-baseline gap-x-1 text-gray-500">
+            <span>{{ t('usage.avgFirstToken') }}</span>
+            <span class="font-medium tabular-nums text-gray-700 dark:text-gray-300">{{ avgFirstTokenText }}</span>
+            <span v-if="firstTokenSamples !== null" class="text-gray-400">
+              {{ t('usage.speedSamples', { count: firstTokenSamples }) }}
+            </span>
+          </p>
+          <p class="flex flex-wrap items-baseline gap-x-1 text-gray-500">
+            <span>{{ t('usage.avgOutputSpeed') }}</span>
+            <span class="font-medium tabular-nums text-gray-700 dark:text-gray-300">{{ avgOutputSpeedText }}</span>
+            <span v-if="outputSpeedSamples !== null" class="text-gray-400">
+              {{ t('usage.speedSamples', { count: outputSpeedSamples }) }}
+            </span>
+          </p>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -93,6 +117,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { AdminUsageStatsResponse } from '@/api/admin/usage'
 import type { UsageStatsResponse } from '@/types'
+import { formatOutputTokensPerSecond } from '@/utils/format'
 import Icon from '@/components/icons/Icon.vue'
 
 const props = withDefaults(defineProps<{
@@ -115,6 +140,32 @@ const strikeStandardCost = computed(() => props.strikeStandardCost)
 
 const formatDuration = (ms: number) =>
   ms < 1000 ? `${ms.toFixed(0)}ms` : `${(ms / 1000).toFixed(2)}s`
+
+// CAPYBARA-PATCH: 用量页性能指标
+const EMPTY_TEXT = '-'
+
+/** 归一化样本数：非法或缺失（旧后端）返回 null，此时不展示样本行 */
+const normalizeSamples = (value: number | undefined): number | null =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.trunc(value) : null
+
+const firstTokenSamples = computed(() => normalizeSamples(props.stats?.first_token_ms_samples))
+const outputSpeedSamples = computed(() =>
+  normalizeSamples(props.stats?.output_tokens_per_second_samples)
+)
+
+const avgFirstTokenText = computed(() => {
+  if (firstTokenSamples.value === 0) return EMPTY_TEXT
+  const value = props.stats?.average_first_token_ms
+  if (value == null || !Number.isFinite(value) || value < 0) return EMPTY_TEXT
+  return formatDuration(value)
+})
+
+const avgOutputSpeedText = computed(() => {
+  if (outputSpeedSamples.value === 0) return EMPTY_TEXT
+  return formatOutputTokensPerSecond(props.stats?.average_output_tokens_per_second, {
+    emptyText: EMPTY_TEXT,
+  })
+})
 
 const formatTokens = (value: number) => {
   if (value >= 1e9) return (value / 1e9).toFixed(2) + 'B'

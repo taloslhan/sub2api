@@ -542,7 +542,11 @@ func TestAPIContracts(t *testing.T) {
 					"total_tokens": 53,
 					"total_cost": 0.75,
 					"total_actual_cost": 0.75,
-					"average_duration_ms": 200
+					"average_duration_ms": 200,
+					"average_output_tokens_per_second": null,
+					"output_tokens_per_second_samples": 0,
+					"average_first_token_ms": null,
+					"first_token_ms_samples": 0
 				}
 			}`,
 		},
@@ -611,6 +615,7 @@ func TestAPIContracts(t *testing.T) {
 							"stream": true,
 							"duration_ms": 100,
 							"first_token_ms": 50,
+							"output_tokens_per_second": 200,
 							"image_count": 0,
 							"image_size": null,
 							"image_input_size": null,

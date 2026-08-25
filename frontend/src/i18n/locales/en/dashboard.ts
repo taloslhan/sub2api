@@ -325,6 +325,13 @@ export default {
     latency: 'Latency',
     latencyFirstToken: 'First',
     latencyDuration: 'Total',
+    // CAPYBARA-PATCH: usage page output throughput metrics
+    latencyOutputSpeed: 'Speed',
+    avgFirstToken: 'Avg First Token',
+    avgOutputSpeed: 'Avg Speed',
+    speedSamples: '{count} valid samples',
+    outputSpeedHint: 'Output speed = output tokens / end-to-end duration, including the first-token wait',
+    exportOutputSpeed: 'Output Speed (tok/s)',
     time: 'Time',
     ws: 'WS',
     stream: 'Stream',

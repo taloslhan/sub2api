@@ -1669,6 +1669,8 @@ export interface UsageLog {
   openai_ws_mode?: boolean
   duration_ms: number | null
   first_token_ms: number | null
+  // CAPYBARA-PATCH: 用量页输出吞吐（输出 Token / 端到端总耗时），无有效样本为 null；旧后端不返回该字段
+  output_tokens_per_second?: number | null
 
   // 图片生成字段
   image_count: number
@@ -1861,6 +1863,11 @@ export interface UsageStatsResponse {
   total_cost: number // 标准计费
   total_actual_cost: number // 实际扣除
   average_duration_ms: number
+  // CAPYBARA-PATCH: 用量页输出吞吐/首 Token 区间统计（旧后端不返回时按缺失降级展示）
+  average_first_token_ms?: number | null
+  first_token_ms_samples?: number
+  average_output_tokens_per_second?: number | null
+  output_tokens_per_second_samples?: number
   models?: Record<string, number>
   endpoints?: EndpointStat[]
   upstream_endpoints?: EndpointStat[]
