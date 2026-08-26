@@ -21,7 +21,7 @@ export interface AdminUsageStatsResponse {
   total_actual_cost: number
   total_account_cost: number
   average_duration_ms: number
-  // CAPYBARA-PATCH: 用量页输出吞吐/首 Token 区间统计（旧后端不返回时按缺失降级展示）
+  // CAPYBARA-PATCH: 解码速度均值为有效请求速度的算术平均，无有效样本为 null；字段可选以兼容旧后端
   average_first_token_ms?: number | null
   first_token_ms_samples?: number
   average_output_tokens_per_second?: number | null

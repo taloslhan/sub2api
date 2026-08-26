@@ -3,6 +3,7 @@ package openai_ws_v2
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"sync/atomic"
@@ -575,6 +576,54 @@ func TestIsDisconnectErrorCoverage_CloseStatusesAndMessageBranches(t *testing.T)
 	require.True(t, isDisconnectError(coderws.CloseError{Code: coderws.StatusAbnormalClosure}))
 	require.True(t, isDisconnectError(errors.New("connection reset by peer")))
 	require.False(t, isDisconnectError(errors.New("   ")))
+}
+
+// CAPYBARA-PATCH: ingress ping 与业务 idle 保持不同的断连分类语义。
+func TestRelay_IngressPingFailureIsGracefulButBusinessIdleIsNot(t *testing.T) {
+	t.Parallel()
+
+	pingCause := fmt.Errorf(
+		"openai ws client close: %w",
+		errors.Join(
+			coderws.CloseError{Code: coderws.StatusGoingAway, Reason: "websocket ingress ping failed; please reconnect"},
+			context.DeadlineExceeded,
+		),
+	)
+	idleCause := fmt.Errorf("openai ws client close: %w", context.DeadlineExceeded)
+	require.True(t, isDisconnectError(pingCause), "ping marker must be classified as a client disconnect")
+	require.False(t, isDisconnectError(idleCause), "business idle timeout must not inherit the ping disconnect marker")
+
+	firstPayload := []byte(`{"type":"response.create","model":"gpt-5.1","input":[]}`)
+	for _, tt := range []struct {
+		name     string
+		readErr  error
+		wantExit bool
+	}{
+		{name: "ping failure finishes an established ingress relay gracefully", readErr: pingCause},
+		{name: "business idle keeps the existing immediate-cancel exit", readErr: idleCause, wantExit: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			clientConn := newPassthroughTestFrameConn(nil, false)
+			upstreamConn := newPassthroughTestFrameConn(nil, false)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+
+			_, relayExit := Relay(ctx, clientConn, upstreamConn, firstPayload, RelayOptions{
+				FirstMessageSent:     true,
+				UpstreamDrainTimeout: 10 * time.Millisecond,
+				ReadClientFrame: func(context.Context, FrameConn) (coderws.MessageType, []byte, error) {
+					return coderws.MessageText, nil, tt.readErr
+				},
+			})
+			if !tt.wantExit {
+				require.Nil(t, relayExit, "a ping disconnect must not surface as an upstream relay failure")
+				return
+			}
+			require.NotNil(t, relayExit)
+			require.Equal(t, "read_client", relayExit.Stage)
+			require.ErrorIs(t, relayExit.Err, context.DeadlineExceeded)
+		})
+	}
 }
 
 func TestIsTokenEventCoverageBranches(t *testing.T) {

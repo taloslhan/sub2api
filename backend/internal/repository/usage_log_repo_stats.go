@@ -707,7 +707,7 @@ func (r *usageLogRepository) GetStatsWithFilters(ctx context.Context, filters Us
 				actual_cost,
 				COALESCE(account_stats_cost, total_cost) * COALESCE(account_rate_multiplier, 1) AS account_cost,
 				duration_ms,
-				-- CAPYBARA-PATCH: 用量筛选区间输出吞吐与首 Token 平均
+				-- CAPYBARA-PATCH: 用量筛选区间解码速度与首 Token 平均
 				first_token_ms
 			FROM usage_logs
 			%s
@@ -726,11 +726,11 @@ func (r *usageLogRepository) GetStatsWithFilters(ctx context.Context, filters Us
 			COALESCE(SUM(actual_cost), 0) AS actual_cost,
 			COALESCE(SUM(account_cost), 0) AS account_cost,
 			COALESCE(AVG(duration_ms), 0) AS avg_duration_ms,
-			-- CAPYBARA-PATCH: 用量筛选区间输出吞吐与首 Token 平均
+			-- CAPYBARA-PATCH: 用量筛选区间解码速度与首 Token 平均
 			-- 逐请求速率的算术平均（非 SUM(output)/SUM(duration) 的加权口径）；
 			-- FILTER 排除无效样本，全部无效时 AVG 返回 NULL 而不是 0。
-			AVG(output_tokens * 1000.0 / duration_ms) FILTER (WHERE output_tokens > 0 AND duration_ms > 0) AS avg_output_tokens_per_second,
-			COUNT(*) FILTER (WHERE output_tokens > 0 AND duration_ms > 0) AS output_tokens_per_second_samples,
+			AVG(output_tokens * 1000.0 / (duration_ms - first_token_ms)) FILTER (WHERE output_tokens > 0 AND duration_ms > 0 AND first_token_ms IS NOT NULL AND duration_ms > first_token_ms) AS avg_output_tokens_per_second,
+			COUNT(*) FILTER (WHERE output_tokens > 0 AND duration_ms > 0 AND first_token_ms IS NOT NULL AND duration_ms > first_token_ms) AS output_tokens_per_second_samples,
 			AVG(first_token_ms) FILTER (WHERE first_token_ms IS NOT NULL) AS avg_first_token_ms,
 			COUNT(*) FILTER (WHERE first_token_ms IS NOT NULL) AS first_token_ms_samples
 		FROM scoped
@@ -757,7 +757,7 @@ func (r *usageLogRepository) GetStatsWithFilters(ctx context.Context, filters Us
 			inboundEndpoint, upstreamEndpoint                                    sql.NullString
 			requests, inputTokens, outputTokens, cacheCreationTokens, cacheReads int64
 			cost, actualCost, accountCost, averageDurationMs                     float64
-			// CAPYBARA-PATCH: 用量筛选区间输出吞吐与首 Token 平均
+			// CAPYBARA-PATCH: 用量筛选区间解码速度与首 Token 平均
 			avgOutputTokensPerSecond, avgFirstTokenMs         sql.NullFloat64
 			outputTokensPerSecondSamples, firstTokenMsSamples int64
 		)
@@ -775,7 +775,7 @@ func (r *usageLogRepository) GetStatsWithFilters(ctx context.Context, filters Us
 			&actualCost,
 			&accountCost,
 			&averageDurationMs,
-			// CAPYBARA-PATCH: 用量筛选区间输出吞吐与首 Token 平均
+			// CAPYBARA-PATCH: 用量筛选区间解码速度与首 Token 平均
 			&avgOutputTokensPerSecond,
 			&outputTokensPerSecondSamples,
 			&avgFirstTokenMs,
@@ -802,7 +802,7 @@ func (r *usageLogRepository) GetStatsWithFilters(ctx context.Context, filters Us
 			stats.TotalActualCost = actualCost
 			totalAccountCost = accountCost
 			stats.AverageDurationMs = averageDurationMs
-			// CAPYBARA-PATCH: 用量筛选区间输出吞吐与首 Token 平均
+			// CAPYBARA-PATCH: 用量筛选区间解码速度与首 Token 平均
 			// 仅在总计行写入；端点拆分行不携带这两个指标。
 			if avgOutputTokensPerSecond.Valid {
 				tokensPerSecond := avgOutputTokensPerSecond.Float64

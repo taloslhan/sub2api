@@ -18,10 +18,11 @@ const messages: Record<string, string> = {
   'usage.standardCost': 'Standard',
   'usage.avgDuration': 'Avg Duration',
   'usage.avgFirstToken': 'Avg First Token',
-  'usage.avgOutputSpeed': 'Avg Speed',
+  // CAPYBARA-PATCH: 用量统计卡解码速度语义与提示。
+  'usage.avgOutputSpeed': 'Avg Decoding Speed',
   'usage.speedSamples': '{count} valid samples',
   'usage.outputSpeedHint':
-    'Output speed = output tokens / end-to-end duration, including the first-token wait',
+    'Decoding speed = output tokens × 1000 / (duration_ms - first_token_ms); only requests with a recorded first-token time and duration_ms > first_token_ms are valid; excludes the first-token wait',
 }
 
 vi.mock('vue-i18n', async () => {
@@ -73,7 +74,7 @@ describe('UsageStatsCards', () => {
 })
 
 describe('UsageStatsCards performance card', () => {
-  it('shows average first token, average output speed and their sample counts', () => {
+  it('shows average first token, average decoding speed and their sample counts', () => {
     const wrapper = mountCards({
       ...stats,
       average_first_token_ms: 850,
@@ -87,14 +88,14 @@ describe('UsageStatsCards performance card', () => {
     expect(text).toContain('Avg First Token')
     expect(text).toContain('850ms')
     expect(text).toContain('12 valid samples')
-    expect(text).toContain('Avg Speed')
+    expect(text).toContain('Avg Decoding Speed')
     expect(text).toContain('42.50 tok/s')
     expect(text).toContain('10 valid samples')
     // 平均耗时主值不受影响
     expect(wrapper.text()).toContain('250ms')
   })
 
-  it('exposes the output speed hint on the card', () => {
+  it('exposes the decoding speed hint on the card', () => {
     const wrapper = mountCards({
       ...stats,
       average_output_tokens_per_second: 42.5,
@@ -111,7 +112,7 @@ describe('UsageStatsCards performance card', () => {
       ...stats,
       average_first_token_ms: null,
       first_token_ms_samples: 0,
-      // 后端不应返回 0 均值，这里断言 0 样本时前端不会把 0 冒充成真实吞吐
+      // 后端不应返回 0 均值，这里断言 0 样本时前端不会把 0 冒充成真实解码速度
       average_output_tokens_per_second: 0,
       output_tokens_per_second_samples: 0,
     })
@@ -122,7 +123,7 @@ describe('UsageStatsCards performance card', () => {
       'Avg First Token',
       '-',
       '0 valid samples',
-      'Avg Speed',
+      'Avg Decoding Speed',
       '-',
       '0 valid samples',
     ])
@@ -138,7 +139,7 @@ describe('UsageStatsCards performance card', () => {
     expect(detail.findAll('span').map((span) => span.text())).toEqual([
       'Avg First Token',
       '-',
-      'Avg Speed',
+      'Avg Decoding Speed',
       '-',
     ])
     expect(detail.text()).not.toContain('NaN')
@@ -159,7 +160,7 @@ describe('UsageStatsCards performance card', () => {
       'Avg First Token',
       '-',
       '5 valid samples',
-      'Avg Speed',
+      'Avg Decoding Speed',
       '-',
       '5 valid samples',
     ])

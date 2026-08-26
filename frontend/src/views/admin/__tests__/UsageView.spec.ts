@@ -41,7 +41,7 @@ const messages: Record<string, string> = {
 	'common.no': 'No',
 	'usage.firstToken': 'First token',
 	'usage.duration': 'Duration',
-	'usage.exportOutputSpeed': 'Output Speed (tok/s)',
+	'usage.exportOutputSpeed': 'Decoding Speed (tok/s)',
 }
 
 const formatLocalDate = (date: Date): string => {
@@ -695,8 +695,8 @@ describe('admin UsageView model audit export', () => {
 		expect(saveAs).toHaveBeenCalledTimes(1)
 	})
 
-	// CAPYBARA-PATCH: 用量导出输出吞吐列
-	it('exports output speed right after duration, blank for invalid samples', async () => {
+	// CAPYBARA-PATCH: 用量导出解码速度列
+	it('exports decoding speed right after duration, blank for invalid samples', async () => {
 		const base = {
 			id: 1,
 			created_at: '2026-08-04T00:00:00Z',
@@ -728,7 +728,7 @@ describe('admin UsageView model audit export', () => {
 
 		const headers = aoaToSheet.mock.calls[0][0][0]
 		expect(headers).toHaveLength(32)
-		expect(headers.slice(26, 29)).toEqual(['First token', 'Duration', 'Output Speed (tok/s)'])
+		expect(headers.slice(26, 29)).toEqual(['First token', 'Duration', 'Decoding Speed (tok/s)'])
 
 		const rows = sheetAddAoa.mock.calls[0][1]
 		expect(rows[0]).toHaveLength(32)

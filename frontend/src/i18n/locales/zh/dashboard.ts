@@ -330,13 +330,13 @@ export default {
     latency: '延迟',
     latencyFirstToken: '首字',
     latencyDuration: '总耗时',
-    // CAPYBARA-PATCH: 用量页输出吞吐指标
-    latencyOutputSpeed: '吞吐',
+    // CAPYBARA-PATCH: 用量页解码速度指标
+    latencyOutputSpeed: '解码速度',
     avgFirstToken: '平均首 Token',
-    avgOutputSpeed: '平均吞吐',
+    avgOutputSpeed: '平均解码速度',
     speedSamples: '{count} 条有效样本',
-    outputSpeedHint: '输出吞吐 = 输出 Token / 端到端总耗时，包含首 Token 等待时间',
-    exportOutputSpeed: '输出吞吐(tok/s)',
+    outputSpeedHint: '解码速度 = 输出 Token × 1000 / (duration_ms - first_token_ms)；仅统计已记录首 Token 耗时且 duration_ms > first_token_ms 的请求，不含首 Token 等待时间',
+    exportOutputSpeed: '解码速度(tok/s)',
     time: '时间',
     ws: 'WS',
     stream: '流式',

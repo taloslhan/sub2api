@@ -325,13 +325,13 @@ export default {
     latency: 'Latency',
     latencyFirstToken: 'First',
     latencyDuration: 'Total',
-    // CAPYBARA-PATCH: usage page output throughput metrics
-    latencyOutputSpeed: 'Speed',
+    // CAPYBARA-PATCH: usage page decoding speed metrics
+    latencyOutputSpeed: 'Decoding Speed',
     avgFirstToken: 'Avg First Token',
-    avgOutputSpeed: 'Avg Speed',
+    avgOutputSpeed: 'Avg Decoding Speed',
     speedSamples: '{count} valid samples',
-    outputSpeedHint: 'Output speed = output tokens / end-to-end duration, including the first-token wait',
-    exportOutputSpeed: 'Output Speed (tok/s)',
+    outputSpeedHint: 'Decoding speed = output tokens × 1000 / (duration_ms - first_token_ms); only requests with a recorded first-token time and duration_ms > first_token_ms are valid; excludes the first-token wait',
+    exportOutputSpeed: 'Decoding Speed (tok/s)',
     time: 'Time',
     ws: 'WS',
     stream: 'Stream',

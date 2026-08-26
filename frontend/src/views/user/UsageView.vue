@@ -653,8 +653,8 @@ const exportToCSV = async () => {
       'Original Cost',
       'First Token (ms)',
       'Duration (ms)',
-      // CAPYBARA-PATCH: 用量导出输出吞吐列（本 CSV 表头统一硬编码英文，不随界面语言变化）
-      'Output Speed (tok/s)',
+      // CAPYBARA-PATCH: 用量导出解码速度列（本 CSV 表头统一硬编码英文，不随界面语言变化）
+      'Decoding Speed (tok/s)',
     ]
     const rows = allLogs.map((log) => [
       log.created_at,
@@ -674,7 +674,7 @@ const exportToCSV = async () => {
       log.total_cost.toFixed(8),
       log.first_token_ms ?? '',
       log.duration_ms ?? '',
-      // CAPYBARA-PATCH: 用量导出输出吞吐列（纯数值，无效样本留空）
+      // CAPYBARA-PATCH: 用量导出解码速度列（纯数值，无效样本留空）
       formatOutputTokensPerSecond(log.output_tokens_per_second, { withUnit: false, emptyText: '' }),
     ].map(escapeCSVValue))
     const csvContent = [

@@ -573,8 +573,9 @@ func TestAPIContracts(t *testing.T) {
 						BillingType:           service.BillingTypeBalance,
 						Stream:                true,
 						DurationMs:            ptr(100),
-						FirstTokenMs:          ptr(50),
-						CreatedAt:             deps.now,
+						// CAPYBARA-PATCH: 用量页请求级解码速度 API 契约
+						FirstTokenMs: ptr(50),
+						CreatedAt:    deps.now,
 					},
 				})
 			},
@@ -615,7 +616,7 @@ func TestAPIContracts(t *testing.T) {
 							"stream": true,
 							"duration_ms": 100,
 							"first_token_ms": 50,
-							"output_tokens_per_second": 200,
+							"output_tokens_per_second": 400,
 							"image_count": 0,
 							"image_size": null,
 							"image_input_size": null,

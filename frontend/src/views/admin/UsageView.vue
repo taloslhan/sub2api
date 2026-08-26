@@ -584,7 +584,7 @@ const exportToExcel = async () => {
       t('admin.usage.cacheReadCost'), t('admin.usage.cacheCreationCost'),
       t('usage.rate'), t('usage.accountMultiplier'), t('usage.original'), t('usage.userBilled'), t('usage.accountBilled'),
       t('usage.firstToken'), t('usage.duration'),
-      // CAPYBARA-PATCH: 用量导出输出吞吐列
+      // CAPYBARA-PATCH: 用量导出解码速度列
       t('usage.exportOutputSpeed'),
       t('admin.usage.requestId'), t('usage.userAgent'), t('admin.usage.ipAddress')
     ]
@@ -605,7 +605,7 @@ const exportToExcel = async () => {
         log.rate_multiplier?.toPrecision(4) || '1.00', (log.account_rate_multiplier ?? 1).toPrecision(4),
         log.total_cost?.toFixed(6) || '0.000000', log.actual_cost?.toFixed(6) || '0.000000',
         ((log.account_stats_cost ?? log.total_cost) * (log.account_rate_multiplier ?? 1)).toFixed(6), log.first_token_ms ?? '', log.duration_ms,
-        // CAPYBARA-PATCH: 用量导出输出吞吐列（纯数值，无效样本留空）
+        // CAPYBARA-PATCH: 用量导出解码速度列（纯数值，无效样本留空）
         formatOutputTokensPerSecond(log.output_tokens_per_second, { withUnit: false, emptyText: '' }),
         log.request_id || '', log.user_agent || '', log.ip_address || ''
       ])

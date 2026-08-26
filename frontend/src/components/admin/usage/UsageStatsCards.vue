@@ -86,7 +86,7 @@
       <div class="min-w-0 flex-1">
         <p class="text-xs font-medium text-gray-500">{{ t('usage.avgDuration') }}</p>
         <p class="text-xl font-bold">{{ formatDuration(stats?.average_duration_ms || 0) }}</p>
-        <!-- CAPYBARA-PATCH: 用量页首 Token / 输出吞吐均值，无有效样本时显示 '-' -->
+        <!-- CAPYBARA-PATCH: 用量页首 Token / 解码速度均值，无有效样本时显示 '-' -->
         <div
           class="mt-1 space-y-0.5 text-xs"
           data-testid="usage-perf-detail"

@@ -1233,6 +1233,10 @@ type GatewayOpenAIWSConfig struct {
 	// IngressInterTurnIdleTimeoutSeconds bounds the time a client may remain idle
 	// between completed ingress turns. Zero disables this protection.
 	IngressInterTurnIdleTimeoutSeconds int `mapstructure:"ingress_inter_turn_idle_timeout_seconds"`
+	// IngressPingIntervalSeconds controls downstream ping cadence while waiting
+	// between completed ingress turns. Zero disables keepalive pings.
+	// CAPYBARA-PATCH: Keep client ingress sessions alive through idle intermediaries.
+	IngressPingIntervalSeconds int `mapstructure:"ingress_ping_interval_seconds"`
 	// MaxIngressConnectionsPerAPIKey bounds live client WebSocket ingress sessions
 	// per API key across all instances. Zero disables this protection.
 	MaxIngressConnectionsPerAPIKey int `mapstructure:"max_ingress_connections_per_api_key"`
@@ -2379,6 +2383,7 @@ func setDefaults() {
 	viper.SetDefault("gateway.openai_ws.ingress_mode_default", "ctx_pool")
 	viper.SetDefault("gateway.openai_ws.client_first_message_timeout_seconds", DefaultOpenAIWSClientFirstMessageTimeoutSeconds)
 	viper.SetDefault("gateway.openai_ws.ingress_inter_turn_idle_timeout_seconds", 300)
+	viper.SetDefault("gateway.openai_ws.ingress_ping_interval_seconds", 30)
 	viper.SetDefault("gateway.openai_ws.max_ingress_connections_per_api_key", 64)
 	viper.SetDefault("gateway.openai_ws.oauth_enabled", true)
 	viper.SetDefault("gateway.openai_ws.apikey_enabled", true)
@@ -3393,6 +3398,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Gateway.OpenAIWS.IngressInterTurnIdleTimeoutSeconds < 0 {
 		return fmt.Errorf("gateway.openai_ws.ingress_inter_turn_idle_timeout_seconds must be non-negative")
+	}
+	if c.Gateway.OpenAIWS.IngressPingIntervalSeconds < 0 {
+		return fmt.Errorf("gateway.openai_ws.ingress_ping_interval_seconds must be non-negative")
 	}
 	if c.Gateway.OpenAIWS.MaxIngressConnectionsPerAPIKey < 0 {
 		return fmt.Errorf("gateway.openai_ws.max_ingress_connections_per_api_key must be non-negative")

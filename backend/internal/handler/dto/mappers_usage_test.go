@@ -253,7 +253,7 @@ func TestUsageLogFromService_PreservesHistoricalMissingImageSize(t *testing.T) {
 	require.NotContains(t, string(body), `"image_size":"2K"`)
 }
 
-// CAPYBARA-PATCH: 用量页请求级输出吞吐
+// CAPYBARA-PATCH: 用量页请求级解码速度
 func TestUsageLogFromService_OutputTokensPerSecond(t *testing.T) {
 	t.Parallel()
 
@@ -261,15 +261,20 @@ func TestUsageLogFromService_OutputTokensPerSecond(t *testing.T) {
 		name         string
 		outputTokens int
 		durationMs   *int
+		firstTokenMs *int
 		want         *float64
 	}{
-		{name: "正常计算", outputTokens: 100, durationMs: intPtr(2000), want: f64Ptr(50)},
-		{name: "耗时不足 1 秒", outputTokens: 30, durationMs: intPtr(500), want: f64Ptr(60)},
-		{name: "耗时为 nil", outputTokens: 100, durationMs: nil, want: nil},
-		{name: "耗时为 0", outputTokens: 100, durationMs: intPtr(0), want: nil},
-		{name: "耗时为负", outputTokens: 100, durationMs: intPtr(-1), want: nil},
-		{name: "输出 token 为 0", outputTokens: 0, durationMs: intPtr(2000), want: nil},
-		{name: "输出 token 与耗时同时缺失", outputTokens: 0, durationMs: nil, want: nil},
+		{name: "正常扣除首 Token 等待", outputTokens: 100, durationMs: intPtr(2000), firstTokenMs: intPtr(500), want: f64Ptr(1000.0 / 15)},
+		{name: "解码耗时不足 1 秒", outputTokens: 30, durationMs: intPtr(700), firstTokenMs: intPtr(200), want: f64Ptr(60)},
+		{name: "首 Token 耗时为 0", outputTokens: 100, durationMs: intPtr(2000), firstTokenMs: intPtr(0), want: f64Ptr(50)},
+		{name: "首 Token 耗时缺失", outputTokens: 100, durationMs: intPtr(2000), firstTokenMs: nil, want: nil},
+		{name: "总耗时缺失", outputTokens: 100, durationMs: nil, firstTokenMs: intPtr(100), want: nil},
+		{name: "总耗时为 0", outputTokens: 100, durationMs: intPtr(0), firstTokenMs: intPtr(-1), want: nil},
+		{name: "总耗时为负", outputTokens: 100, durationMs: intPtr(-1), firstTokenMs: intPtr(-2), want: nil},
+		{name: "总耗时等于首 Token 耗时", outputTokens: 100, durationMs: intPtr(500), firstTokenMs: intPtr(500), want: nil},
+		{name: "总耗时小于首 Token 耗时", outputTokens: 100, durationMs: intPtr(400), firstTokenMs: intPtr(500), want: nil},
+		{name: "输出 token 为 0", outputTokens: 0, durationMs: intPtr(2000), firstTokenMs: intPtr(500), want: nil},
+		{name: "输出 token 与耗时同时缺失", outputTokens: 0, durationMs: nil, firstTokenMs: nil, want: nil},
 	}
 
 	for _, tt := range tests {
@@ -281,6 +286,7 @@ func TestUsageLogFromService_OutputTokensPerSecond(t *testing.T) {
 				Model:        "gpt-5.4",
 				OutputTokens: tt.outputTokens,
 				DurationMs:   tt.durationMs,
+				FirstTokenMs: tt.firstTokenMs,
 			}
 
 			userDTO := UsageLogFromService(log)
@@ -301,15 +307,16 @@ func TestUsageLogFromService_OutputTokensPerSecond(t *testing.T) {
 	}
 }
 
-// CAPYBARA-PATCH: 用量页请求级输出吞吐
+// CAPYBARA-PATCH: 用量页请求级解码速度
 func TestUsageLogFromService_OutputTokensPerSecondSerializesNull(t *testing.T) {
 	t.Parallel()
 
 	invalid := UsageLogFromService(&service.UsageLog{
 		RequestID:    "req_tps_null",
 		Model:        "gpt-5.4",
-		OutputTokens: 0,
+		OutputTokens: 100,
 		DurationMs:   intPtr(2000),
+		FirstTokenMs: nil,
 	})
 	body, err := json.Marshal(invalid)
 	require.NoError(t, err)
@@ -319,7 +326,8 @@ func TestUsageLogFromService_OutputTokensPerSecondSerializesNull(t *testing.T) {
 		RequestID:    "req_tps_value",
 		Model:        "gpt-5.4",
 		OutputTokens: 100,
-		DurationMs:   intPtr(2000),
+		DurationMs:   intPtr(2500),
+		FirstTokenMs: intPtr(500),
 	})
 	body, err = json.Marshal(valid)
 	require.NoError(t, err)

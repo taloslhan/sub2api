@@ -47,6 +47,13 @@ func (s *OpenAIGatewayService) openAIWSIngressInterTurnIdleTimeout() time.Durati
 	return time.Duration(s.cfg.Gateway.OpenAIWS.IngressInterTurnIdleTimeoutSeconds) * time.Second
 }
 
+func (s *OpenAIGatewayService) openAIWSIngressPingInterval() time.Duration {
+	if s == nil || s.cfg == nil || s.cfg.Gateway.OpenAIWS.IngressPingIntervalSeconds <= 0 {
+		return 0
+	}
+	return time.Duration(s.cfg.Gateway.OpenAIWS.IngressPingIntervalSeconds) * time.Second
+}
+
 // newOpenAIWSDownstreamWriteContext binds writes directly to the client
 // lifecycle while excluding the separate ingress-lease cancellation signal.
 // This lets a lease-loss path finish its current client write before
@@ -485,12 +492,17 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 
 	readClientMessage := func() ([]byte, error) {
 		idleTimeout := s.openAIWSIngressInterTurnIdleTimeout()
-		msgType, payload, readErr := ReadOpenAIWSClientMessage(
+		// CAPYBARA-PATCH: Only continuation reads receive ingress keepalive pings;
+		// the handler's first-message wrapper keeps the legacy ping-free deadline.
+		msgType, payload, readErr := readOpenAIWSClientMessageWithTimeoutStart(
 			ctx,
 			clientConn,
 			idleTimeout,
 			coderws.StatusNormalClosure,
 			"websocket idle timeout",
+			nil,
+			nil,
+			s.openAIWSIngressPingInterval(),
 		)
 		if readErr != nil {
 			var closeErr *OpenAIWSClientCloseError

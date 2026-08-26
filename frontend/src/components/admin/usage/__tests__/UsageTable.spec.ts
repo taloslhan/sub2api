@@ -68,7 +68,10 @@ const messages: Record<string, string> = {
 	'usage.modelMismatch': 'Different model',
   'usage.latencyFirstToken': 'First token',
   'usage.latencyDuration': 'Duration',
-  'usage.latencyOutputSpeed': 'Speed',
+  // CAPYBARA-PATCH: 用量明细解码速度语义与提示。
+  'usage.latencyOutputSpeed': 'Decoding Speed',
+  'usage.outputSpeedHint':
+    'Decoding speed = output tokens × 1000 / (duration_ms - first_token_ms); excludes the first-token wait',
 }
 
 vi.mock('vue-i18n', async () => {
@@ -585,7 +588,7 @@ describe('admin UsageTable latency cell', () => {
       },
     })
 
-  it('renders first token, duration and output speed in the same cell', () => {
+  it('renders first token, duration and decoding speed in the same cell with its formula hint', () => {
     const wrapper = mountLatency({
       request_id: 'req-latency-ok',
       first_token_ms: 800,
@@ -599,12 +602,14 @@ describe('admin UsageTable latency cell', () => {
       '800ms',
       'Duration',
       '2.00s',
-      'Speed',
+      'Decoding Speed',
       '42.50 tok/s',
     ])
+    expect(rows[4].attributes('title')).toBe(messages['usage.outputSpeedHint'])
+    expect(rows[5].attributes('title')).toBe(messages['usage.outputSpeedHint'])
   })
 
-  it('shows a dash when output speed is null', () => {
+  it('shows a dash when decoding speed is null', () => {
     const wrapper = mountLatency({
       request_id: 'req-latency-null-speed',
       first_token_ms: 800,
@@ -613,12 +618,12 @@ describe('admin UsageTable latency cell', () => {
     })
 
     const rows = wrapper.get('.grid').findAll('span')
-    expect(rows[4].text()).toBe('Speed')
+    expect(rows[4].text()).toBe('Decoding Speed')
     expect(rows[5].text()).toBe('-')
     expect(wrapper.text()).not.toContain('NaN')
   })
 
-  it('shows a dash when the output speed field is missing (old backend)', () => {
+  it('shows a dash when the decoding speed field is missing (old backend)', () => {
     const wrapper = mountLatency({
       request_id: 'req-latency-missing-speed',
       first_token_ms: null,
@@ -631,7 +636,7 @@ describe('admin UsageTable latency cell', () => {
       '-',
       'Duration',
       '2.00s',
-      'Speed',
+      'Decoding Speed',
       '-',
     ])
     expect(wrapper.text()).not.toContain('NaN')

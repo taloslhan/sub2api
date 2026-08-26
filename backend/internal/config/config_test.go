@@ -546,6 +546,9 @@ func TestLoadDefaultOpenAIWSConfig(t *testing.T) {
 	if cfg.Gateway.OpenAIWS.IngressInterTurnIdleTimeoutSeconds != 300 {
 		t.Fatalf("Gateway.OpenAIWS.IngressInterTurnIdleTimeoutSeconds = %d, want 300", cfg.Gateway.OpenAIWS.IngressInterTurnIdleTimeoutSeconds)
 	}
+	if cfg.Gateway.OpenAIWS.IngressPingIntervalSeconds != 30 {
+		t.Fatalf("Gateway.OpenAIWS.IngressPingIntervalSeconds = %d, want 30", cfg.Gateway.OpenAIWS.IngressPingIntervalSeconds)
+	}
 	if cfg.Gateway.OpenAIWS.MaxIngressConnectionsPerAPIKey != 64 {
 		t.Fatalf("Gateway.OpenAIWS.MaxIngressConnectionsPerAPIKey = %d, want 64", cfg.Gateway.OpenAIWS.MaxIngressConnectionsPerAPIKey)
 	}
@@ -558,6 +561,25 @@ func TestLoadOpenAIWSClientFirstMessageTimeoutFromEnv(t *testing.T) {
 	cfg, err := Load()
 	require.NoError(t, err)
 	require.Equal(t, 120, cfg.Gateway.OpenAIWS.ClientFirstMessageTimeoutSeconds)
+}
+
+// CAPYBARA-PATCH: ingress 轮次间 ping 配置契约。
+func TestLoadOpenAIWSIngressPingIntervalFromEnv(t *testing.T) {
+	resetViperWithJWTSecret(t)
+	t.Setenv("GATEWAY_OPENAI_WS_INGRESS_PING_INTERVAL_SECONDS", "17")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	require.Equal(t, 17, cfg.Gateway.OpenAIWS.IngressPingIntervalSeconds)
+}
+
+func TestValidateOpenAIWSIngressPingIntervalAllowsDisabled(t *testing.T) {
+	resetViperWithJWTSecret(t)
+	cfg, err := Load()
+	require.NoError(t, err)
+
+	cfg.Gateway.OpenAIWS.IngressPingIntervalSeconds = 0
+	require.NoError(t, cfg.Validate())
 }
 
 func TestLoadOpenAIWSForceHTTPFromEnv(t *testing.T) {
@@ -2198,6 +2220,11 @@ func TestValidateConfig_OpenAIWSRules(t *testing.T) {
 			name:    "ingress_inter_turn_idle_timeout_seconds 不能为负数",
 			mutate:  func(c *Config) { c.Gateway.OpenAIWS.IngressInterTurnIdleTimeoutSeconds = -1 },
 			wantErr: "gateway.openai_ws.ingress_inter_turn_idle_timeout_seconds",
+		},
+		{
+			name:    "ingress_ping_interval_seconds 不能为负数",
+			mutate:  func(c *Config) { c.Gateway.OpenAIWS.IngressPingIntervalSeconds = -1 },
+			wantErr: "gateway.openai_ws.ingress_ping_interval_seconds",
 		},
 		{
 			name:    "max_ingress_connections_per_api_key 不能为负数",

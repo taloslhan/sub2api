@@ -281,9 +281,9 @@ export function formatTokensK(tokens: number): string {
   return tokens.toString()
 }
 
-// CAPYBARA-PATCH: 用量页输出吞吐指标格式化
+// CAPYBARA-PATCH: 用量页解码速度指标格式化
 /**
- * 格式化输出吞吐（输出 Token / 端到端总耗时，包含首 Token 等待时间）
+ * 格式化解码速度（输出 Token × 1000 / (总耗时 ms - 首 Token 耗时 ms)，不含首 Token 等待时间）
  * @param value 速度值（tok/s），无效样本传入 null/undefined
  * @param options withUnit 是否附加 tok/s 单位（默认 true）；emptyText 无效值占位（默认 '-'）
  * @returns 形如 "50.00 tok/s"；非有限值、负值或空值返回 emptyText

@@ -300,8 +300,10 @@ type UsageStats struct {
 	TotalActualCost          float64  `json:"total_actual_cost"`
 	TotalAccountCost         *float64 `json:"total_account_cost,omitempty"`
 	AverageDurationMs        float64  `json:"average_duration_ms"`
-	// CAPYBARA-PATCH: 用量筛选区间输出吞吐与首 Token 平均
-	// 平均值使用可空指针：无有效样本时序列化为 null，避免与真实的 0 混淆。
+	// CAPYBARA-PATCH: 用量筛选区间解码速度与首 Token 平均
+	// 解码速度为有效请求的 output_tokens × 1000 / (duration_ms - first_token_ms)
+	// 算术平均；有效样本需 output_tokens > 0、duration_ms > 0、first_token_ms 非空且
+	// duration_ms > first_token_ms。无有效样本时平均值序列化为 null，首 Token 指标语义不变。
 	AverageOutputTokensPerSecond *float64       `json:"average_output_tokens_per_second"`
 	OutputTokensPerSecondSamples int64          `json:"output_tokens_per_second_samples"`
 	AverageFirstTokenMs          *float64       `json:"average_first_token_ms"`

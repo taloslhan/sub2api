@@ -635,11 +635,12 @@ func usageLogFromServiceUser(l *service.UsageLog) UsageLog {
 	if requestedModel == "" {
 		requestedModel = l.Model
 	}
-	// CAPYBARA-PATCH: 用量页请求级输出吞吐
-	// 仅在样本有效（有输出 token 且耗时为正）时计算，否则保持 nil，避免用 0 冒充有效速度。
+	// CAPYBARA-PATCH: 用量页请求级解码速度
+	// 扣除首 Token 等待后计算；样本无效时保持 nil，避免用 0 冒充有效速度。
 	var outputTokensPerSecond *float64
-	if l.OutputTokens > 0 && l.DurationMs != nil && *l.DurationMs > 0 {
-		tps := float64(l.OutputTokens) * 1000.0 / float64(*l.DurationMs)
+	if l.OutputTokens > 0 && l.DurationMs != nil && *l.DurationMs > 0 &&
+		l.FirstTokenMs != nil && *l.DurationMs > *l.FirstTokenMs {
+		tps := float64(l.OutputTokens) * 1000.0 / float64(*l.DurationMs-*l.FirstTokenMs)
 		outputTokensPerSecond = &tps
 	}
 	return UsageLog{

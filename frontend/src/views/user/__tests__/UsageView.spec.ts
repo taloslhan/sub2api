@@ -60,7 +60,7 @@ const messages: Record<string, string> = {
   'usage.preparingExport': 'Preparing export',
   'usage.exportSuccess': 'Export success',
   'usage.exportFailed': 'Export failed',
-  'usage.exportOutputSpeed': 'Output Speed (tok/s)',
+  'usage.exportOutputSpeed': 'Decoding Speed (tok/s)',
   'common.refresh': 'Refresh',
   'common.reset': 'Reset',
 }
@@ -149,7 +149,7 @@ function mountUsageView() {
   })
 }
 
-// CAPYBARA-PATCH: 用量导出输出吞吐列 —— 复用 CSV 导出的 Blob/URL/click 打桩
+// CAPYBARA-PATCH: 用量导出解码速度列 —— 复用 CSV 导出的 Blob/URL/click 打桩
 function captureCsvExport() {
   let csvContent = ''
   const OriginalBlob = globalThis.Blob
@@ -266,7 +266,7 @@ describe('user UsageView', () => {
     expect(showSuccess).toHaveBeenCalled()
     expect(csvContent.startsWith('\uFEFF')).toBe(true)
     expect(csvContent.slice(1)).toBe([
-      'Time,API Key Name,Model,Reasoning Effort,Inbound Endpoint,IP Address,Type,Billing Mode,Input Tokens,Output Tokens,Cache Read Tokens,Cache Creation Tokens,Rate Multiplier,Billed Cost,Original Cost,First Token (ms),Duration (ms),Output Speed (tok/s)',
+      'Time,API Key Name,Model,Reasoning Effort,Inbound Endpoint,IP Address,Type,Billing Mode,Input Tokens,Output Tokens,Cache Read Tokens,Cache Creation Tokens,Rate Multiplier,Billed Cost,Original Cost,First Token (ms),Duration (ms),Decoding Speed (tok/s)',
       '2026-03-08T00:00:00Z,demo-key,gpt-5.4,"\'-",,203.0.113.10,Sync,Token,4057,101,278272,4,1,0.09288300,0.09288300,12,345,50.00',
     ].join('\n'))
     expect(csvContent).toContain('IP Address')
@@ -336,8 +336,8 @@ describe('user UsageView', () => {
     clickSpy.mockRestore()
   })
 
-  // CAPYBARA-PATCH: 用量导出输出吞吐列
-  it('exports output speed right after duration, blank for invalid samples', async () => {
+  // CAPYBARA-PATCH: 用量导出解码速度列
+  it('exports decoding speed right after duration, blank for invalid samples', async () => {
     query.mockResolvedValue({
       items: [
         { ...usageLog, request_id: 'req-speed-valid', output_tokens_per_second: 12.345 },
@@ -360,7 +360,7 @@ describe('user UsageView', () => {
     const headerCells = lines[0].split(',')
     expect(headerCells).toHaveLength(18)
     expect(headerCells[16]).toBe('Duration (ms)')
-    expect(headerCells[17]).toBe('Output Speed (tok/s)')
+    expect(headerCells[17]).toBe('Decoding Speed (tok/s)')
 
     expect(lines[1].split(',')[17]).toBe('12.35')
     expect(lines[2].split(',')[17]).toBe('')

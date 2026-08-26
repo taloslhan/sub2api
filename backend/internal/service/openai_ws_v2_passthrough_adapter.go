@@ -20,11 +20,12 @@ import (
 )
 
 type openAIWSClientFrameConn struct {
-	conn                 *coderws.Conn
-	controlCtx           context.Context
-	interTurnIdleTimeout time.Duration
-	interTurnStarted     chan struct{}
-	waitingForNextTurn   atomic.Bool
+	conn                  *coderws.Conn
+	controlCtx            context.Context
+	interTurnIdleTimeout  time.Duration
+	interTurnPingInterval time.Duration
+	interTurnStarted      chan struct{}
+	waitingForNextTurn    atomic.Bool
 	// The relay observes upstream payloads, while clients must keep seeing the
 	// model identifier they supplied for the current turn.
 	restoreResponseModel func([]byte) []byte
@@ -603,6 +604,7 @@ func (c *openAIWSClientFrameConn) ReadFrame(ctx context.Context) (coderws.Messag
 		"websocket idle timeout",
 		c.interTurnStarted,
 		func() bool { return c.waitingForNextTurn.Load() },
+		c.interTurnPingInterval,
 	)
 	return msgType, payload, err
 }
@@ -946,7 +948,9 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 		conn:                 clientConn,
 		controlCtx:           ctx,
 		interTurnIdleTimeout: s.openAIWSIngressInterTurnIdleTimeout(),
-		interTurnStarted:     make(chan struct{}, 1),
+		// CAPYBARA-PATCH: Reuse the shared ingress reader and passthrough turn boundary.
+		interTurnPingInterval: s.openAIWSIngressPingInterval(),
+		interTurnStarted:      make(chan struct{}, 1),
 		restoreResponseModel: func(payload []byte) []byte {
 			eventType := strings.TrimSpace(gjson.GetBytes(payload, "type").String())
 			if !openAIWSEventMayContainModel(eventType) {

@@ -92,6 +92,7 @@ func TestOpenAIWSDownstreamWriteContext_CancellationOwnership(t *testing.T) {
 	})
 }
 
+// CAPYBARA-PATCH: ctx_pool continuation read 传播 ingress ping 配置。
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_KeepLeaseAcrossTurns(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -102,6 +103,8 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_KeepLeaseAcrossT
 	cfg.Gateway.OpenAIWS.OAuthEnabled = true
 	cfg.Gateway.OpenAIWS.APIKeyEnabled = true
 	cfg.Gateway.OpenAIWS.ResponsesWebsocketsV2 = true
+	cfg.Gateway.OpenAIWS.IngressInterTurnIdleTimeoutSeconds = 5
+	cfg.Gateway.OpenAIWS.IngressPingIntervalSeconds = 1
 	cfg.Gateway.OpenAIWS.MaxConnsPerAccount = 1
 	cfg.Gateway.OpenAIWS.MinIdlePerAccount = 0
 	cfg.Gateway.OpenAIWS.MaxIdlePerAccount = 1
@@ -190,8 +193,19 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_KeepLeaseAcrossT
 	}))
 	defer wsServer.Close()
 
+	pingSeen := make(chan struct{}, 4)
 	dialCtx, cancelDial := context.WithTimeout(context.Background(), 3*time.Second)
-	clientConn, _, err := coderws.Dial(dialCtx, "ws"+strings.TrimPrefix(wsServer.URL, "http"), nil)
+	clientConn, _, err := coderws.Dial(
+		dialCtx,
+		"ws"+strings.TrimPrefix(wsServer.URL, "http"),
+		&coderws.DialOptions{OnPingReceived: func(context.Context, []byte) bool {
+			select {
+			case pingSeen <- struct{}{}:
+			default:
+			}
+			return true
+		}},
+	)
 	cancelDial()
 	require.NoError(t, err)
 	defer func() {
@@ -221,8 +235,25 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_KeepLeaseAcrossT
 	require.Equal(t, "response.completed", gjson.GetBytes(firstTurnEvent, "type").String())
 	require.Equal(t, "resp_ingress_turn_1", gjson.GetBytes(firstTurnEvent, "response.id").String())
 
+	secondTurnRead := make(chan openAIWSClientReadResult, 1)
+	go func() {
+		readCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		msgType, message, readErr := clientConn.Read(readCtx)
+		secondTurnRead <- openAIWSClientReadResult{messageType: msgType, payload: message, err: readErr}
+	}()
+	for i := 0; i < 2; i++ {
+		select {
+		case <-pingSeen:
+		case <-time.After(2 * time.Second):
+			t.Fatal("ctx_pool continuation did not receive configured ingress ping")
+		}
+	}
 	writeMessage(`{"type":"response.create","model":"gpt-5.1","stream":false,"previous_response_id":"resp_ingress_turn_1"}`)
-	secondTurnEvent := readMessage()
+	secondTurnResult := <-secondTurnRead
+	require.NoError(t, secondTurnResult.err)
+	require.Equal(t, coderws.MessageText, secondTurnResult.messageType)
+	secondTurnEvent := secondTurnResult.payload
 	require.Equal(t, "response.completed", gjson.GetBytes(secondTurnEvent, "type").String())
 	require.Equal(t, "resp_ingress_turn_2", gjson.GetBytes(secondTurnEvent, "response.id").String())
 	require.Equal(t, "response.completed", <-turnTerminalCh, "首轮 turn 应保留成功终态")

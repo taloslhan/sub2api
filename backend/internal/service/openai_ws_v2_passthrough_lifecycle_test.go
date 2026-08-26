@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -342,6 +343,90 @@ func TestPassthroughLifecycle_CompletedTurnStartsInterTurnIdle(t *testing.T) {
 	case <-serverErr:
 	case <-time.After(3 * time.Second):
 		t.Fatal("passthrough idle reader did not exit")
+	}
+}
+
+// CAPYBARA-PATCH: passthrough 仅在终止事件成功下行后启用 ingress ping。
+func TestPassthroughLifecycle_InterTurnPingStartsOnlyAfterTerminalWrite(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	controlCtx, cancelControl := context.WithCancelCause(context.Background())
+	defer cancelControl(context.Canceled)
+	cfg := passthroughLifecycleConfig()
+	cfg.Gateway.OpenAIFirstOutputTimeoutSeconds = 3
+	cfg.Gateway.OpenAIWS.ReadTimeoutSeconds = 3
+	cfg.Gateway.OpenAIWS.IngressInterTurnIdleTimeoutSeconds = 5
+	cfg.Gateway.OpenAIWS.IngressPingIntervalSeconds = 1
+	upstream := newStagedPassthroughConn()
+	server, serverErr := startPassthroughLifecycleServer(t, controlCtx, newPassthroughLifecycleService(cfg, upstream), passthroughLifecycleAccount())
+	defer server.Close()
+
+	pingSeen := make(chan struct{}, 4)
+	var pingCount atomic.Int32
+	dialCtx, cancelDial := context.WithTimeout(context.Background(), 3*time.Second)
+	clientConn, _, err := coderws.Dial(
+		dialCtx,
+		"ws"+strings.TrimPrefix(server.URL, "http"),
+		&coderws.DialOptions{OnPingReceived: func(context.Context, []byte) bool {
+			pingCount.Add(1)
+			select {
+			case pingSeen <- struct{}{}:
+			default:
+			}
+			return true
+		}},
+	)
+	cancelDial()
+	require.NoError(t, err)
+	defer func() { _ = clientConn.CloseNow() }()
+	writeCtx, cancelWrite := context.WithTimeout(context.Background(), 3*time.Second)
+	err = clientConn.Write(writeCtx, coderws.MessageText, []byte(`{"type":"response.create","model":"gpt-5.1","stream":false}`))
+	cancelWrite()
+	require.NoError(t, err)
+	require.Equal(t, "response.create", gjson.GetBytes(requirePassthroughUpstreamWrite(t, upstream, time.Second), "type").String())
+
+	firstRead := make(chan openAIWSClientReadResult, 1)
+	go func() {
+		readCtx, cancelRead := context.WithTimeout(context.Background(), 6*time.Second)
+		defer cancelRead()
+		msgType, payload, readErr := clientConn.Read(readCtx)
+		firstRead <- openAIWSClientReadResult{messageType: msgType, payload: payload, err: readErr}
+	}()
+	time.Sleep(1200 * time.Millisecond)
+	require.Zero(t, pingCount.Load(), "active passthrough output must not start ingress ping")
+	upstream.Send(`{"type":"response.completed","response":{"id":"resp_ping_first","model":"gpt-5.1","usage":{"input_tokens":1,"output_tokens":1}}}`)
+	firstResult := <-firstRead
+	require.NoError(t, firstResult.err)
+	require.Equal(t, "resp_ping_first", gjson.GetBytes(firstResult.payload, "response.id").String())
+
+	secondRead := make(chan openAIWSClientReadResult, 1)
+	go func() {
+		readCtx, cancelRead := context.WithTimeout(context.Background(), 6*time.Second)
+		defer cancelRead()
+		msgType, payload, readErr := clientConn.Read(readCtx)
+		secondRead <- openAIWSClientReadResult{messageType: msgType, payload: payload, err: readErr}
+	}()
+	for i := 0; i < 2; i++ {
+		select {
+		case <-pingSeen:
+		case <-time.After(2 * time.Second):
+			t.Fatal("passthrough continuation did not receive configured ingress ping")
+		}
+	}
+	writeCtx, cancelWrite = context.WithTimeout(context.Background(), 3*time.Second)
+	err = clientConn.Write(writeCtx, coderws.MessageText, []byte(`{"type":"response.create","model":"gpt-5.1","previous_response_id":"resp_ping_first"}`))
+	cancelWrite()
+	require.NoError(t, err)
+	require.Equal(t, "response.create", gjson.GetBytes(requirePassthroughUpstreamWrite(t, upstream, time.Second), "type").String())
+	upstream.Send(`{"type":"response.completed","response":{"id":"resp_ping_second","model":"gpt-5.1","usage":{"input_tokens":1,"output_tokens":1}}}`)
+	secondResult := <-secondRead
+	require.NoError(t, secondResult.err)
+	require.Equal(t, "resp_ping_second", gjson.GetBytes(secondResult.payload, "response.id").String())
+
+	require.NoError(t, clientConn.Close(coderws.StatusNormalClosure, "done"))
+	select {
+	case <-serverErr:
+	case <-time.After(3 * time.Second):
+		t.Fatal("passthrough ping lifecycle did not exit")
 	}
 }
 

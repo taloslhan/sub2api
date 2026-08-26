@@ -1669,7 +1669,7 @@ export interface UsageLog {
   openai_ws_mode?: boolean
   duration_ms: number | null
   first_token_ms: number | null
-  // CAPYBARA-PATCH: 用量页输出吞吐（输出 Token / 端到端总耗时），无有效样本为 null；旧后端不返回该字段
+  // CAPYBARA-PATCH: 解码速度 = 输出 Token × 1000 / (总耗时 ms - 首 Token 耗时 ms)；仅输出 > 0、总耗时 > 0、TTFT 已记录且总耗时 > TTFT 时有效，否则为 null；旧后端可能不返回该字段
   output_tokens_per_second?: number | null
 
   // 图片生成字段
@@ -1863,7 +1863,7 @@ export interface UsageStatsResponse {
   total_cost: number // 标准计费
   total_actual_cost: number // 实际扣除
   average_duration_ms: number
-  // CAPYBARA-PATCH: 用量页输出吞吐/首 Token 区间统计（旧后端不返回时按缺失降级展示）
+  // CAPYBARA-PATCH: 解码速度均值为有效请求速度的算术平均，无有效样本为 null；字段可选以兼容旧后端
   average_first_token_ms?: number | null
   first_token_ms_samples?: number
   average_output_tokens_per_second?: number | null

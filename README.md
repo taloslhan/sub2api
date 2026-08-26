@@ -618,6 +618,9 @@ gateway:
     client_first_message_timeout_seconds: 30
     # Close a client socket idle between completed turns; 0 disables this safeguard.
     ingress_inter_turn_idle_timeout_seconds: 300
+    # CAPYBARA-PATCH: keep downstream ingress alive only between completed turns.
+    # Ping only while waiting between completed turns; default 30 seconds, 0 disables it.
+    ingress_ping_interval_seconds: 30
     # Distributed API-key limit for live client ingress sessions; 0 disables it.
     max_ingress_connections_per_api_key: 64
 ```
@@ -626,6 +629,13 @@ The first-message timeout is a total read deadline. Deployments that accept
 large contexts or image-heavy requests over slower links can raise it to
 120-300 seconds. It expires before HTTP bridge routing, so bridge mode does not
 override this limit.
+
+<!-- CAPYBARA-PATCH: document inter-turn downstream ingress keepalive semantics. -->
+Ingress pings have a fixed five-second timeout and run only after a completed
+turn while the server waits for the next client business message. They do not
+run during the first-message wait or active output, and a successful ping does
+not reset `ingress_inter_turn_idle_timeout_seconds`; the default 300-second
+application idle limit therefore remains authoritative.
 
 The connection cap is coordinated through Redis using a 60-second lease that
 is refreshed every 20 seconds. A process that cannot confirm a lease for a

@@ -30,6 +30,19 @@ func TestResolveOpenAIWSClientFirstMessageTimeout(t *testing.T) {
 	require.Equal(t, 120*time.Second, ResolveOpenAIWSClientFirstMessageTimeout(cfg))
 }
 
+// CAPYBARA-PATCH: ingress ping 配置解析与 HTTP bridge 接入。
+func TestOpenAIGatewayService_OpenAIWSIngressPingInterval(t *testing.T) {
+	require.Zero(t, (*OpenAIGatewayService)(nil).openAIWSIngressPingInterval())
+	require.Zero(t, (&OpenAIGatewayService{}).openAIWSIngressPingInterval())
+
+	cfg := &config.Config{}
+	svc := &OpenAIGatewayService{cfg: cfg}
+	require.Zero(t, svc.openAIWSIngressPingInterval())
+
+	cfg.Gateway.OpenAIWS.IngressPingIntervalSeconds = 17
+	require.Equal(t, 17*time.Second, svc.openAIWSIngressPingInterval())
+}
+
 func TestPrepareOpenAIWSHTTPBridgeBodyStripsWSFields(t *testing.T) {
 	body, err := prepareOpenAIWSHTTPBridgeBody([]byte(`{"type":"response.create","generate":true,"model":"gpt-5","stream":false,"previous_response_id":"resp_prev","input":"hi","sequence":900719925474099312345}`))
 	require.NoError(t, err)
@@ -1757,6 +1770,7 @@ func TestOpenAIWSHTTPBridgeAcceptsFirstFrameAboveLegacy16MiB(t *testing.T) {
 	require.Equal(t, "gpt-5", gjson.GetBytes(upstream.lastBody, "model").String())
 }
 
+// CAPYBARA-PATCH: HTTP bridge continuation read 跨多个 ingress ping 周期保持存活。
 func TestOpenAIWSHTTPBridgeKeepsContinuationFramesOnHTTPWithoutPreviousResponseID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -1793,6 +1807,8 @@ func TestOpenAIWSHTTPBridgeKeepsContinuationFramesOnHTTPWithoutPreviousResponseI
 	cfg.Gateway.OpenAIWS.ResponsesWebsocketsV2 = true
 	cfg.Gateway.OpenAIWS.HTTPBridgeEnabled = true
 	cfg.Gateway.OpenAIWS.HTTPBridgeThresholdBytes = 1
+	cfg.Gateway.OpenAIWS.IngressInterTurnIdleTimeoutSeconds = 5
+	cfg.Gateway.OpenAIWS.IngressPingIntervalSeconds = 1
 	cfg.Gateway.OpenAIWS.MaxConnsPerAccount = 1
 	cfg.Gateway.OpenAIWS.MinIdlePerAccount = 0
 	cfg.Gateway.OpenAIWS.MaxIdlePerAccount = 1
@@ -1860,8 +1876,19 @@ func TestOpenAIWSHTTPBridgeKeepsContinuationFramesOnHTTPWithoutPreviousResponseI
 	}))
 	defer wsServer.Close()
 
+	pingSeen := make(chan struct{}, 4)
 	dialCtx, cancelDial := context.WithTimeout(context.Background(), 3*time.Second)
-	clientConn, _, err := coderws.Dial(dialCtx, "ws"+strings.TrimPrefix(wsServer.URL, "http"), nil)
+	clientConn, _, err := coderws.Dial(
+		dialCtx,
+		"ws"+strings.TrimPrefix(wsServer.URL, "http"),
+		&coderws.DialOptions{OnPingReceived: func(context.Context, []byte) bool {
+			select {
+			case pingSeen <- struct{}{}:
+			default:
+			}
+			return true
+		}},
+	)
 	cancelDial()
 	require.NoError(t, err)
 	defer func() { _ = clientConn.CloseNow() }()
@@ -1885,8 +1912,25 @@ func TestOpenAIWSHTTPBridgeKeepsContinuationFramesOnHTTPWithoutPreviousResponseI
 	require.Equal(t, "response.completed", gjson.GetBytes(firstTurnEvent, "type").String())
 	require.Equal(t, "resp_bridge_first", gjson.GetBytes(firstTurnEvent, "response.id").String())
 
+	secondTurnRead := make(chan openAIWSClientReadResult, 1)
+	go func() {
+		readCtx, cancelRead := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancelRead()
+		msgType, event, readErr := clientConn.Read(readCtx)
+		secondTurnRead <- openAIWSClientReadResult{messageType: msgType, payload: event, err: readErr}
+	}()
+	for i := 0; i < 2; i++ {
+		select {
+		case <-pingSeen:
+		case <-time.After(2 * time.Second):
+			t.Fatal("HTTP bridge continuation did not receive configured ingress ping")
+		}
+	}
 	writeMessage(`{"type":"response.create","model":"gpt-5.1","stream":false,"previous_response_id":"resp_bridge_first","input":[{"type":"function_call_output","call_id":"call_bridge_1","output":"ok"}]}`)
-	secondTurnEvent := readMessage()
+	secondTurnResult := <-secondTurnRead
+	require.NoError(t, secondTurnResult.err)
+	require.Equal(t, coderws.MessageText, secondTurnResult.messageType)
+	secondTurnEvent := secondTurnResult.payload
 	require.Equal(t, "response.completed", gjson.GetBytes(secondTurnEvent, "type").String())
 	require.Equal(t, "resp_bridge_second", gjson.GetBytes(secondTurnEvent, "response.id").String())
 
