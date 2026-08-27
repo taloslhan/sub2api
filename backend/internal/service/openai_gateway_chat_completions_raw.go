@@ -104,7 +104,8 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 	}
 	upstreamBody = updatedBody
 	// 计费兜底 tier = 最终出站 body（policy filter/force 后）里的 tier；
-	// 最终值由 resolvedOpenAIUpstreamServiceTier 决定（上游回显优先）。
+	// 最终值由 resolvedOpenAIUpstreamServiceTier 决定。
+	// CAPYBARA-PATCH: 出站为 priority/fast 时直接采用，其余情况才上游回显优先。
 	serviceTier := extractOpenAIServiceTierFromBody(upstreamBody)
 	if account.Platform == PlatformGrok {
 		strippedBody, stripErr := stripRedundantGrokChatViewImageTool(upstreamBody)

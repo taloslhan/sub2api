@@ -23,9 +23,11 @@ const (
 //
 // The same observer also records the service tier the upstream reports having
 // used (OpenAI service_tier, Anthropic usage.speed). The billable tier is
-// resolved by resolvedOpenAIUpstreamServiceTierFromObserver (upstream echo
-// first, outbound body tier as fallback); the upstream ResolveBillingServiceTier
-// only-lowers path additionally audits downgrades at usage-record time.
+// resolved by resolvedOpenAIUpstreamServiceTierFromObserver (CAPYBARA-PATCH: an
+// outbound priority/fast tier wins outright, otherwise upstream echo first and
+// outbound body tier as fallback); the upstream ResolveBillingServiceTier
+// only-lowers path additionally audits downgrades at usage-record time, except
+// for the OpenAI fast tier which ApplyOpenAIServiceTierBillingResolution exempts.
 type upstreamResponseModelObserver struct {
 	first    string
 	terminal string
@@ -221,14 +223,24 @@ func observedUpstreamResponseServiceTier(c *gin.Context) string {
 // resolvedOpenAIUpstreamServiceTierFromObserver 返回计费/用量日志实际使用的
 // service tier：
 //
-//  1. observer 记录到的上游真实回显优先——只有上游实际给了 priority/fast 才按
-//     Fast 计费；上游回显 default/flex/auto 等则如实采用并据此计费；
-//  2. 上游未回显时，回退到「最终出站 body」里的 tier（经过 fast policy
+//  1. CAPYBARA-PATCH: 出站 body 已经是 priority/fast 时直接采用，不再读上游
+//     回显——这类请求上游实际就是按 Fast 跑的，回显 default 只会导致少收费；
+//  2. 否则以 observer 记录到的上游真实回显为准——上游回显 default/flex/auto
+//     等则如实采用并据此计费；
+//  3. 上游未回显时，回退到「最终出站 body」里的 tier（经过 fast policy
 //     filter/force 之后），保证 policy filter 删掉字段后不再按原请求 Fast 计费。
+//
+// 第 1 步判定的是**出站** tier 而非客户端原始 body：policy filter 删掉字段后
+// 出站 tier 为 nil，仍不按 Fast 计费；force_priority 改写出的 priority 则按
+// Fast 计费。
 //
 // HTTP→WS 等使用局部 observer 的路径必须把该 observer 传进来，不能只读
 // Gin context——局部 observer 不会自动写入 context。
 func resolvedOpenAIUpstreamServiceTierFromObserver(observer *upstreamResponseModelObserver, outboundBodyTier *string) *string {
+	// CAPYBARA-PATCH: 客户端 fast 优先于上游回显。
+	if outboundBodyTier != nil && isPriorityBillingServiceTier(*outboundBodyTier) {
+		return outboundBodyTier
+	}
 	if observer != nil {
 		if tier := strings.TrimSpace(observer.ServiceTier()); tier != "" {
 			return normalizeOpenAIServiceTier(tier)

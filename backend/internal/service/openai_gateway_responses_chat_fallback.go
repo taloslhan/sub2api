@@ -88,8 +88,9 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 		return nil, err
 	}
 	// 计费兜底 tier = 最终出站 body（policy filter/force 后）里的 tier；最终值由
-	// resolvedOpenAIUpstreamServiceTier 决定（上游回显优先）。filter 删掉字段后
-	// 这里取到 nil，不再按原请求 Fast 计费。
+	// resolvedOpenAIUpstreamServiceTier 决定。filter 删掉字段后这里取到 nil，
+	// 不再按原请求 Fast 计费。
+	// CAPYBARA-PATCH: 出站为 priority/fast 时直接采用，其余情况才上游回显优先。
 	serviceTier := extractOpenAIServiceTierFromBody(chatBody)
 
 	logger.L().Debug("openai responses: forwarding via raw chat completions",

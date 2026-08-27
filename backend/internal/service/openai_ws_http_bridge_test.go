@@ -57,13 +57,14 @@ func TestPrepareOpenAIWSHTTPBridgeBodyStripsWSFields(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestProxyOpenAIWSHTTPBridgeTurn_UpstreamDefaultServiceTierWinsOverRequest(t *testing.T) {
+// CAPYBARA-PATCH: client-requested fast wins over the upstream echo.
+func TestProxyOpenAIWSHTTPBridgeTurn_RequestPriorityWinsOverUpstreamDefault(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	// proxyOpenAIWSHTTPBridgeTurn 是 client WS→HTTP bridge，本身不 canonicalize
 	// fast→priority；生产入口的归一化在 openai_ws_forwarder_ingress.go 的 fast
-	// policy。本测试只覆盖局部 observer：canonical 请求 priority 被上游
-	// response.completed service_tier=default 覆盖。
+	// policy。本测试覆盖局部 observer 路径：canonical 请求 priority 优先于上游
+	// response.completed service_tier=default 回显。
 	sse := strings.Join([]string{
 		`data: {"type":"response.completed","response":{"id":"resp_tier","model":"gpt-5.5","status":"completed","service_tier":"default","usage":{"input_tokens":1,"output_tokens":1}}}`,
 		``,
@@ -93,14 +94,18 @@ func TestProxyOpenAIWSHTTPBridgeTurn_UpstreamDefaultServiceTierWinsOverRequest(t
 	require.NotNil(t, result)
 	require.Equal(t, "priority", gjson.GetBytes(upstream.lastBody, "service_tier").String())
 	require.NotNil(t, result.ServiceTier)
-	require.Equal(t, "default", *result.ServiceTier)
+	require.Equal(t, "priority", *result.ServiceTier,
+		"the outbound priority tier must win over the upstream-echoed default")
+	require.Equal(t, "default", result.UpstreamResponseServiceTier,
+		"the local observer still records the upstream echo for the audit trail")
 }
 
-func TestProxyOpenAIWSHTTPBridgeTurn_UpstreamDefaultWinsOverFastAlias(t *testing.T) {
+// CAPYBARA-PATCH: client-requested fast wins over the upstream echo.
+func TestProxyOpenAIWSHTTPBridgeTurn_FastAliasWinsOverUpstreamDefault(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	// 客户端别名 fast 同样被上游回显的 default 覆盖：局部 observer 的
-	// ServiceTier() 是唯一计费依据，绝不回退到请求侧 fast。
+	// 客户端别名 fast 与 canonical priority 同样处理：出站 body 里的 fast 归一化
+	// 为 priority 后优先于上游回显的 default，局部 observer 只用于审计。
 	sse := strings.Join([]string{
 		`data: {"type":"response.completed","response":{"id":"resp_tier2","model":"gpt-5.5","status":"completed","service_tier":"default","usage":{"input_tokens":1,"output_tokens":1}}}`,
 		``,
@@ -129,8 +134,9 @@ func TestProxyOpenAIWSHTTPBridgeTurn_UpstreamDefaultWinsOverFastAlias(t *testing
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NotNil(t, result.ServiceTier)
-	require.Equal(t, "default", *result.ServiceTier,
-		"local observer's upstream-echoed default must win over the fast alias")
+	require.Equal(t, "priority", *result.ServiceTier,
+		"the fast alias must win over the local observer's upstream-echoed default")
+	require.Equal(t, "default", result.UpstreamResponseServiceTier)
 }
 
 func TestProxyOpenAIWSHTTPBridgeTurnAPIKeyAdaptsClientTools(t *testing.T) {

@@ -42,6 +42,20 @@ func ResolveBillingServiceTier(requested, observed string) ServiceTierBillingRes
 	return resolution
 }
 
+// CAPYBARA-PATCH: client-requested fast wins over the upstream echo on the
+// OpenAI side. isPriorityBillingServiceTier reports whether a normalized tier is
+// the premium fast tier, and is the single place both halves of that patch
+// (the observer resolution in upstream_response_model.go and the OpenAI billing
+// fallback below) agree on what "fast" means.
+func isPriorityBillingServiceTier(tier string) bool {
+	switch normalizeBillingServiceTier(tier) {
+	case "priority", "fast":
+		return true
+	default:
+		return false
+	}
+}
+
 // serviceTierCostRank orders tiers by their cost relative to the base rate, so a
 // lower rank is always cheaper. Unknown tiers rank as the base rate and report
 // known=false so callers can refuse to act on them.
@@ -61,9 +75,23 @@ func serviceTierCostRank(tier string) (rank int, known bool) {
 // ApplyOpenAIServiceTierBillingResolution lowers result.ServiceTier to the tier
 // the upstream reports having used, so cost calculation and the usage log share
 // one billable tier. The returned resolution is meant for the audit log.
+//
+// CAPYBARA-PATCH: client-requested fast wins over the upstream echo. A request
+// that goes out as the fast tier is served as fast in practice, so the upstream
+// echoing "default" must not lower the bill back to the base rate. Only the
+// OpenAI side is exempted: flex and every other tier keep the only-lowers
+// behaviour, and the Anthropic entry point below is untouched.
 func ApplyOpenAIServiceTierBillingResolution(result *OpenAIForwardResult) ServiceTierBillingResolution {
 	if result == nil {
 		return ServiceTierBillingResolution{}
+	}
+	requested := normalizeBillingServiceTier(optionalStringValue(result.ServiceTier))
+	if isPriorityBillingServiceTier(requested) {
+		return ServiceTierBillingResolution{
+			Requested: requested,
+			Observed:  normalizeBillingServiceTier(result.UpstreamResponseServiceTier),
+			Billing:   requested,
+		}
 	}
 	resolution := ResolveBillingServiceTier(optionalStringValue(result.ServiceTier), result.UpstreamResponseServiceTier)
 	if resolution.Downgraded {

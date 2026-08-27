@@ -155,6 +155,18 @@ func startPassthroughLifecycleServer(
 	account *Account,
 ) (*httptest.Server, <-chan error) {
 	t.Helper()
+	return startPassthroughLifecycleServerWithHooks(t, controlCtx, svc, account, nil)
+}
+
+// CAPYBARA-PATCH: hooks 变体让计费断言拿到 AfterTurn 交付的 OpenAIForwardResult。
+func startPassthroughLifecycleServerWithHooks(
+	t *testing.T,
+	controlCtx context.Context,
+	svc *OpenAIGatewayService,
+	account *Account,
+	hooks *OpenAIWSIngressHooks,
+) (*httptest.Server, <-chan error) {
+	t.Helper()
 	serverErr := make(chan error, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		conn, err := coderws.Accept(w, r, &coderws.AcceptOptions{CompressionMode: coderws.CompressionContextTakeover})
@@ -185,7 +197,7 @@ func startPassthroughLifecycleServer(
 		req := r.Clone(controlCtx)
 		req.Header = req.Header.Clone()
 		ginCtx.Request = req
-		serverErr <- svc.ProxyResponsesWebSocketFromClient(controlCtx, ginCtx, conn, account, "sk-test", firstMessage, nil)
+		serverErr <- svc.ProxyResponsesWebSocketFromClient(controlCtx, ginCtx, conn, account, "sk-test", firstMessage, hooks)
 	}))
 	return server, serverErr
 }
@@ -254,6 +266,72 @@ func TestPassthroughLifecycle_ResponsesLiteFirstFramePinsParallelToolCalls(t *te
 	case <-time.After(3 * time.Second):
 		t.Fatal("Lite 首帧测试等待 passthrough 退出超时")
 	}
+}
+
+// CAPYBARA-PATCH: client-requested fast wins over the upstream echo.
+// passthrough 的 ServiceTier 来自 usageMeta.serviceTier（出站 body），不经过
+// resolvedOpenAIUpstreamServiceTierFromObserver；本例锁定出站 priority 遇上游
+// 回显 default 时仍按 fast 结算。
+func TestPassthroughLifecycle_RequestFastWinsOverUpstreamDefaultServiceTier(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	controlCtx, cancelControl := context.WithCancelCause(context.Background())
+	defer cancelControl(context.Canceled)
+	upstream := newStagedPassthroughConn()
+	upstream.Send(`{"type":"response.completed","response":{"id":"resp_tier_passthrough","model":"gpt-5.5","status":"completed","service_tier":"default","usage":{"input_tokens":1,"output_tokens":1}}}`)
+
+	var turnMu sync.Mutex
+	var turnResult *OpenAIForwardResult
+	hooks := &OpenAIWSIngressHooks{
+		ClientLifecycleContext: controlCtx,
+		AfterTurn: func(_ int, result *OpenAIForwardResult, _ error) {
+			turnMu.Lock()
+			defer turnMu.Unlock()
+			if result != nil && turnResult == nil {
+				turnResult = result
+			}
+		},
+	}
+
+	server, serverErr := startPassthroughLifecycleServerWithHooks(
+		t,
+		controlCtx,
+		newPassthroughLifecycleService(passthroughLifecycleConfig(), upstream),
+		passthroughLifecycleAccount(),
+		hooks,
+	)
+	defer server.Close()
+	clientConn := dialPassthroughLifecycleClientWithPayload(t, server,
+		`{"type":"response.create","model":"gpt-5.5","stream":false,"service_tier":"priority"}`)
+	defer func() { _ = clientConn.CloseNow() }()
+
+	upstreamBody := requirePassthroughUpstreamWrite(t, upstream, 3*time.Second)
+	require.Equal(t, "priority", gjson.GetBytes(upstreamBody, "service_tier").String(),
+		"passthrough must forward the requested fast tier upstream: %s", string(upstreamBody))
+
+	event, err := readPassthroughLifecycleFrame(t, clientConn, 3*time.Second)
+	require.NoError(t, err)
+	require.Equal(t, "response.completed", gjson.GetBytes(event, "type").String())
+	require.NoError(t, clientConn.Close(coderws.StatusNormalClosure, "done"))
+	select {
+	case <-serverErr:
+	case <-time.After(3 * time.Second):
+		t.Fatal("passthrough service_tier 测试等待退出超时")
+	}
+
+	turnMu.Lock()
+	result := turnResult
+	turnMu.Unlock()
+	require.NotNil(t, result, "AfterTurn must deliver the turn's billing result")
+	require.NotNil(t, result.ServiceTier)
+	require.Equal(t, "priority", *result.ServiceTier,
+		"usageMeta carries the outbound fast tier, the upstream echo does not replace it")
+	require.Equal(t, "default", result.UpstreamResponseServiceTier,
+		"the upstream echo is still recorded for the audit trail")
+
+	resolution := ApplyOpenAIServiceTierBillingResolution(result)
+	require.False(t, resolution.Downgraded, "a fast passthrough turn must not be downgraded at billing time")
+	require.Equal(t, "priority", resolution.Billing)
+	require.Equal(t, "priority", *result.ServiceTier, "billing must not rewrite the recorded tier")
 }
 
 func TestOpenAIWSPassthroughTurnLifecycle_SerializesTerminalCommitAndNextTurn(t *testing.T) {

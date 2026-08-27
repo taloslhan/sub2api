@@ -2895,7 +2895,8 @@ func TestGatewayServiceCalculateRecordUsageCost_ChannelImageBillingNormalizesMis
 	require.InDelta(t, 0.44, cost.ActualCost, 1e-12)
 }
 
-func TestOpenAIGatewayServiceRecordUsage_ServiceTierDowngradedByUpstreamResponse(t *testing.T) {
+// CAPYBARA-PATCH: client-requested fast wins over the upstream echo.
+func TestOpenAIGatewayServiceRecordUsage_FastServiceTierNotDowngradedByUpstreamResponse(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	userRepo := &openAIRecordUsageUserRepoStub{}
 	subRepo := &openAIRecordUsageSubRepoStub{}
@@ -2905,7 +2906,7 @@ func TestOpenAIGatewayServiceRecordUsage_ServiceTierDowngradedByUpstreamResponse
 
 	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
 		Result: &OpenAIForwardResult{
-			RequestID:                   "resp_service_tier_downgraded",
+			RequestID:                   "resp_service_tier_fast_kept",
 			ServiceTier:                 &serviceTier,
 			UpstreamResponseServiceTier: "default",
 			Usage:                       usage,
@@ -2920,11 +2921,18 @@ func TestOpenAIGatewayServiceRecordUsage_ServiceTierDowngradedByUpstreamResponse
 	require.NoError(t, err)
 	require.NotNil(t, usageRepo.lastLog)
 	require.NotNil(t, usageRepo.lastLog.ServiceTier)
-	require.Equal(t, "default", *usageRepo.lastLog.ServiceTier, "usage log must record the tier actually billed")
+	require.Equal(t, "priority", *usageRepo.lastLog.ServiceTier,
+		"an upstream default echo must not rewrite the requested fast tier in the usage log")
 
-	baseCost, calcErr := svc.billingService.CalculateCost("gpt-5.4", UsageTokens{InputTokens: 100, OutputTokens: 50}, 1.0)
+	tokens := UsageTokens{InputTokens: 100, OutputTokens: 50}
+	baseCost, calcErr := svc.billingService.CalculateCost("gpt-5.4", tokens, 1.0)
 	require.NoError(t, calcErr)
-	require.InDelta(t, baseCost.TotalCost, usageRepo.lastLog.TotalCost, 1e-10, "a request served at default must not pay the priority price")
+	priorityCost, calcErr := svc.billingService.CalculateCostWithServiceTier("gpt-5.4", tokens, 1.0, "priority")
+	require.NoError(t, calcErr)
+	require.Greater(t, priorityCost.TotalCost, baseCost.TotalCost,
+		"fixture guard: the priority tier must cost more than the standard tier")
+	require.InDelta(t, priorityCost.TotalCost, usageRepo.lastLog.TotalCost, 1e-10,
+		"a fast request is billed at the priority price even when the upstream echoes default")
 }
 
 func TestOpenAIGatewayServiceRecordUsage_ServiceTierNeverRaisedByUpstreamResponse(t *testing.T) {
