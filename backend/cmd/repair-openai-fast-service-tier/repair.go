@@ -100,6 +100,13 @@ type logRow struct {
 	// longCtxApplied 取 usage_logs.long_context_billing_applied。
 	// 长上下文开关是账号级配置且没有历史快照，只能用这个落库的结果标记回填，
 	// 不可以读账号当前配置。
+	//
+	// 注意这个回填是**单向**的，压不住长上下文：CostInput.LongContextBillingEnabled
+	// 在 billing_service.go 里只做 `if *v { enabled = true }`，传 false 是空操作；
+	// 真正的开关来自分组的当前配置（Group == nil 时恒为 true）。而且该列写入的是
+	// cost.LongContextBillingApplied，语义是「长上下文定价实际抬高了费用」这个结果，
+	// false 同时涵盖「开关关」与「开关开但未过阈值」两种情况，本就无法还原开关状态。
+	// 由此产生的偏差由 main.go 的 preflight drift 闸门兜住。
 	longCtxApplied bool
 
 	createdAt        time.Time

@@ -32,6 +32,7 @@ func main() {
 	fromRaw := flag.String("from", "", "required RFC3339 lower bound (inclusive) on usage_logs.created_at")
 	toRaw := flag.String("to", "", "required RFC3339 upper bound (exclusive) on usage_logs.created_at")
 	execute := flag.Bool("execute", false, "write the recomputed costs (default is dry-run)")
+	allowDrift := flag.Bool("allow-drift", false, "proceed with --execute even when the preflight pass reports recompute drift")
 	batchSize := flag.Int("batch-size", 1000, "scan/update batch size (1-5000)")
 	topN := flag.Int("top", 20, "how many model/user rows to print in the per-dimension summary (0 = all)")
 	flag.Parse()
@@ -97,6 +98,35 @@ func main() {
 		billingService: billingService,
 		resolver:       resolver,
 		groupCache:     make(map[int64]*service.Group),
+	}
+
+	// 写入前先跑一遍只读 preflight，用 recompute_drift 当硬性闸门。
+	//
+	// drift 的定义是「用同一批输入、按落库时的旧档位重算，复现不出落库的 total_cost」。
+	// 它是本工具唯一能自证「重算路径与当初的生产计费路径等价」的信号，一旦非零，
+	// 说明存在无法从落库行还原的计费输入，此时按新档位算出来的金额同样不可信。
+	//
+	// 已知的一类成因：CostInput.LongContextBillingEnabled 只能把长上下文单向强制
+	// 置真（billing_service.go 里 `if *input.LongContextBillingEnabled { ... = true }`），
+	// 传 false 是空操作；真正的开关取自分组的**当前**配置
+	// （`input.Group == nil || input.Group.LongContextPricingEnabled`，group_id 为
+	// NULL 时恒为 true）。因此当初关着、现在开着的分组，重算会多套一层长上下文阶梯，
+	// 而 usage_logs.long_context_billing_applied 是「实际抬高了费用」的结果标记、
+	// 不是开关快照，无法用来压制它。这种偏差必然表现为 drift。
+	//
+	// 另一类成因：当初参与计费的 billingModel 可能来自 result.BillingModel /
+	// ChannelMappedModel / OriginalModel，这些都没有落库，只能用 usage_logs.model 近似。
+	if *execute {
+		preflight, err := r.run(ctx, from, to, *batchSize, false)
+		if err != nil {
+			log.Fatalf("preflight failed: %v", err)
+		}
+		if preflight.recomputeDrift > 0 && !*allowDrift {
+			preflight.print(false, from, to, *topN)
+			log.Fatalf("refusing to --execute: %d of %d matched rows fail to reproduce their stored total_cost at the OLD tier; "+
+				"the recomputed costs cannot be trusted. Investigate first, or pass --allow-drift to override deliberately",
+				preflight.recomputeDrift, preflight.matched)
+		}
 	}
 
 	summary, err := r.run(ctx, from, to, *batchSize, *execute)
