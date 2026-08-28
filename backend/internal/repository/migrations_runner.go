@@ -65,6 +65,7 @@ const usageLogsEffectiveUpstreamModelIndex = "idx_usage_logs_effective_upstream_
 
 // CAPYBARA-PATCH: 会话归档关联索引在高写入表上并发创建；启动重试前必须清理 invalid 索引。
 const sessionArchiveCorrelationIndexesMigration = "233_session_archive_correlation_indexes_notx.sql"
+const sessionArchiveStorageFinalizeMigration = "237_session_archive_storage_backends_finalize.sql"
 
 var sessionArchiveCorrelationIndexes = []string{
 	"idx_usage_logs_correlation_request_id",
@@ -231,6 +232,12 @@ func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 		}
 		if !errors.Is(rowErr, sql.ErrNoRows) {
 			return fmt.Errorf("check migration %s: %w", name, rowErr)
+		}
+		// CAPYBARA-PATCH: 236 与 feature binary 首次发布；未应用的 237 必须
+		// 由带 session_archive_storage_finalize build tag 的第二阶段产物执行。
+		// 已应用的 237 仍会走上方 checksum 校验，保持迁移不可变约束。
+		if name == sessionArchiveStorageFinalizeMigration && !includeSessionArchiveStorageFinalize {
+			continue
 		}
 
 		nonTx, err := validateMigrationExecutionMode(name, content)

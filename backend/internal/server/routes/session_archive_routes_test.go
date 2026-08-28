@@ -19,7 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSessionArchiveSensitiveRoutesAlwaysStepUpAndDownloadStaysOutsideAdmin(t *testing.T) {
+func TestSessionArchiveManagementRoutesUseAdminAuthWithoutForcedStepUpAndDownloadStaysOutsideAdmin(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	archiveService, err := sessionarchive.NewService(context.Background(), sessionarchive.ServiceOptions{
 		Config: config.SessionArchiveConfig{Enabled: false},
@@ -31,6 +31,7 @@ func TestSessionArchiveSensitiveRoutesAlwaysStepUpAndDownloadStaysOutsideAdmin(t
 	require.NoError(t, err)
 
 	router := gin.New()
+	router.Use(gin.Recovery())
 	handlers := &handler.Handlers{Admin: &handler.AdminHandlers{SessionArchive: archiveHandler}}
 	adminAuthCalls := 0
 	adminAuth := servermiddleware.AdminAuthMiddleware(func(c *gin.Context) {
@@ -42,11 +43,6 @@ func TestSessionArchiveSensitiveRoutesAlwaysStepUpAndDownloadStaysOutsideAdmin(t
 	})
 	auditLog := servermiddleware.AuditLogMiddleware(func(c *gin.Context) { c.Next() })
 	stepUp := servermiddleware.StepUpAuthMiddleware(func(c *gin.Context) { c.Next() })
-	alwaysStepUpCalls := 0
-	alwaysStepUp := servermiddleware.AlwaysStepUpAuthMiddleware(func(c *gin.Context) {
-		alwaysStepUpCalls++
-		c.AbortWithStatus(http.StatusTeapot)
-	})
 	requiredAudit := servermiddleware.RequiredAuditMiddleware(func(string) gin.HandlerFunc {
 		return func(c *gin.Context) { c.Next() }
 	})
@@ -54,7 +50,7 @@ func TestSessionArchiveSensitiveRoutesAlwaysStepUpAndDownloadStaysOutsideAdmin(t
 	redisClient := redis.NewClient(&redis.Options{Addr: redisServer.Addr()})
 	t.Cleanup(func() { _ = redisClient.Close() })
 	RegisterAdminRoutes(
-		router.Group("/api/v1"), handlers, adminAuth, auditLog, stepUp, alwaysStepUp,
+		router.Group("/api/v1"), handlers, adminAuth, auditLog, stepUp,
 		requiredAudit, nil, nil, servermiddleware.SessionArchiveDownloadRateLimit(redisClient),
 	)
 
@@ -73,9 +69,9 @@ func TestSessionArchiveSensitiveRoutesAlwaysStepUpAndDownloadStaysOutsideAdmin(t
 		response := httptest.NewRecorder()
 		request := httptest.NewRequest(item.method, item.path, strings.NewReader(item.body))
 		router.ServeHTTP(response, request)
-		require.Equal(t, http.StatusTeapot, response.Code, "%s %s", item.method, item.path)
+		require.NotEqual(t, http.StatusUnauthorized, response.Code, "%s %s", item.method, item.path)
+		require.NotEqual(t, http.StatusForbidden, response.Code, "%s %s", item.method, item.path)
 	}
-	require.Equal(t, 6, alwaysStepUpCalls)
 	require.Equal(t, 6, adminAuthCalls)
 
 	response := httptest.NewRecorder()

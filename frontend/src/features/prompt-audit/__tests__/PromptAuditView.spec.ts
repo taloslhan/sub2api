@@ -47,10 +47,6 @@ const EventsStub = defineComponent({
   template: '<div data-test="events"><button data-test="preview" @click="$emit(\'preview-delete\')">preview</button><button data-test="change-filter" @click="$emit(\'filters-change\', { ...filters, keyword: \'changed\' })">change</button><button data-test="view-one" @click="$emit(\'view\', 5)">view</button><button data-test="delete-one" @click="$emit(\'delete\', 5)">delete</button><button data-test="select-batch" @click="$emit(\'selection\', [5, 6])">select</button><button data-test="delete-batch" @click="$emit(\'batch-delete\')">batch</button></div>',
 })
 const DetailStub = defineComponent({ props: ['show', 'event', 'loading'], emits: ['close'], template: '<div v-if="show" data-test="detail"><span data-test="detail-body">{{ event?.snapshot?.full_prompt || \'\' }}</span><button data-test="close-detail" @click="$emit(\'close\')">close</button></div>' })
-const StepUpStub = defineComponent({
-  props: ['controller'],
-  template: '<div v-if="controller.visible.value" data-test="step-up"><button data-test="step-up-verify" @click="controller.onVerified()">verify</button><button data-test="step-up-cancel" @click="controller.onCancel()">cancel</button></div>',
-})
 const ConfirmStub = defineComponent({ props: ['show', 'title', 'message'], emits: ['confirm', 'cancel'], template: '<div v-if="show" data-test="confirm"><button data-test="confirm-action" @click="$emit(\'confirm\')">confirm</button></div>' })
 const FilterDeleteStub = defineComponent({
   props: ['show', 'initialFilters', 'preview', 'previewing', 'deleting'],
@@ -60,7 +56,7 @@ const FilterDeleteStub = defineComponent({
 
 function mountView() {
   return mount(PromptAuditView, {
-    global: { stubs: { AppLayout: AppLayoutStub, RuntimeOverview: RuntimeStub, EndpointPool: EndpointStub, PolicyPanel: PolicyStub, EventWorkspace: EventsStub, EventDetailDialog: DetailStub, FilterDeleteDialog: FilterDeleteStub, ConfirmDialog: ConfirmStub, TotpStepUpDialog: StepUpStub } },
+    global: { stubs: { AppLayout: AppLayoutStub, RuntimeOverview: RuntimeStub, EndpointPool: EndpointStub, PolicyPanel: PolicyStub, EventWorkspace: EventsStub, EventDetailDialog: DetailStub, FilterDeleteDialog: FilterDeleteStub, ConfirmDialog: ConfirmStub } },
   })
 }
 
@@ -261,21 +257,13 @@ describe('PromptAuditView', () => {
     expect(wrapper.find('[data-test="filter-delete-dialog"]').exists()).toBe(false)
   })
 
-  it('retries a full-text detail read after step-up and clears the body on close', async () => {
-    mocks.getEvent
-      .mockRejectedValueOnce({ code: 'STEP_UP_REQUIRED', message: 'step up' })
-      .mockResolvedValueOnce({ id: 5, snapshot: { full_prompt: 'sensitive prompt' } })
+  it('loads a full-text detail directly and clears the body on close', async () => {
     const wrapper = mountView()
     await flushPromises()
 
     await wrapper.get('[data-test="view-one"]').trigger('click')
     await flushPromises()
-    expect(wrapper.find('[data-test="step-up"]').exists()).toBe(true)
     expect(mocks.getEvent).toHaveBeenCalledTimes(1)
-
-    await wrapper.get('[data-test="step-up-verify"]').trigger('click')
-    await flushPromises()
-    expect(mocks.getEvent).toHaveBeenCalledTimes(2)
     expect(wrapper.get('[data-test="detail-body"]').text()).toBe('sensitive prompt')
 
     await wrapper.get('[data-test="close-detail"]').trigger('click')
@@ -284,21 +272,14 @@ describe('PromptAuditView', () => {
     expect(wrapper.html()).not.toContain('sensitive prompt')
   })
 
-  it('treats step-up cancellation as silent and reports non-interactive admin credentials', async () => {
-    mocks.getEvent.mockRejectedValueOnce({ code: 'STEP_UP_REQUIRED', message: 'step up' })
+  it('reports detail loading errors without opening a verification dialog', async () => {
+    mocks.getEvent.mockRejectedValueOnce({ code: 'PROMPT_DETAIL_UNAVAILABLE', message: 'unavailable' })
     const wrapper = mountView()
     await flushPromises()
     await wrapper.get('[data-test="view-one"]').trigger('click')
     await flushPromises()
-    await wrapper.get('[data-test="step-up-cancel"]').trigger('click')
-    await flushPromises()
-    expect(mocks.showError).not.toHaveBeenCalledWith(expect.stringContaining('loadDetail'))
+    expect(mocks.showError).toHaveBeenCalled()
     expect(wrapper.find('[data-test="detail"]').exists()).toBe(false)
-
-    mocks.getEvent.mockRejectedValueOnce({ code: 'STEP_UP_ADMIN_API_KEY_FORBIDDEN', message: 'blocked' })
-    await wrapper.get('[data-test="view-one"]').trigger('click')
-    await flushPromises()
-    expect(mocks.showError).toHaveBeenCalledWith('stepUp.adminApiKeyForbidden')
     expect(wrapper.find('[data-test="step-up"]').exists()).toBe(false)
   })
 })

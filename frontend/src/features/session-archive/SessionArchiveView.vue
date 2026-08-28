@@ -86,8 +86,6 @@
       @confirm="confirmExport"
       @cancel="pendingExport = null"
     />
-    <TotpStepUpDialog :controller="archiveStepUp" />
-
     <a
       ref="downloadAnchor"
       :href="downloadURL"
@@ -105,9 +103,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
-import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
 import { useClipboard } from '@/composables/useClipboard'
-import { isStepUpBlocked, isStepUpCancelled, stepUpBlockReason, useStepUp } from '@/composables/useStepUp'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import ArchiveWorkspace from './ArchiveWorkspace.vue'
@@ -135,7 +131,6 @@ const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const appStore = useAppStore()
-const archiveStepUp = useStepUp()
 const { copyToClipboard } = useClipboard()
 
 const activeTab = ref<ArchivePageTab>(route.query.tab === 'config' ? 'config' : 'sessions')
@@ -182,17 +177,7 @@ function queryString(value: unknown): string {
   if (Array.isArray(value)) return value.find((item): item is string => typeof item === 'string') || ''
   return ''
 }
-function reportStepUpBlocked(error: unknown): boolean {
-  if (!isStepUpBlocked(error)) return false
-  appStore.showError(
-    stepUpBlockReason(error) === 'STEP_UP_ADMIN_API_KEY_FORBIDDEN'
-      ? t('stepUp.adminApiKeyForbidden')
-      : t('stepUp.notEnabled'),
-  )
-  return true
-}
 function showActionError(error: unknown, fallbackKey: string) {
-  if (isStepUpCancelled(error) || reportStepUpBlocked(error)) return
   appStore.showError(extractApiErrorMessage(error, t(fallbackKey)))
 }
 
@@ -287,7 +272,7 @@ async function loadRequestContent(requestID: ArchiveID, kind: ArchiveContentKind
   const key = `${String(requestID)}:${kind}`
   contentLoadingKey.value = key
   try {
-    const content = await archiveStepUp.run(() => sessionArchiveAPI.getRequestContent(requestID, kind))
+    const content = await sessionArchiveAPI.getRequestContent(requestID, kind)
     requestContent.value = { ...requestContent.value, [key]: content }
   } catch (error) {
     showActionError(error, 'admin.sessionArchive.errors.loadContent')
@@ -297,9 +282,7 @@ async function loadRequestContent(requestID: ArchiveID, kind: ArchiveContentKind
 }
 async function copyContent(content: ArchiveContent) {
   try {
-    await archiveStepUp.run(async () => {
-      await copyToClipboard(contentText(content), t('common.copiedToClipboard'))
-    })
+    await copyToClipboard(contentText(content), t('common.copiedToClipboard'))
   } catch (error) {
     showActionError(error, 'admin.sessionArchive.errors.copyContent')
   }
@@ -308,7 +291,7 @@ async function copyContent(content: ArchiveContent) {
 async function savePolicy(policy: ArchivePolicy) {
   loading.config = true
   try {
-    await archiveStepUp.run(() => sessionArchiveAPI.savePolicy(policy))
+    await sessionArchiveAPI.savePolicy(policy)
     appStore.showSuccess(t('admin.sessionArchive.messages.policySaved'))
     await loadConfig()
   } catch (error) {
@@ -320,7 +303,7 @@ async function savePolicy(policy: ArchivePolicy) {
 async function deletePolicy(policy: ArchivePolicy) {
   loading.config = true
   try {
-    await archiveStepUp.run(() => sessionArchiveAPI.deletePolicy(policy))
+    await sessionArchiveAPI.deletePolicy(policy)
     appStore.showSuccess(t('admin.sessionArchive.messages.policyDeleted'))
     await loadConfig()
   } catch (error) {
@@ -334,7 +317,7 @@ async function prepareDownload(payload: ArchiveExportRequest) {
   if (loading.exporting) return
   loading.exporting = true
   try {
-    const preflight = await archiveStepUp.run(() => sessionArchiveAPI.preflightExport(payload))
+    const preflight = await sessionArchiveAPI.preflightExport(payload)
     pendingExport.value = { payload, preflight }
   } catch (error) {
     showActionError(error, 'admin.sessionArchive.errors.exportPreflight')
@@ -346,7 +329,7 @@ async function issueDownload(payload: ArchiveExportRequest) {
   if (loading.exporting) return
   loading.exporting = true
   try {
-    const ticket = await archiveStepUp.run(() => sessionArchiveAPI.issueExportTicket(payload))
+    const ticket = await sessionArchiveAPI.issueExportTicket(payload)
     downloadURL.value = sessionArchiveAPI.exportDownloadURL(ticket)
     await nextTick()
     downloadAnchor.value?.click()
@@ -385,7 +368,7 @@ async function confirmDelete() {
     const payload = request.kind === 'session'
       ? { session_ids: [request.id] }
       : { filter: archiveFilterParams(appliedFilters.value) }
-    const job = await archiveStepUp.run(() => sessionArchiveAPI.createDeletionJob(payload))
+    const job = await sessionArchiveAPI.createDeletionJob(payload)
     deletionJobs.value = [job, ...deletionJobs.value.filter((item) => String(item.id) !== String(job.id))]
     appStore.showSuccess(t('admin.sessionArchive.messages.deletionQueued'))
     scheduleDeletionPoll()

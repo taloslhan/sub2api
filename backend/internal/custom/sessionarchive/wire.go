@@ -7,6 +7,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/Wei-Shaw/sub2api/internal/setup"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/wire"
@@ -17,7 +18,7 @@ const exportTicketRedisPrefix = "session_archive:export_ticket:"
 
 // ProvideService 构造进程级归档服务；外部存储自检与 worker 启动由应用生命周期负责。
 func ProvideService(cfg *config.Config, db *sql.DB) (*Service, error) {
-	return NewService(context.Background(), ServiceOptions{Config: cfg.SessionArchive, DB: db})
+	return NewService(context.Background(), ServiceOptions{Config: cfg.SessionArchive, DB: db, DataDir: setup.GetDataDir()})
 }
 
 // ProvideRedisTicketStore 构造多实例共享、原子消费的短时导出票据存储。

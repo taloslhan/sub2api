@@ -12,7 +12,7 @@ import (
 func TestAddBlobRefLocksAndOnlyAttachesReadyBlob(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repository, err := NewRepository(db)
 	require.NoError(t, err)
 	blobID := int64(7)
@@ -30,7 +30,7 @@ func TestAddBlobRefLocksAndOnlyAttachesReadyBlob(t *testing.T) {
 func TestAddBlobRefRejectsDeletingBlob(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repository, err := NewRepository(db)
 	require.NoError(t, err)
 	blobID := int64(7)
@@ -46,7 +46,7 @@ func TestAddBlobRefRejectsDeletingBlob(t *testing.T) {
 func TestAddBlobRefRejectsDeletingOwnerBeforeLockingBlob(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repository, err := NewRepository(db)
 	require.NoError(t, err)
 	blobID := int64(7)
@@ -61,11 +61,13 @@ func TestAddBlobRefRejectsDeletingOwnerBeforeLockingBlob(t *testing.T) {
 func TestClaimGCBlobsRechecksZeroReferences(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repository, err := NewRepository(db)
 	require.NoError(t, err)
-	mock.ExpectQuery("UPDATE session_archive_blobs SET status='deleting'.*NOT EXISTS.*session_archive_blob_refs").WithArgs(10).WillReturnRows(sqlmock.NewRows([]string{"id", "object_key"}))
-	blobs, err := repository.ClaimGCBlobs(context.Background(), 10)
+	mock.ExpectQuery("UPDATE session_archive_blobs SET status='deleting'.*storage_backend=ANY.*NOT EXISTS.*session_archive_blob_refs").
+		WithArgs(10, sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "storage_backend", "object_key"}))
+	blobs, err := repository.ClaimGCBlobs(context.Background(), 10, []string{StorageBackendS3})
 	require.NoError(t, err)
 	require.Empty(t, blobs)
 	require.NoError(t, mock.ExpectationsWereMet())
@@ -74,7 +76,7 @@ func TestClaimGCBlobsRechecksZeroReferences(t *testing.T) {
 func TestRecoverStalePendingSchedulesUnreferencedObjectsForGC(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repository, err := NewRepository(db)
 	require.NoError(t, err)
 	mock.ExpectExec("UPDATE session_archive_blobs b SET status='gc_pending'.*status='failed'.*status='pending'.*NOT EXISTS.*session_archive_blob_refs").WillReturnResult(sqlmock.NewResult(0, 2))
@@ -89,7 +91,7 @@ func TestRecoverStalePendingSchedulesUnreferencedObjectsForGC(t *testing.T) {
 func TestAddStorageFailureRefPersistsMissingBodyWithoutOverwritingExistingRef(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repository, err := NewRepository(db)
 	require.NoError(t, err)
 	event := CaptureEvent{
@@ -111,7 +113,7 @@ func TestAddStorageFailureRefPersistsMissingBodyWithoutOverwritingExistingRef(t 
 func TestScheduleOrphanReadyBlobsRequiresAgeAndZeroReferences(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repository, err := NewRepository(db)
 	require.NoError(t, err)
 	mock.ExpectExec("UPDATE session_archive_blobs b SET status='gc_pending'.*status='ready'.*updated_at<NOW.*NOT EXISTS.*session_archive_blob_refs.*FOR UPDATE SKIP LOCKED LIMIT").
@@ -128,7 +130,7 @@ func TestScheduleOrphanReadyBlobsRequiresAgeAndZeroReferences(t *testing.T) {
 func TestDeleteExpiredCorrelationFencesIsBatchLimited(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repository, err := NewRepository(db)
 	require.NoError(t, err)
 	mock.ExpectExec("DELETE FROM session_archive_correlation_fences.*expires_at<=NOW.*LIMIT \\$1").WithArgs(50).WillReturnResult(sqlmock.NewResult(0, 4))

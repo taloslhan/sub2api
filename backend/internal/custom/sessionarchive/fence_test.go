@@ -12,7 +12,7 @@ import (
 func TestEnsureProjectionRejectsFencedCorrelationWithoutRecreatingSession(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repository, err := NewRepository(db)
 	require.NoError(t, err)
 	event := CaptureEvent{Meta: CaptureMeta{TenantID: 1, UserID: 2, APIKeyID: 3, Protocol: "openai", CorrelationRequestID: "corr-deleted"}}
@@ -34,7 +34,7 @@ func TestEnsureProjectionRejectsFencedCorrelationWithoutRecreatingSession(t *tes
 func TestPersistCorrelationFencesUsesProjectionLockOrder(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	mock.ExpectBegin()
 	tx, err := db.BeginTx(context.Background(), nil)
 	require.NoError(t, err)

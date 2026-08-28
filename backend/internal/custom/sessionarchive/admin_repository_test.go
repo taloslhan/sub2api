@@ -13,14 +13,14 @@ import (
 var contentRecordColumns = []string{
 	"id", "owner_type", "owner_id", "purpose", "direction", "content_type",
 	"observed_sha256", "observed_bytes", "stored_bytes", "truncated", "dropped_reason",
-	"sequence_no", "occurred_at", "blob_id", "stored_plaintext_sha256", "blob_stored_bytes",
+	"sequence_no", "occurred_at", "blob_id", "storage_backend", "stored_plaintext_sha256", "blob_stored_bytes",
 	"compressed_bytes", "ciphertext_bytes", "gzip_version", "format_version", "key_id", "object_key",
 }
 
 func TestAcquireRequestReadLeaseHoldsTransactionUntilExplicitRelease(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repository, err := NewRepository(db)
 	require.NoError(t, err)
 
@@ -41,7 +41,7 @@ func TestAcquireRequestReadLeaseHoldsTransactionUntilExplicitRelease(t *testing.
 func TestAcquireSessionReadLeaseRejectsDeletingSession(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repository, err := NewRepository(db)
 	require.NoError(t, err)
 
@@ -60,7 +60,7 @@ func TestAcquireSessionReadLeaseRejectsDeletingSession(t *testing.T) {
 func TestRequestContentsLocksActiveSessionAndReturnsEveryOrderedRef(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repository, err := NewRepository(db)
 	require.NoError(t, err)
 	firstAt := time.Date(2026, 8, 28, 1, 2, 3, 0, time.UTC)
@@ -71,8 +71,8 @@ func TestRequestContentsLocksActiveSessionAndReturnsEveryOrderedRef(t *testing.T
 	mock.ExpectQuery("SELECT br.id.*br.owner_type='request'.*ORDER BY br.occurred_at,br.sequence_no,br.id").
 		WithArgs(int64(11), PurposeResponse).
 		WillReturnRows(sqlmock.NewRows(contentRecordColumns).
-			AddRow(31, "request", 11, PurposeResponse, "gateway_to_client", "application/json", "a", 5, 5, false, "", 1, firstAt, 41, "hash-1", 5, 4, 20, 1, 1, "key-1", "archive/1").
-			AddRow(32, "request", 11, PurposeResponse, "gateway_to_client", "application/json", "b", 7, 7, false, "", 2, secondAt, 42, "hash-2", 7, 6, 22, 1, 1, "key-1", "archive/2"))
+			AddRow(31, "request", 11, PurposeResponse, "gateway_to_client", "application/json", "a", 5, 5, false, "", 1, firstAt, 41, "s3", "hash-1", 5, 4, 20, 1, 1, "key-1", "archive/1").
+			AddRow(32, "request", 11, PurposeResponse, "gateway_to_client", "application/json", "b", 7, 7, false, "", 2, secondAt, 42, "s3", "hash-2", 7, 6, 22, 1, 1, "key-1", "archive/2"))
 	mock.ExpectCommit()
 
 	records, err := repository.RequestContents(context.Background(), 11, "response")
@@ -89,7 +89,7 @@ func TestRequestContentsLocksActiveSessionAndReturnsEveryOrderedRef(t *testing.T
 func TestRequestContentsReadsAttemptUpstreamRefs(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repository, err := NewRepository(db)
 	require.NoError(t, err)
 	occurredAt := time.Date(2026, 8, 28, 1, 2, 3, 0, time.UTC)
@@ -99,7 +99,7 @@ func TestRequestContentsReadsAttemptUpstreamRefs(t *testing.T) {
 	mock.ExpectQuery("SELECT br.id.*JOIN session_archive_attempts.*a.request_id=\\$1.*ORDER BY br.occurred_at,a.attempt_no,br.sequence_no,br.id").
 		WithArgs(int64(12), PurposeUpstreamRequest).
 		WillReturnRows(sqlmock.NewRows(contentRecordColumns).
-			AddRow(33, "attempt", 21, PurposeUpstreamRequest, "gateway_to_upstream", "application/json", "c", 9, 9, false, "", 1, occurredAt, 43, "hash-3", 9, 8, 24, 1, 1, "key-1", "archive/3"))
+			AddRow(33, "attempt", 21, PurposeUpstreamRequest, "gateway_to_upstream", "application/json", "c", 9, 9, false, "", 1, occurredAt, 43, "s3", "hash-3", 9, 8, 24, 1, 1, "key-1", "archive/3"))
 	mock.ExpectCommit()
 
 	records, err := repository.RequestContents(context.Background(), 12, "upstream")
@@ -114,7 +114,7 @@ func TestRequestContentsReadsAttemptUpstreamRefs(t *testing.T) {
 func TestRequestContentsReadsInlineAttachments(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repository, err := NewRepository(db)
 	require.NoError(t, err)
 	occurredAt := time.Date(2026, 8, 28, 1, 2, 3, 0, time.UTC)
@@ -124,7 +124,7 @@ func TestRequestContentsReadsInlineAttachments(t *testing.T) {
 	mock.ExpectQuery("SELECT br.id.*br.owner_type='request'.*ORDER BY br.occurred_at,br.sequence_no,br.id").
 		WithArgs(int64(14), PurposeAttachment).
 		WillReturnRows(sqlmock.NewRows(contentRecordColumns).
-			AddRow(34, "request", 14, PurposeAttachment, "client_to_gateway", "image/png", "d", 4, 4, false, "", 1, occurredAt, 44, "hash-4", 4, 4, 20, 1, 1, "key-1", "archive/4"))
+			AddRow(34, "request", 14, PurposeAttachment, "client_to_gateway", "image/png", "d", 4, 4, false, "", 1, occurredAt, 44, "s3", "hash-4", 4, 4, 20, 1, 1, "key-1", "archive/4"))
 	mock.ExpectCommit()
 
 	records, err := repository.RequestContents(context.Background(), 14, "attachment")
@@ -139,7 +139,7 @@ func TestRequestContentsReadsInlineAttachments(t *testing.T) {
 func TestRequestContentsRejectsDeletingSessionBeforeBlobLookup(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repository, err := NewRepository(db)
 	require.NoError(t, err)
 

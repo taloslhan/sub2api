@@ -1,12 +1,43 @@
 package sessionarchive
 
 import (
+	"context"
 	"encoding/base64"
+	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
+	sqlmock "github.com/DATA-DOG/go-sqlmock"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+func TestGetRequestContentAuditFailurePreventsRepositoryAndStoreAccess(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+	repository, err := NewRepository(db)
+	require.NoError(t, err)
+	handler, err := NewHandler(HandlerOptions{
+		Service: &Service{repository: repository, metrics: &serviceMetrics{}},
+		RequiredAudit: func(context.Context, string, string, map[string]any) error {
+			return errors.New("audit unavailable")
+		},
+	})
+	require.NoError(t, err)
+	router := gin.New()
+	router.GET("/requests/:id/content", handler.GetRequestContent)
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/requests/91/content?kind=response", nil)
+
+	router.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusServiceUnavailable, recorder.Code)
+	require.NoError(t, mock.ExpectationsWereMet(), "audit failure must happen before the repository or blob store is touched")
+}
 
 func TestAttachmentContentKindAndBinaryTransportEncoding(t *testing.T) {
 	require.Equal(t, "attachment", contentKind(PurposeAttachment))
@@ -40,7 +71,7 @@ func TestContentPartPayloadKeepsEachReferenceAndEncodingIndependent(t *testing.T
 	require.Equal(t, int64(42), binaryPart["ref_id"])
 	require.Equal(t, "base64", binaryPart["encoding"])
 	require.Equal(t, base64.StdEncoding.EncodeToString([]byte{0x89, 'P', 'N', 'G'}), binaryPart["base64"])
-	require.True(t, binaryPart["truncated"].(bool))
+	require.Equal(t, true, binaryPart["truncated"])
 }
 
 func TestTextualContentIsNotBase64Encoded(t *testing.T) {

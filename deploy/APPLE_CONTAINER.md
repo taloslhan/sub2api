@@ -140,6 +140,14 @@ All three services attach only to the private `sub2api-apple` network. Only the 
 
 The application container is intentionally recreated by every `up` and `restart` operation because dependency VM addresses can change after they stop. Application data remains in `sub2api-apple-data`.
 
+The Apple workflow sets `DATA_DIR=/app/storage/data`. Therefore an empty
+`session_archive.filesystem.root` resolves to
+`/app/storage/data/session-archive`, inside the persisted
+`sub2api-apple-data` volume. Do not substitute `/app/data` in Apple Container
+configuration. A single application container is managed by this workflow; if
+you add replicas, they must share the same compatible filesystem for Session
+Archive.
+
 The script checks the published `/health` endpoint from macOS before reporting success. Approve the Local Network prompt on first startup. If the internal probe succeeds but the host-port probe fails with a connection reset, enable Local Network access for `container-runtime-linux`, run `container system stop` followed by `container system start`, and then run `up` again. Runtime upgrades may prompt for permission again.
 
 ## Backup and Upgrade
@@ -165,6 +173,14 @@ container exec sub2api-apple sh -c 'tar -C "$DATA_DIR" -czf - .' \
 ```
 
 Database migrations are forward-only. Keep the previous image reference and both backups until the upgraded stack has been validated; image rollback alone cannot reverse a migrated database. Test restore procedures before relying on this workflow for important data.
+
+For Session Archive, the data tarball contains the filesystem backend and the
+persisted key ring, while the SQL dump contains archive metadata and all
+PostgreSQL-backend chunks. S3 content is not included and needs its own private
+bucket backup/versioning policy. Pause archive writers or take coordinated
+snapshots when database metadata and external filesystem/S3 objects must share
+an exact recovery point. Never discard an old archive encryption key until every
+referencing blob has expired and completed GC.
 
 To restore these backups into an existing stack, first ensure the image versions are compatible with the backup, then stop writers and replace both data sets:
 

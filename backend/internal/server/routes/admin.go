@@ -17,7 +17,6 @@ func RegisterAdminRoutes(
 	adminAuth middleware.AdminAuthMiddleware,
 	auditLog middleware.AuditLogMiddleware,
 	stepUpAuth middleware.StepUpAuthMiddleware,
-	alwaysStepUpAuth middleware.AlwaysStepUpAuthMiddleware,
 	requiredAudit middleware.RequiredAuditMiddleware,
 	settingService *service.SettingService,
 	panelRateLimiter *middleware.PanelRateLimiter,
@@ -129,10 +128,10 @@ func RegisterAdminRoutes(
 		registerContentModerationRoutes(admin, h)
 
 		// 独立提示词输入审计
-		registerPromptAuditRoutes(admin, h, alwaysStepUpAuth, requiredAudit)
+		registerPromptAuditRoutes(admin, h, requiredAudit)
 
 		// 会话归档控制面
-		registerSessionArchiveRoutes(admin, h, alwaysStepUpAuth)
+		registerSessionArchiveRoutes(admin, h)
 
 		// 邀请返利（专属用户管理）
 		registerAffiliateRoutes(admin, h)
@@ -145,7 +144,6 @@ func RegisterAdminRoutes(
 func registerSessionArchiveRoutes(
 	admin *gin.RouterGroup,
 	h *handler.Handlers,
-	alwaysStepUpAuth middleware.AlwaysStepUpAuthMiddleware,
 ) {
 	archive := admin.Group("/session-archive")
 	archive.Use(middleware.BindSessionArchiveRequiredAuditActor())
@@ -153,13 +151,13 @@ func registerSessionArchiveRoutes(
 		archive.GET("/runtime", h.Admin.SessionArchive.Runtime)
 		archive.GET("/sessions", h.Admin.SessionArchive.ListSessions)
 		archive.GET("/sessions/:id", h.Admin.SessionArchive.GetSession)
-		archive.GET("/requests/:id/content", gin.HandlerFunc(alwaysStepUpAuth), h.Admin.SessionArchive.GetRequestContent)
+		archive.GET("/requests/:id/content", h.Admin.SessionArchive.GetRequestContent)
 		archive.GET("/policies", h.Admin.SessionArchive.ListPolicies)
-		archive.PUT("/policies", gin.HandlerFunc(alwaysStepUpAuth), h.Admin.SessionArchive.UpsertPolicy)
-		archive.DELETE("/policies", gin.HandlerFunc(alwaysStepUpAuth), h.Admin.SessionArchive.DeletePolicy)
-		archive.POST("/export-preflight", gin.HandlerFunc(alwaysStepUpAuth), h.Admin.SessionArchive.ExportPreflight)
-		archive.POST("/export-tickets", gin.HandlerFunc(alwaysStepUpAuth), h.Admin.SessionArchive.IssueExportTicket)
-		archive.POST("/deletion-jobs", gin.HandlerFunc(alwaysStepUpAuth), h.Admin.SessionArchive.CreateDeletionJob)
+		archive.PUT("/policies", h.Admin.SessionArchive.UpsertPolicy)
+		archive.DELETE("/policies", h.Admin.SessionArchive.DeletePolicy)
+		archive.POST("/export-preflight", h.Admin.SessionArchive.ExportPreflight)
+		archive.POST("/export-tickets", h.Admin.SessionArchive.IssueExportTicket)
+		archive.POST("/deletion-jobs", h.Admin.SessionArchive.CreateDeletionJob)
 		archive.GET("/deletion-jobs", h.Admin.SessionArchive.ListDeletionJobs)
 		archive.GET("/deletion-jobs/:id", h.Admin.SessionArchive.GetDeletionJob)
 	}
@@ -168,7 +166,6 @@ func registerSessionArchiveRoutes(
 func registerPromptAuditRoutes(
 	admin *gin.RouterGroup,
 	h *handler.Handlers,
-	alwaysStepUpAuth middleware.AlwaysStepUpAuthMiddleware,
 	requiredAudit middleware.RequiredAuditMiddleware,
 ) {
 	promptAudit := admin.Group("/prompt-audit")
@@ -178,8 +175,8 @@ func registerPromptAuditRoutes(
 		promptAudit.POST("/endpoints/probe", h.Admin.PromptAudit.ProbeEndpoint)
 		promptAudit.GET("/runtime", h.Admin.PromptAudit.GetRuntime)
 		promptAudit.GET("/events", h.Admin.PromptAudit.ListEvents)
-		// CAPYBARA-PATCH: 详情包含 full_prompt；不受全局 step-up 开关影响，并在读取前确认审计落库。
-		promptAudit.GET("/events/:id", gin.HandlerFunc(alwaysStepUpAuth), requiredAudit("admin.prompt_audit.event.read"), h.Admin.PromptAudit.GetEvent)
+		// CAPYBARA-PATCH: 详情包含 full_prompt；读取前必须确认必要审计落库。
+		promptAudit.GET("/events/:id", requiredAudit("admin.prompt_audit.event.read"), h.Admin.PromptAudit.GetEvent)
 		promptAudit.DELETE("/events/:id", h.Admin.PromptAudit.DeleteEvent)
 		promptAudit.POST("/events/batch-delete", h.Admin.PromptAudit.BatchDelete)
 		promptAudit.POST("/events/delete-preview", h.Admin.PromptAudit.DeletePreview)

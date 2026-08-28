@@ -65,14 +65,17 @@ func (h *Handler) Runtime(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"enabled": status.Enabled, "process_status": status.ProcessStatus,
 		"storage_status": status.StorageStatus, "database_status": status.DatabaseStatus,
-		"active_key_id": status.ActiveKeyID, "bucket": status.Bucket, "prefix": status.Prefix,
+		"active_key_id": status.ActiveKeyID, "active_backend": status.ActiveBackend,
+		"storage_location": status.StorageLocation, "backends": status.Backends,
+		"bucket": status.Bucket, "prefix": status.Prefix,
 		"queue_events": status.QueueEvents, "queue_event_capacity": status.QueueEventCapacity,
 		"queue_bytes": status.QueueBytes, "queue_byte_capacity": status.QueueByteCapacity,
 		"enqueued_total": status.EnqueuedTotal, "dropped_total": status.DroppedTotal,
 		"truncated_total": status.TruncatedTotal, "stored_total": status.StoredTotal,
 		"failed_total": status.FailedTotal, "storage_failures": status.StorageFailures,
 		"export_failures": status.ExportFailures, "pending_backlog": status.PendingBacklog,
-		"gc_backlog": status.GCBacklog, "last_error": status.LastError, "last_success_at": nullableTime(status.LastSuccessAt),
+		"gc_backlog": status.GCBacklog, "retention_blocked": status.RetentionBlocked,
+		"last_error": status.LastError, "last_success_at": nullableTime(status.LastSuccessAt),
 	})
 }
 
@@ -108,6 +111,16 @@ func (h *Handler) GetSession(c *gin.Context) {
 		writeRepositoryError(c, err)
 		return
 	}
+	registry := h.service.currentRegistry()
+	for index := range refs {
+		if !refs[index].Available {
+			continue
+		}
+		if _, resolveErr := registry.Resolve(refs[index].StorageBackend); resolveErr != nil {
+			refs[index].Available = false
+			refs[index].UnavailableReason = "storage_backend_unavailable"
+		}
+	}
 	turnPayload := make([]gin.H, 0, len(turns))
 	for _, turn := range turns {
 		requestPayload := make([]gin.H, 0)
@@ -131,6 +144,7 @@ func (h *Handler) GetSession(c *gin.Context) {
 				})
 			}
 			available := make([]string, 0, 4)
+			unavailable := make([]gin.H, 0, 2)
 			for _, ref := range refs {
 				belongsToRequest := ref.OwnerType == "request" && ref.OwnerID == request.ID
 				if ref.OwnerType == "attempt" {
@@ -141,9 +155,12 @@ func (h *Handler) GetSession(c *gin.Context) {
 						}
 					}
 				}
-				if belongsToRequest && ref.Available {
-					if kind := contentKind(ref.Purpose); kind != "" && !containsString(available, kind) {
+				if belongsToRequest {
+					kind := contentKind(ref.Purpose)
+					if ref.Available && kind != "" && !containsString(available, kind) {
 						available = append(available, kind)
+					} else if kind != "" && ref.UnavailableReason != "" {
+						unavailable = append(unavailable, gin.H{"kind": kind, "storage_backend": ref.StorageBackend, "reason": ref.UnavailableReason})
 					}
 				}
 			}
@@ -153,7 +170,7 @@ func (h *Handler) GetSession(c *gin.Context) {
 				"upstream_request_id": request.UpstreamRequestID, "endpoint": request.Endpoint, "model": request.Model,
 				"status": request.Status, "error_category": request.ErrorClass,
 				"client_disconnected": request.ClientDisconnected, "has_truncated": request.HasTruncated,
-				"available_content": available, "attempts": attemptPayload,
+				"available_content": available, "unavailable_content": unavailable, "attempts": attemptPayload,
 				"created_at": request.StartedAt, "completed_at": request.CompletedAt,
 			})
 		}
@@ -177,6 +194,10 @@ func (h *Handler) GetRequestContent(c *gin.Context) {
 		return
 	}
 	kind := c.Query("kind")
+	if err := h.audit(c, "session_archive.content.read", fmt.Sprintf("request:%d:%s", requestID, kind), map[string]any{"request_id": requestID, "kind": kind}); err != nil {
+		writeHandlerError(c, http.StatusServiceUnavailable, err)
+		return
+	}
 	lease, err := h.service.repository.AcquireRequestReadLease(c.Request.Context(), requestID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -218,10 +239,6 @@ func (h *Handler) GetRequestContent(c *gin.Context) {
 			droppedReasons = append(droppedReasons, item.Record.Ref.DroppedReason)
 		}
 	}
-	if err := h.audit(c, "session_archive.content.read", fmt.Sprintf("request:%d:%s", requestID, kind), map[string]any{"request_id": requestID, "kind": kind, "stored_bytes": storedBytes, "part_count": len(parts)}); err != nil {
-		writeHandlerError(c, http.StatusServiceUnavailable, err)
-		return
-	}
 	c.Header("Cache-Control", "private, no-store")
 	c.Header("Pragma", "no-cache")
 	payload := gin.H{
@@ -241,7 +258,11 @@ func contentPartPayload(record ContentRecord, content []byte) gin.H {
 		"occurred_at": record.Ref.OccurredAt, "content_type": record.Ref.ContentType,
 		"observed_bytes": record.Ref.ObservedBytes, "stored_bytes": record.Ref.StoredBytes,
 		"truncated": record.Ref.Truncated, "dropped_reason": record.Ref.DroppedReason,
-		"available": record.Ref.Available,
+		"available":       record.Ref.Available,
+		"storage_backend": record.StorageBackend,
+	}
+	if record.Ref.UnavailableReason != "" {
+		payload["unavailable_reason"] = record.Ref.UnavailableReason
 	}
 	if record.Ref.Available {
 		encoded, encoding := encodeContentForTransport(record.Ref.ContentType, content)
@@ -359,6 +380,10 @@ func (h *Handler) ExportPreflight(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if err := h.audit(c, "session_archive.export.preflight", fmt.Sprintf("sessions:%d", len(ids)), map[string]any{"format": request.Format, "matched_sessions": len(ids)}); err != nil {
+		writeHandlerError(c, http.StatusServiceUnavailable, err)
+		return
+	}
 	result, err := h.preflightExport(c.Request.Context(), request.Format, ids)
 	if err != nil {
 		writeHandlerError(c, http.StatusServiceUnavailable, err)
@@ -378,7 +403,11 @@ func (h *Handler) IssueExportTicket(c *gin.Context) {
 	}
 	adminID, ok := h.currentAdminID(c)
 	if !ok {
-		writeHandlerError(c, http.StatusUnauthorized, errors.New("human administrator identity required"))
+		writeHandlerError(c, http.StatusUnauthorized, errors.New("authenticated administrator identity required"))
+		return
+	}
+	if err := h.audit(c, "session_archive.export.issue", fmt.Sprintf("admin:%d", adminID), map[string]any{"format": request.Format, "matched_sessions": len(ids)}); err != nil {
+		writeHandlerError(c, http.StatusServiceUnavailable, err)
 		return
 	}
 	preflight, err := h.preflightExport(c.Request.Context(), request.Format, ids)
@@ -391,10 +420,6 @@ func (h *Handler) IssueExportTicket(c *gin.Context) {
 		filter = *request.Filter
 	}
 	ticket := ExportTicket{ID: uuid.NewString(), AdminID: adminID, Format: request.Format, SessionIDs: ids, Filter: filter, CreatedAt: time.Now().UTC(), ExpiresAt: time.Now().UTC().Add(h.ticketTTL)}
-	if err := h.audit(c, "session_archive.export.issue", fmt.Sprintf("admin:%d", adminID), map[string]any{"format": ticket.Format, "matched_sessions": len(ids)}); err != nil {
-		writeHandlerError(c, http.StatusServiceUnavailable, err)
-		return
-	}
 	if err := h.tickets.Put(c.Request.Context(), ticket, h.ticketTTL); err != nil {
 		writeHandlerError(c, http.StatusServiceUnavailable, err)
 		return
@@ -404,6 +429,9 @@ func (h *Handler) IssueExportTicket(c *gin.Context) {
 
 func (h *Handler) preflightExport(ctx context.Context, format string, sessionIDs []int64) (exportPreflightResult, error) {
 	result := exportPreflightResult{MatchedSessions: len(sessionIDs), SkippedReasons: make(map[string]int)}
+	if err := h.service.EnsureSessionBackendsAvailable(ctx, sessionIDs); err != nil {
+		return exportPreflightResult{}, err
+	}
 	if format == "archive" {
 		result.EligibleSamples = len(sessionIDs)
 		return result, nil
@@ -528,7 +556,7 @@ func (h *Handler) CreateDeletionJob(c *gin.Context) {
 	}
 	adminID, ok := h.currentAdminID(c)
 	if !ok {
-		writeHandlerError(c, http.StatusUnauthorized, errors.New("human administrator identity required"))
+		writeHandlerError(c, http.StatusUnauthorized, errors.New("authenticated administrator identity required"))
 		return
 	}
 	if err := h.audit(c, "session_archive.deletion.create", fmt.Sprintf("sessions:%d", len(ids)), map[string]any{"matched_sessions": len(ids)}); err != nil {
@@ -876,7 +904,7 @@ func deletionJobPayload(job DeletionJob) gin.H {
 	if status == "cancelled" {
 		status = "canceled"
 	}
-	return gin.H{"id": job.ID, "status": status, "matched_sessions": job.MatchedSessions, "processed_sessions": job.ProcessedSessions, "deleted_sessions": job.DeletedSessions, "failed_sessions": job.FailedSessions, "released_blobs": job.ReleasedBlobs, "last_error": job.LastError, "created_at": job.CreatedAt, "started_at": job.StartedAt, "finished_at": job.FinishedAt}
+	return gin.H{"id": job.ID, "status": status, "matched_sessions": job.MatchedSessions, "processed_sessions": job.ProcessedSessions, "deleted_sessions": job.DeletedSessions, "failed_sessions": job.FailedSessions, "released_blobs": job.ReleasedBlobs, "last_error": job.LastError, "created_at": job.CreatedAt, "started_at": job.StartedAt, "finished_at": job.FinishedAt, "next_retry_at": job.NextRetryAt}
 }
 
 func nullableID(value int64) any {
@@ -909,5 +937,10 @@ func writeRepositoryError(c *gin.Context, err error) {
 }
 
 func writeHandlerError(c *gin.Context, status int, err error) {
-	c.JSON(status, gin.H{"error": err.Error()})
+	payload := gin.H{"error": err.Error()}
+	if errors.Is(err, ErrStorageBackendUnavailable) {
+		payload["code"] = "storage_backend_unavailable"
+		status = http.StatusServiceUnavailable
+	}
+	c.JSON(status, payload)
 }

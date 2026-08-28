@@ -8,6 +8,7 @@ import (
 	"errors"
 	"flag"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -167,21 +168,25 @@ func runMainServer() {
 			log.Printf("Prompt Audit started in degraded state: %v", err)
 		}
 	}
-	if app.SessionArchive != nil {
-		if err := app.SessionArchive.Start(context.Background()); err != nil {
-			// 归档故障只降级归档能力，不能阻断模型网关启动。
-			log.Printf("Session archive started in degraded state: %v", err)
-		}
+	// CAPYBARA-PATCH: 先同步绑定监听端口，再异步执行归档外部存储自检，确保
+	// 存储挂起不会阻止网关进入可连接状态和安装信号处理。
+	listener, err := net.Listen("tcp", app.Server.Addr)
+	if err != nil {
+		log.Fatalf("Failed to start server: %v", err)
 	}
-
-	// 启动服务器
 	go func() {
-		if err := app.Server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		if err := app.Server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("Failed to start server: %v", err)
 		}
 	}()
 
 	log.Printf("Server started on %s", app.Server.Addr)
+	if app.SessionArchive != nil {
+		app.SessionArchive.StartAsync(func(err error) {
+			// 归档故障只降级归档能力，不能阻断模型网关和信号处理。
+			log.Printf("Session archive started in degraded state: %v", err)
+		})
+	}
 
 	// 等待中断信号
 	quit := make(chan os.Signal, 1)

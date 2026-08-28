@@ -69,6 +69,7 @@ export interface ArchiveRequest {
   client_disconnected?: boolean
   has_truncated: boolean
   available_content?: ArchiveContentKind[]
+  unavailable_content?: Array<{ kind: ArchiveContentKind; storage_backend: string; reason: string }>
   attempts: ArchiveAttempt[]
   created_at: string
   completed_at?: string | null
@@ -143,6 +144,9 @@ export interface ArchiveRuntimeStatus {
   storage_status: string
   database_status: string
   active_key_id?: string
+  active_backend?: 's3' | 'filesystem' | 'postgresql' | string
+  storage_location?: string
+  backends?: Array<{ backend: string; status: string; location?: string; last_error?: string }>
   bucket?: string
   prefix?: string
   queue_events: number
@@ -158,6 +162,7 @@ export interface ArchiveRuntimeStatus {
   export_failures: number
   pending_backlog: number
   gc_backlog: number
+  retention_blocked?: number
   last_error?: string
   last_success_at?: string
 }
@@ -233,6 +238,7 @@ export interface ArchiveDeletionJob {
   created_at: string
   started_at?: string | null
   finished_at?: string | null
+  next_retry_at?: string
 }
 
 export interface ArchiveDeletionJobPage {

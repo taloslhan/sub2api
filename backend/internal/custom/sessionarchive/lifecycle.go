@@ -30,6 +30,7 @@ type DeletionJob struct {
 	CreatedAt         time.Time
 	StartedAt         *time.Time
 	FinishedAt        *time.Time
+	NextRetryAt       time.Time
 }
 
 type deletionTarget struct {
@@ -44,7 +45,7 @@ func (r *Repository) CreateDeletionJob(ctx context.Context, requestedBy int64, s
 		return DeletionJob{}, err
 	}
 	var job DeletionJob
-	err = r.db.QueryRowContext(ctx, "INSERT INTO session_archive_deletion_jobs (requested_by,normalized_filter,target_count) VALUES ($1,$2,$3) RETURNING id,status,target_count,processed_count,deleted_count,released_blob_count,failed_count,created_at", requestedBy, payload, len(sessionIDs)).Scan(&job.ID, &job.Status, &job.MatchedSessions, &job.ProcessedSessions, &job.DeletedSessions, &job.ReleasedBlobs, &job.FailedSessions, &job.CreatedAt)
+	err = r.db.QueryRowContext(ctx, "INSERT INTO session_archive_deletion_jobs (requested_by,normalized_filter,target_count) VALUES ($1,$2,$3) RETURNING id,status,target_count,processed_count,deleted_count,released_blob_count,failed_count,created_at,next_retry_at", requestedBy, payload, len(sessionIDs)).Scan(&job.ID, &job.Status, &job.MatchedSessions, &job.ProcessedSessions, &job.DeletedSessions, &job.ReleasedBlobs, &job.FailedSessions, &job.CreatedAt, &job.NextRetryAt)
 	return job, err
 }
 
@@ -59,15 +60,15 @@ func (r *Repository) ListDeletionJobs(ctx context.Context, page, pageSize int) (
 	if err := r.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM session_archive_deletion_jobs").Scan(&total); err != nil {
 		return nil, 0, err
 	}
-	rows, err := r.db.QueryContext(ctx, "SELECT id,status,target_count,processed_count,deleted_count,released_blob_count,failed_count,last_error,created_at,started_at,completed_at FROM session_archive_deletion_jobs ORDER BY id DESC LIMIT $1 OFFSET $2", pageSize, (page-1)*pageSize)
+	rows, err := r.db.QueryContext(ctx, "SELECT id,status,target_count,processed_count,deleted_count,released_blob_count,failed_count,last_error,created_at,started_at,completed_at,next_retry_at FROM session_archive_deletion_jobs ORDER BY id DESC LIMIT $1 OFFSET $2", pageSize, (page-1)*pageSize)
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var jobs []DeletionJob
 	for rows.Next() {
 		var job DeletionJob
-		if err := rows.Scan(&job.ID, &job.Status, &job.MatchedSessions, &job.ProcessedSessions, &job.DeletedSessions, &job.ReleasedBlobs, &job.FailedSessions, &job.LastError, &job.CreatedAt, &job.StartedAt, &job.FinishedAt); err != nil {
+		if err := rows.Scan(&job.ID, &job.Status, &job.MatchedSessions, &job.ProcessedSessions, &job.DeletedSessions, &job.ReleasedBlobs, &job.FailedSessions, &job.LastError, &job.CreatedAt, &job.StartedAt, &job.FinishedAt, &job.NextRetryAt); err != nil {
 			return nil, 0, err
 		}
 		jobs = append(jobs, job)
@@ -77,11 +78,11 @@ func (r *Repository) ListDeletionJobs(ctx context.Context, page, pageSize int) (
 
 func (r *Repository) GetDeletionJob(ctx context.Context, id int64) (DeletionJob, error) {
 	var job DeletionJob
-	err := r.db.QueryRowContext(ctx, "SELECT id,status,target_count,processed_count,deleted_count,released_blob_count,failed_count,last_error,created_at,started_at,completed_at FROM session_archive_deletion_jobs WHERE id=$1", id).Scan(&job.ID, &job.Status, &job.MatchedSessions, &job.ProcessedSessions, &job.DeletedSessions, &job.ReleasedBlobs, &job.FailedSessions, &job.LastError, &job.CreatedAt, &job.StartedAt, &job.FinishedAt)
+	err := r.db.QueryRowContext(ctx, "SELECT id,status,target_count,processed_count,deleted_count,released_blob_count,failed_count,last_error,created_at,started_at,completed_at,next_retry_at FROM session_archive_deletion_jobs WHERE id=$1", id).Scan(&job.ID, &job.Status, &job.MatchedSessions, &job.ProcessedSessions, &job.DeletedSessions, &job.ReleasedBlobs, &job.FailedSessions, &job.LastError, &job.CreatedAt, &job.StartedAt, &job.FinishedAt, &job.NextRetryAt)
 	return job, err
 }
 
-func (r *Repository) ProcessDeletionJob(ctx context.Context, batch int, gcGrace time.Duration) (bool, error) {
+func (r *Repository) ProcessDeletionJob(ctx context.Context, batch int, gcGrace time.Duration, availableBackends []string) (bool, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return false, err
@@ -90,7 +91,7 @@ func (r *Repository) ProcessDeletionJob(ctx context.Context, batch int, gcGrace 
 	var id int64
 	var payload []byte
 	var processed int64
-	err = tx.QueryRowContext(ctx, "SELECT id,normalized_filter,processed_count FROM session_archive_deletion_jobs WHERE status IN ('pending','running') ORDER BY id FOR UPDATE SKIP LOCKED LIMIT 1").Scan(&id, &payload, &processed)
+	err = tx.QueryRowContext(ctx, "SELECT id,normalized_filter,processed_count FROM session_archive_deletion_jobs WHERE status IN ('pending','running') AND next_retry_at<=NOW() ORDER BY id FOR UPDATE SKIP LOCKED LIMIT 1").Scan(&id, &payload, &processed)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
@@ -118,7 +119,7 @@ func (r *Repository) ProcessDeletionJob(ctx context.Context, batch int, gcGrace 
 	if _, err := tx.ExecContext(ctx, "SAVEPOINT session_archive_delete_batch"); err != nil {
 		return true, err
 	}
-	deleted, released, deleteErr := deleteSessionsTx(ctx, tx, target.SessionIDs[start:end], gcGrace)
+	deleted, released, deleteErr := deleteSessionsTx(ctx, tx, target.SessionIDs[start:end], gcGrace, availableBackends)
 	if deleteErr != nil {
 		if _, err := tx.ExecContext(ctx, "ROLLBACK TO SAVEPOINT session_archive_delete_batch"); err != nil {
 			return true, err
@@ -127,7 +128,7 @@ func (r *Repository) ProcessDeletionJob(ctx context.Context, batch int, gcGrace 
 		if len(message) > 512 {
 			message = message[:512]
 		}
-		_, _ = tx.ExecContext(ctx, "UPDATE session_archive_deletion_jobs SET retry_count=retry_count+1,last_error=$2,updated_at=NOW() WHERE id=$1", id, message)
+		_, _ = tx.ExecContext(ctx, "UPDATE session_archive_deletion_jobs SET retry_count=retry_count+1,last_error=$2,next_retry_at=NOW()+INTERVAL '1 minute',updated_at=NOW() WHERE id=$1", id, message)
 		return true, tx.Commit()
 	}
 	if _, err := tx.ExecContext(ctx, "RELEASE SAVEPOINT session_archive_delete_batch"); err != nil {
@@ -139,21 +140,37 @@ func (r *Repository) ProcessDeletionJob(ctx context.Context, batch int, gcGrace 
 		status = "completed"
 		completedAt = time.Now().UTC()
 	}
-	_, err = tx.ExecContext(ctx, "UPDATE session_archive_deletion_jobs SET status=$2,processed_count=$3,deleted_count=deleted_count+$4,released_blob_count=released_blob_count+$5,last_error='',completed_at=$6,updated_at=NOW() WHERE id=$1", id, status, end, deleted, released, completedAt)
+	_, err = tx.ExecContext(ctx, "UPDATE session_archive_deletion_jobs SET status=$2,processed_count=$3,deleted_count=deleted_count+$4,released_blob_count=released_blob_count+$5,last_error='',next_retry_at=NOW(),completed_at=$6,updated_at=NOW() WHERE id=$1", id, status, end, deleted, released, completedAt)
 	if err != nil {
 		return true, err
 	}
 	return true, tx.Commit()
 }
 
-func deleteSessionsTx(ctx context.Context, tx *sql.Tx, sessionIDs []int64, gcGrace time.Duration) (int64, int64, error) {
+func deleteSessionsTx(ctx context.Context, tx *sql.Tx, sessionIDs []int64, gcGrace time.Duration, availableBackends []string) (int64, int64, error) {
 	if len(sessionIDs) == 0 {
 		return 0, 0, nil
+	}
+	var unavailable string
+	err := tx.QueryRowContext(ctx, `
+			SELECT b.storage_backend
+			FROM session_archive_blob_refs br JOIN session_archive_blobs b ON b.id=br.blob_id
+			WHERE NOT (b.storage_backend=ANY($2)) AND (
+				(br.owner_type='session' AND br.owner_id=ANY($1))
+				OR (br.owner_type='turn' AND br.owner_id IN (SELECT id FROM session_archive_turns WHERE session_id=ANY($1)))
+				OR (br.owner_type='request' AND br.owner_id IN (SELECT r.id FROM session_archive_requests r JOIN session_archive_turns t ON t.id=r.turn_id WHERE t.session_id=ANY($1)))
+				OR (br.owner_type='attempt' AND br.owner_id IN (SELECT a.id FROM session_archive_attempts a JOIN session_archive_requests r ON r.id=a.request_id JOIN session_archive_turns t ON t.id=r.turn_id WHERE t.session_id=ANY($1)))
+			) LIMIT 1`, pq.Array(sessionIDs), pq.Array(availableBackends)).Scan(&unavailable)
+	if err == nil {
+		return 0, 0, &StorageBackendUnavailableError{Backend: unavailable}
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return 0, 0, err
 	}
 	if err := persistCorrelationFencesTx(ctx, tx, sessionIDs, correlationFenceTTL); err != nil {
 		return 0, 0, err
 	}
-	_, err := tx.ExecContext(ctx, "UPDATE session_archive_sessions SET status='deleting',deleting_at=NOW() WHERE id=ANY($1)", pq.Array(sessionIDs))
+	_, err = tx.ExecContext(ctx, "UPDATE session_archive_sessions SET status='deleting',deleting_at=NOW() WHERE id=ANY($1)", pq.Array(sessionIDs))
 	if err != nil {
 		return 0, 0, err
 	}
@@ -242,7 +259,7 @@ func persistCorrelationFencesTx(ctx context.Context, tx *sql.Tx, sessionIDs []in
 	return err
 }
 
-func (r *Repository) DeleteExpiredSessions(ctx context.Context, limit int, gcGrace time.Duration) (int64, error) {
+func (r *Repository) DeleteExpiredSessions(ctx context.Context, limit int, gcGrace time.Duration, availableBackends []string) (int64, error) {
 	if limit < 1 {
 		limit = 100
 	}
@@ -255,7 +272,18 @@ func (r *Repository) DeleteExpiredSessions(ctx context.Context, limit int, gcGra
 	if err := tx.QueryRowContext(ctx, "SELECT pg_try_advisory_xact_lock(694208311321144028)").Scan(&leader); err != nil || !leader {
 		return 0, err
 	}
-	rows, err := tx.QueryContext(ctx, "SELECT id FROM session_archive_sessions WHERE expires_at<=NOW() AND status<>'deleting' ORDER BY expires_at,id FOR UPDATE SKIP LOCKED LIMIT $1", limit)
+	query := `SELECT s.id FROM session_archive_sessions s
+			WHERE s.expires_at<=NOW() AND s.status<>'deleting'
+			AND NOT EXISTS (
+				SELECT 1 FROM session_archive_blob_refs br JOIN session_archive_blobs b ON b.id=br.blob_id
+				WHERE NOT (b.storage_backend=ANY($2)) AND (
+					(br.owner_type='session' AND br.owner_id=s.id)
+					OR (br.owner_type='turn' AND br.owner_id IN (SELECT id FROM session_archive_turns WHERE session_id=s.id))
+					OR (br.owner_type='request' AND br.owner_id IN (SELECT r.id FROM session_archive_requests r JOIN session_archive_turns t ON t.id=r.turn_id WHERE t.session_id=s.id))
+					OR (br.owner_type='attempt' AND br.owner_id IN (SELECT a.id FROM session_archive_attempts a JOIN session_archive_requests r ON r.id=a.request_id JOIN session_archive_turns t ON t.id=r.turn_id WHERE t.session_id=s.id))
+				)
+			) ORDER BY s.expires_at,s.id FOR UPDATE SKIP LOCKED LIMIT $1`
+	rows, err := tx.QueryContext(ctx, query, limit, pq.Array(availableBackends))
 	if err != nil {
 		return 0, err
 	}
@@ -269,30 +297,47 @@ func (r *Repository) DeleteExpiredSessions(ctx context.Context, limit int, gcGra
 		ids = append(ids, id)
 	}
 	_ = rows.Close()
-	if _, _, err := deleteSessionsTx(ctx, tx, ids, gcGrace); err != nil {
+	if _, _, err := deleteSessionsTx(ctx, tx, ids, gcGrace, availableBackends); err != nil {
 		return 0, err
 	}
 	return int64(len(ids)), tx.Commit()
 }
 
-type GCBlob struct {
-	ID        int64
-	ObjectKey string
+func (r *Repository) CountBlockedExpiredSessions(ctx context.Context, availableBackends []string) (int64, error) {
+	var count int64
+	err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM session_archive_sessions s
+		WHERE s.expires_at<=NOW() AND s.status<>'deleting' AND EXISTS (
+			SELECT 1 FROM session_archive_blob_refs br JOIN session_archive_blobs b ON b.id=br.blob_id
+			WHERE NOT (b.storage_backend=ANY($1)) AND (
+				(br.owner_type='session' AND br.owner_id=s.id)
+				OR (br.owner_type='turn' AND br.owner_id IN (SELECT id FROM session_archive_turns WHERE session_id=s.id))
+				OR (br.owner_type='request' AND br.owner_id IN (SELECT r.id FROM session_archive_requests r JOIN session_archive_turns t ON t.id=r.turn_id WHERE t.session_id=s.id))
+				OR (br.owner_type='attempt' AND br.owner_id IN (SELECT a.id FROM session_archive_attempts a JOIN session_archive_requests r ON r.id=a.request_id JOIN session_archive_turns t ON t.id=r.turn_id WHERE t.session_id=s.id))
+			)
+		)`, pq.Array(availableBackends)).Scan(&count)
+	return count, err
 }
 
-func (r *Repository) ClaimGCBlobs(ctx context.Context, limit int) ([]GCBlob, error) {
+type GCBlob struct {
+	ID             int64
+	StorageBackend string
+	ObjectKey      string
+}
+
+func (r *Repository) ClaimGCBlobs(ctx context.Context, limit int, availableBackends []string) ([]GCBlob, error) {
 	if limit < 1 {
 		limit = 100
 	}
-	rows, err := r.db.QueryContext(ctx, "UPDATE session_archive_blobs SET status='deleting',updated_at=NOW() WHERE id IN (SELECT b.id FROM session_archive_blobs b WHERE b.status='gc_pending' AND b.gc_after<=NOW() AND NOT EXISTS (SELECT 1 FROM session_archive_blob_refs br WHERE br.blob_id=b.id) ORDER BY b.id FOR UPDATE SKIP LOCKED LIMIT $1) AND NOT EXISTS (SELECT 1 FROM session_archive_blob_refs br WHERE br.blob_id=session_archive_blobs.id) RETURNING id,object_key", limit)
+	query := "UPDATE session_archive_blobs SET status='deleting',updated_at=NOW() WHERE id IN (SELECT b.id FROM session_archive_blobs b WHERE b.status='gc_pending' AND b.gc_after<=NOW() AND b.storage_backend=ANY($2) AND NOT EXISTS (SELECT 1 FROM session_archive_blob_refs br WHERE br.blob_id=b.id) ORDER BY b.id FOR UPDATE SKIP LOCKED LIMIT $1) AND NOT EXISTS (SELECT 1 FROM session_archive_blob_refs br WHERE br.blob_id=session_archive_blobs.id) RETURNING id,storage_backend,object_key"
+	rows, err := r.db.QueryContext(ctx, query, limit, pq.Array(availableBackends))
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var blobs []GCBlob
 	for rows.Next() {
 		var blob GCBlob
-		if err := rows.Scan(&blob.ID, &blob.ObjectKey); err != nil {
+		if err := rows.Scan(&blob.ID, &blob.StorageBackend, &blob.ObjectKey); err != nil {
 			return nil, err
 		}
 		blobs = append(blobs, blob)

@@ -12,7 +12,7 @@ import (
 func TestEnsureProjectionCompletedAttemptPersistsCompletionAndUpstreamStatus(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repository, err := NewRepository(db)
 	require.NoError(t, err)
 
@@ -40,7 +40,7 @@ func TestEnsureProjectionCompletedAttemptPersistsCompletionAndUpstreamStatus(t *
 func TestEnsureProjectionTerminalUpsertsFinalAttempt(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	repository, err := NewRepository(db)
 	require.NoError(t, err)
 

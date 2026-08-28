@@ -195,20 +195,22 @@ type Attempt struct {
 }
 
 type BlobRef struct {
-	ID             int64       `json:"id"`
-	OwnerType      string      `json:"owner_type"`
-	OwnerID        int64       `json:"owner_id"`
-	Purpose        BlobPurpose `json:"purpose"`
-	Direction      string      `json:"direction,omitempty"`
-	ContentType    string      `json:"content_type"`
-	ObservedSHA256 string      `json:"observed_sha256,omitempty"`
-	ObservedBytes  int64       `json:"observed_bytes"`
-	StoredBytes    int64       `json:"stored_bytes"`
-	Truncated      bool        `json:"truncated"`
-	DroppedReason  string      `json:"dropped_reason,omitempty"`
-	SequenceNo     int64       `json:"sequence_no"`
-	OccurredAt     time.Time   `json:"occurred_at"`
-	Available      bool        `json:"available"`
+	ID                int64       `json:"id"`
+	OwnerType         string      `json:"owner_type"`
+	OwnerID           int64       `json:"owner_id"`
+	Purpose           BlobPurpose `json:"purpose"`
+	Direction         string      `json:"direction,omitempty"`
+	ContentType       string      `json:"content_type"`
+	ObservedSHA256    string      `json:"observed_sha256,omitempty"`
+	ObservedBytes     int64       `json:"observed_bytes"`
+	StoredBytes       int64       `json:"stored_bytes"`
+	Truncated         bool        `json:"truncated"`
+	DroppedReason     string      `json:"dropped_reason,omitempty"`
+	SequenceNo        int64       `json:"sequence_no"`
+	OccurredAt        time.Time   `json:"occurred_at"`
+	Available         bool        `json:"available"`
+	StorageBackend    string      `json:"storage_backend,omitempty"`
+	UnavailableReason string      `json:"unavailable_reason,omitempty"`
 }
 
 type SessionDetail struct {

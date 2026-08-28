@@ -685,10 +685,14 @@ container, so it is read again after an image update or container recreation.
 
 <!-- CAPYBARA-PATCH: document the private, fail-open session archive boundary. -->
 The built-in session archive is disabled by default. Set `session_archive.enabled`
-only after configuring a private S3-compatible bucket and a persistent 32-byte
-application encryption key, then enable capture through the administrator policy
-page. Policy precedence is API key, user, group, then the global default; the
-default global state remains off.
+only after migration, configuring one of `s3`, `filesystem`, or `postgresql`, and
+creating a persistent 32-byte application encryption key. Then enable capture
+through the administrator policy page. Policy precedence is API key, user,
+group, then the global default; the default global state remains off. Generate
+each key with `openssl rand -base64 32`, restrict the configuration file to the
+service account (for example, mode `0600`), and keep an encrypted backup of the
+entire key ring. Losing a key permanently makes every blob that still references
+that key unreadable.
 
 Each retained request, transformed request, or response is capped at 64 MiB and
 is explicitly marked as truncated when the observed content is larger. Active
@@ -696,13 +700,81 @@ stream captures and queued events share a 256 MiB default process budget. Archiv
 failures are fail-open for gateway traffic and are exposed through the admin
 runtime status and Ops alert metrics.
 
-Archive content is gzip-compressed, authenticated-encrypted with the configured
-key ID, and stored under the dedicated private prefix. Keep old key IDs until all
-referencing blobs have expired and completed garbage collection. Full-content
-views, exports, deletes, and policy changes require a human administrator JWT,
-TOTP step-up, and durable access audit. OpenAI Live records only the session,
-SDP, metadata, and visible sideband control frames because media bypasses the
-gateway. See `deploy/config.example.yaml` for all settings and defaults.
+Archive content is gzip-compressed and authenticated-encrypted with the configured
+key ID before it reaches any storage backend. `storage_backend` controls only new
+blobs; every blob records its own backend, so reads, exports, retention, deletion,
+GC, and physical orphan reconciliation continue to use the historical backend.
+Do not remove old backend configuration or data until all referencing blobs have
+expired and completed GC. There is no automatic migration between backends.
+
+The backend choices have different operational costs:
+
+- `s3` keeps the original object-key format and is suitable for shared or
+  multi-instance deployments, at the cost of an external private bucket,
+  requests, and possible egress.
+- `filesystem` stores objects below `filesystem.root`, or
+  `${DATA_DIR}/session-archive` when empty. It is simple and avoids object-store
+  fees, but the path must be a persistent volume. Multiple instances must see
+  the same POSIX-compatible filesystem; independent local disks are unsafe.
+- `postgresql` stores ciphertext in dedicated object/chunk tables on the main
+  database. It is operationally convenient and participates in database backup,
+  but increases database size, WAL, replication traffic, and backup/restore time.
+  The default chunk size is 1 MiB.
+
+Startup performs schema checks and an active-store write/read/delete self-check
+after the HTTP server is already listening. A failure degrades only Session
+Archive and is visible in its runtime status and Ops metrics; gateway traffic
+remains fail-open. Historical backends are reported separately as ready or
+unavailable, and the service never falls back to the active backend for old data.
+
+Full-content views, exports, deletes, policy changes, and Prompt Audit full-content
+details accept authenticated administrator JWTs and Admin API keys without the
+custom TOTP step-up previously added by these modules. Admin authorization,
+synchronous required audit, no-store responses, rate limits, and one-time export
+tickets remain enforced. Other application 2FA and step-up rules are unchanged.
+OpenAI Live records only the session, SDP, metadata, and visible sideband control
+frames because media bypasses the gateway.
+
+Back up the key ring, database metadata, and selected backend as one recovery set.
+For S3 use a private versioned/snapshotted bucket; for filesystem stop archive
+writers or use a filesystem snapshot; for PostgreSQL use the normal consistent
+database backup. Test restores before relying on the archive. See
+`deploy/config.example.yaml` for all settings and defaults.
+
+##### Session archive two-stage migration
+
+Migrations are forward-only. The ordinary build intentionally applies migration
+236 but skips 237 so old S3 writers can coexist during a rolling upgrade. Build
+the first-stage binary normally:
+
+```bash
+cd backend
+CGO_ENABLED=0 go build -trimpath -o bin/server ./cmd/server
+```
+
+Keep `session_archive.enabled=false` and the active backend on S3 while any older
+binary remains. After every instance runs the new four-column repository SQL,
+start one second-stage build to apply 237:
+
+```bash
+cd backend
+CGO_ENABLED=0 go build -tags=session_archive_storage_finalize \
+  -trimpath -o bin/server-finalize ./cmd/server
+```
+
+The `session_archive_storage_finalize` build tag only enables migration 237 in
+the normal migration runner. Once that binary has started successfully and 237
+is recorded in `schema_migrations`, ordinary feature binaries may run again and
+`filesystem` or `postgresql` can be selected. Do not run the second stage while
+any pre-feature binary can still start: 237 removes the legacy three-column
+unique constraints required by its old `ON CONFLICT` statement.
+
+Before 237, rollback to the prior S3 binary remains possible because 236 retains
+those legacy constraints. After 237, image rollback alone is unsafe: first turn
+all archive policies off and set `session_archive.enabled=false`; do not restart
+an older binary against that database. Preserve all new tables, objects, backend
+configuration, and keys, then restore a feature-capable binary. There is no down
+migration.
 
 #### ⚠️ Important: Creating the Admin Account
 

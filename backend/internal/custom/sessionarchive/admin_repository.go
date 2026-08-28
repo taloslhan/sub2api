@@ -11,6 +11,8 @@ import (
 	"math"
 	"strings"
 	"sync"
+
+	"github.com/lib/pq"
 )
 
 func (r *Repository) ListSessions(ctx context.Context, filter SessionFilter, page, pageSize int) (SessionPage, error) {
@@ -31,7 +33,7 @@ func (r *Repository) ListSessions(ctx context.Context, filter SessionFilter, pag
 	if err != nil {
 		return SessionPage{}, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	items := make([]SessionSummary, 0, pageSize)
 	for rows.Next() {
 		var item SessionSummary
@@ -188,7 +190,7 @@ func (r *Repository) SessionTimeline(ctx context.Context, sessionID int64) ([]Tu
 		return nil, nil, nil, nil, err
 	}
 	_ = attemptRows.Close()
-	refRows, err := r.db.QueryContext(ctx, "SELECT br.id,br.owner_type,br.owner_id,br.purpose,br.direction,br.content_type,br.observed_sha256,br.observed_bytes,br.stored_bytes,br.truncated,br.dropped_reason,br.sequence_no,br.occurred_at,(b.status='ready') FROM session_archive_blob_refs br LEFT JOIN session_archive_blobs b ON b.id=br.blob_id WHERE (br.owner_type='request' AND br.owner_id IN (SELECT r.id FROM session_archive_requests r JOIN session_archive_turns t ON t.id=r.turn_id WHERE t.session_id=$1)) OR (br.owner_type='attempt' AND br.owner_id IN (SELECT a.id FROM session_archive_attempts a JOIN session_archive_requests r ON r.id=a.request_id JOIN session_archive_turns t ON t.id=r.turn_id WHERE t.session_id=$1)) ORDER BY br.occurred_at,br.owner_type,br.owner_id,br.sequence_no,br.id", sessionID)
+	refRows, err := r.db.QueryContext(ctx, "SELECT br.id,br.owner_type,br.owner_id,br.purpose,br.direction,br.content_type,br.observed_sha256,br.observed_bytes,br.stored_bytes,br.truncated,br.dropped_reason,br.sequence_no,br.occurred_at,(b.status='ready'),COALESCE(b.storage_backend,'') FROM session_archive_blob_refs br LEFT JOIN session_archive_blobs b ON b.id=br.blob_id WHERE (br.owner_type='request' AND br.owner_id IN (SELECT r.id FROM session_archive_requests r JOIN session_archive_turns t ON t.id=r.turn_id WHERE t.session_id=$1)) OR (br.owner_type='attempt' AND br.owner_id IN (SELECT a.id FROM session_archive_attempts a JOIN session_archive_requests r ON r.id=a.request_id JOIN session_archive_turns t ON t.id=r.turn_id WHERE t.session_id=$1)) ORDER BY br.occurred_at,br.owner_type,br.owner_id,br.sequence_no,br.id", sessionID)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}
@@ -196,7 +198,7 @@ func (r *Repository) SessionTimeline(ctx context.Context, sessionID int64) ([]Tu
 	for refRows.Next() {
 		var ref BlobRef
 		var available sql.NullBool
-		if err := refRows.Scan(&ref.ID, &ref.OwnerType, &ref.OwnerID, &ref.Purpose, &ref.Direction, &ref.ContentType, &ref.ObservedSHA256, &ref.ObservedBytes, &ref.StoredBytes, &ref.Truncated, &ref.DroppedReason, &ref.SequenceNo, &ref.OccurredAt, &available); err != nil {
+		if err := refRows.Scan(&ref.ID, &ref.OwnerType, &ref.OwnerID, &ref.Purpose, &ref.Direction, &ref.ContentType, &ref.ObservedSHA256, &ref.ObservedBytes, &ref.StoredBytes, &ref.Truncated, &ref.DroppedReason, &ref.SequenceNo, &ref.OccurredAt, &available, &ref.StorageBackend); err != nil {
 			_ = refRows.Close()
 			return nil, nil, nil, nil, err
 		}
@@ -212,10 +214,11 @@ func (r *Repository) SessionTimeline(ctx context.Context, sessionID int64) ([]Tu
 }
 
 type ContentRecord struct {
-	Ref       BlobRef
-	BlobID    *int64
-	ObjectKey string
-	Encoding  EncodingInfo
+	Ref            BlobRef
+	BlobID         *int64
+	StorageBackend string
+	ObjectKey      string
+	Encoding       EncodingInfo
 }
 
 // sessionReadLease 把 Session 行的共享锁保持到敏感正文响应或单 Session 导出结束。
@@ -276,9 +279,9 @@ func (r *Repository) RequestContents(ctx context.Context, requestID int64, kind 
 	if err != nil {
 		return nil, err
 	}
-	query := "SELECT br.id,br.owner_type,br.owner_id,br.purpose,br.direction,br.content_type,br.observed_sha256,br.observed_bytes,br.stored_bytes,br.truncated,br.dropped_reason,br.sequence_no,br.occurred_at,br.blob_id,b.stored_plaintext_sha256,b.stored_bytes,b.compressed_bytes,b.ciphertext_bytes,b.gzip_version,b.format_version,b.key_id,b.object_key FROM session_archive_blob_refs br LEFT JOIN session_archive_blobs b ON b.id=br.blob_id AND b.status='ready' WHERE br.owner_type='request' AND br.owner_id=$1 AND br.purpose=$2 ORDER BY br.occurred_at,br.sequence_no,br.id"
+	query := "SELECT br.id,br.owner_type,br.owner_id,br.purpose,br.direction,br.content_type,br.observed_sha256,br.observed_bytes,br.stored_bytes,br.truncated,br.dropped_reason,br.sequence_no,br.occurred_at,br.blob_id,b.storage_backend,b.stored_plaintext_sha256,b.stored_bytes,b.compressed_bytes,b.ciphertext_bytes,b.gzip_version,b.format_version,b.key_id,b.object_key FROM session_archive_blob_refs br LEFT JOIN session_archive_blobs b ON b.id=br.blob_id AND b.status='ready' WHERE br.owner_type='request' AND br.owner_id=$1 AND br.purpose=$2 ORDER BY br.occurred_at,br.sequence_no,br.id"
 	if purpose == PurposeUpstreamRequest {
-		query = "SELECT br.id,br.owner_type,br.owner_id,br.purpose,br.direction,br.content_type,br.observed_sha256,br.observed_bytes,br.stored_bytes,br.truncated,br.dropped_reason,br.sequence_no,br.occurred_at,br.blob_id,b.stored_plaintext_sha256,b.stored_bytes,b.compressed_bytes,b.ciphertext_bytes,b.gzip_version,b.format_version,b.key_id,b.object_key FROM session_archive_blob_refs br JOIN session_archive_attempts a ON a.id=br.owner_id AND br.owner_type='attempt' LEFT JOIN session_archive_blobs b ON b.id=br.blob_id AND b.status='ready' WHERE a.request_id=$1 AND br.purpose=$2 ORDER BY br.occurred_at,a.attempt_no,br.sequence_no,br.id"
+		query = "SELECT br.id,br.owner_type,br.owner_id,br.purpose,br.direction,br.content_type,br.observed_sha256,br.observed_bytes,br.stored_bytes,br.truncated,br.dropped_reason,br.sequence_no,br.occurred_at,br.blob_id,b.storage_backend,b.stored_plaintext_sha256,b.stored_bytes,b.compressed_bytes,b.ciphertext_bytes,b.gzip_version,b.format_version,b.key_id,b.object_key FROM session_archive_blob_refs br JOIN session_archive_attempts a ON a.id=br.owner_id AND br.owner_type='attempt' LEFT JOIN session_archive_blobs b ON b.id=br.blob_id AND b.status='ready' WHERE a.request_id=$1 AND br.purpose=$2 ORDER BY br.occurred_at,a.attempt_no,br.sequence_no,br.id"
 	}
 	rows, err := tx.QueryContext(ctx, query, requestID, purpose)
 	if err != nil {
@@ -288,16 +291,17 @@ func (r *Repository) RequestContents(ctx context.Context, requestID int64, kind 
 	for rows.Next() {
 		var record ContentRecord
 		var blobID sql.NullInt64
-		var hash, keyID, objectKey sql.NullString
+		var backend, hash, keyID, objectKey sql.NullString
 		var stored, compressed, ciphertext sql.NullInt64
 		var gzipVersion, formatVersion sql.NullInt64
-		if err := rows.Scan(&record.Ref.ID, &record.Ref.OwnerType, &record.Ref.OwnerID, &record.Ref.Purpose, &record.Ref.Direction, &record.Ref.ContentType, &record.Ref.ObservedSHA256, &record.Ref.ObservedBytes, &record.Ref.StoredBytes, &record.Ref.Truncated, &record.Ref.DroppedReason, &record.Ref.SequenceNo, &record.Ref.OccurredAt, &blobID, &hash, &stored, &compressed, &ciphertext, &gzipVersion, &formatVersion, &keyID, &objectKey); err != nil {
+		if err := rows.Scan(&record.Ref.ID, &record.Ref.OwnerType, &record.Ref.OwnerID, &record.Ref.Purpose, &record.Ref.Direction, &record.Ref.ContentType, &record.Ref.ObservedSHA256, &record.Ref.ObservedBytes, &record.Ref.StoredBytes, &record.Ref.Truncated, &record.Ref.DroppedReason, &record.Ref.SequenceNo, &record.Ref.OccurredAt, &blobID, &backend, &hash, &stored, &compressed, &ciphertext, &gzipVersion, &formatVersion, &keyID, &objectKey); err != nil {
 			_ = rows.Close()
 			return nil, err
 		}
 		if blobID.Valid && objectKey.Valid {
 			id := blobID.Int64
-			record.BlobID, record.ObjectKey, record.Ref.Available = &id, objectKey.String, true
+			record.BlobID, record.StorageBackend, record.ObjectKey, record.Ref.Available = &id, backend.String, objectKey.String, true
+			record.Ref.StorageBackend = backend.String
 			record.Encoding = EncodingInfo{StoredPlaintextSHA256: hash.String, StoredBytes: stored.Int64, CompressedBytes: compressed.Int64, CiphertextBytes: ciphertext.Int64, GZIPVersion: int(gzipVersion.Int64), FormatVersion: int(formatVersion.Int64), KeyID: keyID.String}
 		}
 		records = append(records, record)
@@ -336,7 +340,7 @@ func (r *Repository) ResolveSessionIDs(ctx context.Context, filter SessionFilter
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	var ids []int64
 	for rows.Next() {
 		var id int64
@@ -352,6 +356,48 @@ func (r *Repository) ResolveSessionIDs(ctx context.Context, filter SessionFilter
 		return nil, fmt.Errorf("session selection exceeds maximum of %d", max)
 	}
 	return ids, nil
+}
+
+func (r *Repository) SessionStorageBackends(ctx context.Context, sessionIDs []int64) ([]string, error) {
+	if len(sessionIDs) == 0 {
+		return nil, nil
+	}
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT DISTINCT b.storage_backend
+		FROM session_archive_blob_refs br
+		JOIN session_archive_blobs b ON b.id=br.blob_id
+		WHERE (br.owner_type='session' AND br.owner_id=ANY($1))
+		   OR (br.owner_type='turn' AND br.owner_id IN (SELECT id FROM session_archive_turns WHERE session_id=ANY($1)))
+		   OR (br.owner_type='request' AND br.owner_id IN (SELECT r.id FROM session_archive_requests r JOIN session_archive_turns t ON t.id=r.turn_id WHERE t.session_id=ANY($1)))
+		   OR (br.owner_type='attempt' AND br.owner_id IN (SELECT a.id FROM session_archive_attempts a JOIN session_archive_requests r ON r.id=a.request_id JOIN session_archive_turns t ON t.id=r.turn_id WHERE t.session_id=ANY($1)))
+		ORDER BY b.storage_backend`, pq.Array(sessionIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var backends []string
+	for rows.Next() {
+		var backend string
+		if err := rows.Scan(&backend); err != nil {
+			return nil, err
+		}
+		backends = append(backends, backend)
+	}
+	return backends, rows.Err()
+}
+
+func (s *Service) EnsureSessionBackendsAvailable(ctx context.Context, sessionIDs []int64) error {
+	backends, err := s.repository.SessionStorageBackends(ctx, sessionIDs)
+	if err != nil {
+		return err
+	}
+	registry := s.currentRegistry()
+	for _, backend := range backends {
+		if _, err := registry.Resolve(backend); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type DecodedContent struct {
@@ -389,13 +435,18 @@ func (s *Service) ReadContents(ctx context.Context, requestID int64, kind string
 // WriteContent 对单条 ready 引用做认证、解密、解压与 hash 校验后写入目标；
 // Codec 内部使用临时文件验证完整性，不会向目标写出未经认证的部分明文。
 func (s *Service) WriteContent(ctx context.Context, record ContentRecord, dst io.Writer) error {
-	if s == nil || !s.cfg.Enabled || s.blobStore == nil || s.codec == nil {
+	if s == nil || !s.cfg.Enabled || s.codec == nil {
 		return errors.New("session archive disabled")
 	}
 	if !record.Ref.Available || record.BlobID == nil || record.ObjectKey == "" {
 		return errors.New("archive content unavailable")
 	}
-	reader, err := s.blobStore.Get(ctx, record.ObjectKey)
+	entry, err := s.currentRegistry().Resolve(record.StorageBackend)
+	if err != nil {
+		s.metrics.failure(err, true)
+		return err
+	}
+	reader, err := entry.Store.Get(ctx, record.ObjectKey)
 	if err != nil {
 		s.metrics.failure(err, true)
 		return err

@@ -8,7 +8,7 @@ export default {
       deleteFiltered: '删除筛选结果', newPolicy: '新建策略', download: '下载', viewArchive: '查看归档',
     },
     workspace: {
-      title: '归档会话', description: '先检索窄元数据；请求、响应、Tool 与 Raw 正文只会在显式强认证后按需加载。',
+      title: '归档会话', description: '先检索窄元数据；请求、响应、Tool 与 Raw 正文仅由已认证管理员按需加载。',
       empty: '没有符合条件的归档会话。', truncated: '存在截断', controlPlaneOnly: '仅控制面',
     },
     fields: {
@@ -25,7 +25,7 @@ export default {
     detail: {
       title: '会话归档详情', timeline: 'Turn 时间线', turn: 'Turn {sequence}', request: 'Request {sequence}',
       attempt: 'Attempt {sequence}', finalAttempt: '最终尝试', noRequests: '该会话没有 Request 窄投影。',
-      sensitiveHint: '此内容敏感且绝不预取，也可能不可用或已截断。', contentNotLoaded: '点击加载，经二次验证后读取该正文。',
+      sensitiveHint: '此内容敏感且绝不预取，也可能不可用或已截断。', contentNotLoaded: '点击加载该正文。',
       contentIncomplete: '观测不完整：观测 {observed}，留存 {stored}，原因 {reason}。',
       tabs: { attempts: '尝试记录', request: '请求', upstream: '上游请求', response: '响应', tool: 'Tool', attachment: '附件', raw: 'Raw 诊断' },
     },
@@ -37,7 +37,7 @@ export default {
       scope: '作用域', scopeId: '作用域 ID', policyState: '状态', retentionDays: '保留天数', bodyLimit: '单正文上限（字节）',
       capture: '采集内容', capture_request: '原始请求', capture_response: '客户端可见响应',
       capture_transformed_request: '转换后上游请求', capture_tools: 'Tool 结构', capture_attachments: '附件引用',
-      sensitiveBoundary: '归档提示词和工具参数可能含用户主动提交的秘密。安全边界由加密、二次验证、保留期与删除构成，而不是改写正文。',
+      sensitiveBoundary: '归档提示词和工具参数可能含用户主动提交的秘密。安全边界由管理员权限、必要审计、加密、保留期与删除构成，而不是改写正文。',
     },
     scope: { global: '全局', group: '分组', user: '用户', api_key: 'API Key' },
     policyState: { inherit: '继承', on: '开启', off: '关闭' },

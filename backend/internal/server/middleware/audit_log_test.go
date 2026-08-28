@@ -198,6 +198,31 @@ func TestSessionArchiveRequiredAuditRecordsActorWithoutSensitiveMaterial(t *test
 	require.NotContains(t, string(encoded), "audit-canary")
 }
 
+func TestSessionArchiveRequiredAuditPreservesAdminAPIKeyAuthMethod(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repository := &auditCaptureRepository{}
+	requiredAudit := NewSessionArchiveRequiredAudit(service.NewAuditLogService(repository, nil))
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set(string(ContextKeyUser), AuthSubject{UserID: 77})
+		c.Set(string(ContextKeyUserRole), service.RoleAdmin)
+		c.Set("auth_method", service.AuditAuthMethodAdminAPIKey)
+		c.Next()
+	})
+	router.Use(BindSessionArchiveRequiredAuditActor())
+	router.GET("/api/v1/admin/session-archive/runtime", func(c *gin.Context) {
+		require.NoError(t, requiredAudit(c.Request.Context(), "session_archive.runtime.read", "admin:77", nil))
+		c.Status(http.StatusNoContent)
+	})
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/admin/session-archive/runtime", nil))
+	require.Equal(t, http.StatusNoContent, response.Code)
+	repository.mu.Lock()
+	defer repository.mu.Unlock()
+	require.Len(t, repository.logs, 1)
+	require.Equal(t, service.AuditAuthMethodAdminAPIKey, repository.logs[0].AuthMethod)
+}
+
 func TestSessionArchiveDownloadAuditUsesTicketIssuerWithoutRecordingTicket(t *testing.T) {
 	repository := &auditCaptureRepository{}
 	auditService := service.NewAuditLogService(repository, nil)

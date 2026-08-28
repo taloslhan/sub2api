@@ -140,8 +140,6 @@
       @criteria-change="clearDeletePreview"
     />
     <EventDetailDialog :show="showEventDetail" :event="activeEvent" :loading="loading.detail" @close="closeEventDetail" />
-    <!-- CAPYBARA-PATCH: Prompt full-text reads have their own always-step-up controller. -->
-    <TotpStepUpDialog :controller="promptDetailStepUp" />
   </AppLayout>
 </template>
 
@@ -151,8 +149,6 @@ import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
-import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
-import { isStepUpBlocked, isStepUpCancelled, stepUpBlockReason, useStepUp } from '@/composables/useStepUp'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorCode, extractApiErrorMessage } from '@/utils/apiError'
 import RuntimeOverview from './components/RuntimeOverview.vue'
@@ -179,7 +175,6 @@ import { buildUpdateRequest, cloneData, configToDraft, draftFingerprint, emptyEv
 const { t, locale } = useI18n()
 const route = useRoute()
 const appStore = useAppStore()
-const promptDetailStepUp = useStepUp()
 type PromptAuditPageTab = 'config' | 'events'
 const activeTab = ref<PromptAuditPageTab>('events')
 const pageTabs = computed(() => [
@@ -367,15 +362,10 @@ async function openEvent(id: number) {
   showEventDetail.value = true
   loading.detail = true
   activeEvent.value = null
-  try { activeEvent.value = await promptDetailStepUp.run(() => promptAuditAPI.getEvent(id)) }
+  try { activeEvent.value = await promptAuditAPI.getEvent(id) }
   catch (error) {
     showEventDetail.value = false
     activeEvent.value = null
-    if (isStepUpCancelled(error)) return
-    if (isStepUpBlocked(error)) {
-      appStore.showError(stepUpBlockReason(error) === 'STEP_UP_ADMIN_API_KEY_FORBIDDEN' ? t('stepUp.adminApiKeyForbidden') : t('stepUp.notEnabled'))
-      return
-    }
     appStore.showError(errorMessage(error, 'admin.promptAudit.errors.loadDetail'))
   }
   finally { loading.detail = false }

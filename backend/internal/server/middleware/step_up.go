@@ -12,10 +12,6 @@ import (
 // StepUpAuthMiddleware 敏感操作 step-up 2FA 门控中间件类型。
 type StepUpAuthMiddleware gin.HandlerFunc
 
-// AlwaysStepUpAuthMiddleware 是不受全局开关影响的强制 step-up 路由门控。
-// CAPYBARA-PATCH: 与可关闭的 StepUpAuthMiddleware 保持类型独立，防止敏感正文路由误注入。
-type AlwaysStepUpAuthMiddleware gin.HandlerFunc
-
 // stepUpGrantChecker 抽象 TOTP step-up 授权检查能力（由 TotpService 实现）。
 type stepUpGrantChecker interface {
 	HasStepUpGrant(ctx context.Context, userID int64, sessionKey string) (bool, error)
@@ -55,14 +51,6 @@ func NewStepUpAuthMiddleware(
 	settingService *service.SettingService,
 ) StepUpAuthMiddleware {
 	return StepUpAuthMiddleware(stepUpAuth(totpService, userService, stepUpSettingsOrNil(settingService)))
-}
-
-// NewAlwaysStepUpAuthMiddleware 创建始终启用的敏感正文门控。
-func NewAlwaysStepUpAuthMiddleware(
-	totpService *service.TotpService,
-	userService *service.UserService,
-) AlwaysStepUpAuthMiddleware {
-	return AlwaysStepUpAuthMiddleware(stepUpAuth(totpService, userService, nil))
 }
 
 // stepUpSettingsOrNil 将可能为 nil 的具体指针归一化为接口，

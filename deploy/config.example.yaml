@@ -1238,9 +1238,13 @@ image_storage:
 # =============================================================================
 # 默认关闭。开启进程级模块后仍需由管理员按 global/group/user/api_key 三态策略
 # 显式启用采集；优先级为 API Key > User > Group > Global，inherit 继续向下解析。
-# 正文只写入私有 S3 兼容桶，并在应用层执行 gzip + 分块 AEAD 加密。
+# 正文在应用层统一执行 gzip + 分块 AEAD 加密后，写入 s3、filesystem 或
+# postgresql。storage_backend 只决定新 Blob 的写入位置；历史 Blob 仍按其持久化
+# backend 读取和清理，因此切换后必须继续保留旧 backend 的配置和数据。
 session_archive:
   enabled: false
+  # 可选：s3（默认）、filesystem、postgresql。只校验和初始化当前 active backend。
+  storage_backend: "s3"
   worker_count: 4
   queue_size: 512
   # 活跃流式 sink 与已排队事件共享的全局内存字节许可，默认 256 MiB。
@@ -1254,6 +1258,7 @@ session_archive:
   cleanup_batch_size: 100
   gc_grace_seconds: 300
   s3:
+    # 仅 storage_backend=s3，或数据库中仍有历史 S3 Blob 时使用这些字段。
     # 生产环境只接受 HTTPS；本地测试允许 localhost HTTP。
     endpoint: ""
     region: "auto"
@@ -1263,7 +1268,18 @@ session_archive:
     access_key_id: ""
     secret_access_key: ""
     force_path_style: false
+  filesystem:
+    # 留空时使用 ${DATA_DIR}/session-archive。该目录必须位于持久卷，并由全部需要
+    # 访问历史 Blob 的实例看到同一内容；普通多实例不能各用独立本地盘。
+    # 文件系统须支持同目录硬链接与 fsync，目录/对象权限分别为 0700/0600。
+    root: ""
+  postgresql:
+    # 复用主数据库连接；正文进入独立 object/chunk 表。范围 64 KiB–8 MiB。
+    # 增大可减少行数，但会提高单次读取内存、WAL、复制和备份压力。
+    chunk_size_bytes: 1048576
   # 专用持久密钥：值为 base64 编码的 32 字节随机密钥。
+  # 可用 `openssl rand -base64 32` 生成；配置文件应设为 0600，并与 backend 数据
+  # 一同做加密备份。丢失仍在引用中的密钥会永久失去对应正文。
   # 轮换 active_key_id 后，旧密钥必须保留到对应 Blob 过期并完成 GC。
   active_key_id: ""
   encryption_keys: {}

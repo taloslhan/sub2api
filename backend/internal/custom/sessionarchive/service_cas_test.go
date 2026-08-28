@@ -21,21 +21,21 @@ type fakeBlobReservationRepository struct {
 	reserveCalls int
 }
 
-func (r *fakeBlobReservationRepository) ReserveBlob(_ context.Context, info EncodingInfo, objectKey, ownerToken string, lease time.Duration) (BlobRecord, bool, error) {
+func (r *fakeBlobReservationRepository) ReserveBlob(_ context.Context, info EncodingInfo, storageBackend, objectKey, ownerToken string, lease time.Duration) (BlobRecord, bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.reserveCalls++
 	now := time.Now()
 	if r.status == "" {
 		r.status, r.ownerToken, r.leaseExpires = "pending", ownerToken, now.Add(lease)
-		return BlobRecord{ID: 1, Info: info, ObjectKey: objectKey, Status: r.status}, true, nil
+		return BlobRecord{ID: 1, Info: info, StorageBackend: storageBackend, ObjectKey: objectKey, Status: r.status}, true, nil
 	}
 	owner := false
 	if r.status == "failed" || r.status == "gc_pending" || (r.status == "pending" && !now.Before(r.leaseExpires)) {
 		r.status, r.ownerToken, r.leaseExpires = "pending", ownerToken, now.Add(lease)
 		owner = true
 	}
-	return BlobRecord{ID: 1, Info: info, ObjectKey: objectKey, Status: r.status}, owner, nil
+	return BlobRecord{ID: 1, Info: info, StorageBackend: storageBackend, ObjectKey: objectKey, Status: r.status}, owner, nil
 }
 
 func (r *fakeBlobReservationRepository) MarkBlobReady(_ context.Context, _ int64, ownerToken string) error {
@@ -79,9 +79,11 @@ func (s *slowBlobStore) Put(ctx context.Context, _ string, body io.Reader, _ int
 func (*slowBlobStore) Get(context.Context, string) (io.ReadCloser, error) {
 	return nil, errors.New("not implemented")
 }
-func (*slowBlobStore) Delete(context.Context, string) error                  { return nil }
-func (*slowBlobStore) List(context.Context, string, int32) ([]string, error) { return nil, nil }
-func (*slowBlobStore) SelfCheck(context.Context) error                       { return nil }
+func (*slowBlobStore) Delete(context.Context, string) error { return nil }
+func (*slowBlobStore) List(context.Context, string, string, int32) (BlobListPage, error) {
+	return BlobListPage{}, nil
+}
+func (*slowBlobStore) SelfCheck(context.Context) error { return nil }
 
 func TestStoreCASBlobWaitsForSlowOwnerAndReusesReadyBlob(t *testing.T) {
 	repository := &fakeBlobReservationRepository{}
@@ -94,14 +96,14 @@ func TestStoreCASBlobWaitsForSlowOwnerAndReusesReadyBlob(t *testing.T) {
 	}
 	ownerResult := make(chan result, 1)
 	go func() {
-		blob, err := storeCASBlob(context.Background(), repository, store, bytes.NewReader(payload), info, "archive/key", 500*time.Millisecond, time.Second)
+		blob, err := storeCASBlob(context.Background(), repository, store, bytes.NewReader(payload), info, StorageBackendS3, "archive/key", 500*time.Millisecond, time.Second)
 		ownerResult <- result{blob: blob, err: err}
 	}()
 	<-store.started
 
 	contenderResult := make(chan result, 1)
 	go func() {
-		blob, err := storeCASBlob(context.Background(), repository, store, bytes.NewReader(payload), info, "archive/key", 500*time.Millisecond, time.Second)
+		blob, err := storeCASBlob(context.Background(), repository, store, bytes.NewReader(payload), info, StorageBackendS3, "archive/key", 500*time.Millisecond, time.Second)
 		contenderResult <- result{blob: blob, err: err}
 	}()
 	select {
@@ -131,7 +133,7 @@ func TestStoreCASBlobTakesOverExpiredPendingLease(t *testing.T) {
 	payload := []byte("ciphertext")
 	info := EncodingInfo{StoredPlaintextSHA256: "hash", FormatVersion: 1, KeyID: "key-1", CiphertextBytes: int64(len(payload))}
 
-	blob, err := storeCASBlob(context.Background(), repository, store, bytes.NewReader(payload), info, "archive/key", time.Second, time.Second)
+	blob, err := storeCASBlob(context.Background(), repository, store, bytes.NewReader(payload), info, StorageBackendS3, "archive/key", time.Second, time.Second)
 
 	require.NoError(t, err)
 	require.Equal(t, "ready", blob.Status)
@@ -145,7 +147,7 @@ func TestStoreCASBlobTakesOverFailedReservation(t *testing.T) {
 	payload := []byte("ciphertext")
 	info := EncodingInfo{StoredPlaintextSHA256: "hash", FormatVersion: 1, KeyID: "key-1", CiphertextBytes: int64(len(payload))}
 
-	blob, err := storeCASBlob(context.Background(), repository, store, bytes.NewReader(payload), info, "archive/key", time.Second, time.Second)
+	blob, err := storeCASBlob(context.Background(), repository, store, bytes.NewReader(payload), info, StorageBackendS3, "archive/key", time.Second, time.Second)
 
 	require.NoError(t, err)
 	require.Equal(t, "ready", blob.Status)
@@ -157,7 +159,7 @@ func TestStoreCASBlobPendingWaitIsBounded(t *testing.T) {
 	store := &slowBlobStore{started: make(chan struct{}), release: make(chan struct{})}
 	startedAt := time.Now()
 
-	_, err := storeCASBlob(context.Background(), repository, store, bytes.NewReader([]byte("ciphertext")), EncodingInfo{}, "archive/key", time.Minute, 30*time.Millisecond)
+	_, err := storeCASBlob(context.Background(), repository, store, bytes.NewReader([]byte("ciphertext")), EncodingInfo{}, StorageBackendS3, "archive/key", time.Minute, 30*time.Millisecond)
 
 	require.ErrorContains(t, err, "timed out waiting for pending blob")
 	require.Less(t, time.Since(startedAt), 500*time.Millisecond)

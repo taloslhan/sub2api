@@ -272,20 +272,31 @@ type ImageStorageConfig struct {
 // EncryptionKeys 的值必须是 base64 编码的 32 字节专用密钥；密钥轮换后需保留旧 key ID，
 // 直到使用该密钥的归档 Blob 全部过期并完成 GC。
 type SessionArchiveConfig struct {
-	Enabled                 bool                   `mapstructure:"enabled"`
-	WorkerCount             int                    `mapstructure:"worker_count"`
-	QueueSize               int                    `mapstructure:"queue_size"`
-	QueueMaxBytes           int64                  `mapstructure:"queue_max_bytes"`
-	PayloadMaxBytes         int64                  `mapstructure:"payload_max_bytes"`
-	ShutdownDrainSeconds    int                    `mapstructure:"shutdown_drain_seconds"`
-	DefaultRetentionDays    int                    `mapstructure:"default_retention_days"`
-	MergeWindowSeconds      int                    `mapstructure:"merge_window_seconds"`
-	MaintenanceIntervalSecs int                    `mapstructure:"maintenance_interval_seconds"`
-	CleanupBatchSize        int                    `mapstructure:"cleanup_batch_size"`
-	GCGraceSeconds          int                    `mapstructure:"gc_grace_seconds"`
-	S3                      SessionArchiveS3Config `mapstructure:"s3"`
-	ActiveKeyID             string                 `mapstructure:"active_key_id"`
-	EncryptionKeys          map[string]string      `mapstructure:"encryption_keys"`
+	Enabled                 bool                           `mapstructure:"enabled"`
+	StorageBackend          string                         `mapstructure:"storage_backend"`
+	WorkerCount             int                            `mapstructure:"worker_count"`
+	QueueSize               int                            `mapstructure:"queue_size"`
+	QueueMaxBytes           int64                          `mapstructure:"queue_max_bytes"`
+	PayloadMaxBytes         int64                          `mapstructure:"payload_max_bytes"`
+	ShutdownDrainSeconds    int                            `mapstructure:"shutdown_drain_seconds"`
+	DefaultRetentionDays    int                            `mapstructure:"default_retention_days"`
+	MergeWindowSeconds      int                            `mapstructure:"merge_window_seconds"`
+	MaintenanceIntervalSecs int                            `mapstructure:"maintenance_interval_seconds"`
+	CleanupBatchSize        int                            `mapstructure:"cleanup_batch_size"`
+	GCGraceSeconds          int                            `mapstructure:"gc_grace_seconds"`
+	S3                      SessionArchiveS3Config         `mapstructure:"s3"`
+	Filesystem              SessionArchiveFilesystemConfig `mapstructure:"filesystem"`
+	PostgreSQL              SessionArchivePostgreSQLConfig `mapstructure:"postgresql"`
+	ActiveKeyID             string                         `mapstructure:"active_key_id"`
+	EncryptionKeys          map[string]string              `mapstructure:"encryption_keys"`
+}
+
+type SessionArchiveFilesystemConfig struct {
+	Root string `mapstructure:"root"`
+}
+
+type SessionArchivePostgreSQLConfig struct {
+	ChunkSizeBytes int `mapstructure:"chunk_size_bytes"`
 }
 
 type SessionArchiveS3Config struct {
@@ -343,19 +354,34 @@ func (c SessionArchiveConfig) validate() error {
 	if !c.Enabled {
 		return nil
 	}
-	endpoint, err := url.Parse(strings.TrimSpace(c.S3.Endpoint))
-	if err != nil || endpoint.Host == "" {
-		return fmt.Errorf("session_archive.s3.endpoint must be an absolute HTTPS URL when enabled")
-	}
-	local := endpoint.Hostname() == "localhost" || endpoint.Hostname() == "127.0.0.1" || endpoint.Hostname() == "::1"
-	if endpoint.Scheme != "https" && !(endpoint.Scheme == "http" && local) {
-		return fmt.Errorf("session_archive.s3.endpoint must use HTTPS (HTTP is allowed only for localhost)")
-	}
-	if strings.TrimSpace(c.S3.Bucket) == "" || strings.TrimSpace(c.S3.AccessKeyID) == "" || strings.TrimSpace(c.S3.SecretAccessKey) == "" {
-		return fmt.Errorf("session_archive.s3 bucket/access_key_id/secret_access_key are required when enabled")
-	}
-	if strings.Trim(strings.TrimSpace(c.S3.Prefix), "/") == "" {
-		return fmt.Errorf("session_archive.s3.prefix must not be empty when enabled")
+	backend := strings.ToLower(strings.TrimSpace(c.StorageBackend))
+	switch backend {
+	case "s3":
+		endpoint, err := url.Parse(strings.TrimSpace(c.S3.Endpoint))
+		if err != nil || endpoint.Host == "" {
+			return fmt.Errorf("session_archive.s3.endpoint must be an absolute HTTPS URL when S3 storage is active")
+		}
+		local := endpoint.Hostname() == "localhost" || endpoint.Hostname() == "127.0.0.1" || endpoint.Hostname() == "::1"
+		if endpoint.Scheme != "https" && (endpoint.Scheme != "http" || !local) {
+			return fmt.Errorf("session_archive.s3.endpoint must use HTTPS (HTTP is allowed only for localhost)")
+		}
+		if strings.TrimSpace(c.S3.Bucket) == "" || strings.TrimSpace(c.S3.AccessKeyID) == "" || strings.TrimSpace(c.S3.SecretAccessKey) == "" {
+			return fmt.Errorf("session_archive.s3 bucket/access_key_id/secret_access_key are required when S3 storage is active")
+		}
+		if strings.Trim(strings.TrimSpace(c.S3.Prefix), "/") == "" {
+			return fmt.Errorf("session_archive.s3.prefix must not be empty when S3 storage is active")
+		}
+	case "filesystem":
+		root := strings.TrimSpace(c.Filesystem.Root)
+		if strings.ContainsRune(root, '\x00') {
+			return fmt.Errorf("session_archive.filesystem.root contains an invalid NUL byte")
+		}
+	case "postgresql":
+		if c.PostgreSQL.ChunkSizeBytes < 64*1024 || c.PostgreSQL.ChunkSizeBytes > 8*1024*1024 {
+			return fmt.Errorf("session_archive.postgresql.chunk_size_bytes must be between 65536 and 8388608")
+		}
+	default:
+		return fmt.Errorf("session_archive.storage_backend must be one of s3, filesystem, postgresql")
 	}
 	keys, err := c.DecodedEncryptionKeys()
 	if err != nil {
@@ -2354,6 +2380,7 @@ func setDefaults() {
 
 	// CAPYBARA-PATCH: 会话归档默认关闭；所有标量键都注册默认值以保证环境变量可达。
 	viper.SetDefault("session_archive.enabled", false)
+	viper.SetDefault("session_archive.storage_backend", "s3")
 	viper.SetDefault("session_archive.worker_count", 4)
 	viper.SetDefault("session_archive.queue_size", 512)
 	viper.SetDefault("session_archive.queue_max_bytes", int64(256*1024*1024))
@@ -2371,6 +2398,8 @@ func setDefaults() {
 	viper.SetDefault("session_archive.s3.access_key_id", "")
 	viper.SetDefault("session_archive.s3.secret_access_key", "")
 	viper.SetDefault("session_archive.s3.force_path_style", false)
+	viper.SetDefault("session_archive.filesystem.root", "")
+	viper.SetDefault("session_archive.postgresql.chunk_size_bytes", 1024*1024)
 	viper.SetDefault("session_archive.active_key_id", "")
 
 	// Ops (vNext)

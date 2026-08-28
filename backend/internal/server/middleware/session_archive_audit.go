@@ -15,7 +15,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// BindSessionArchiveRequiredAuditActor 把认证后的真人管理员快照放入 request context。
+// BindSessionArchiveRequiredAuditActor 把认证后的管理员快照放入 request context。
 // 快照刻意排除 header、ticket 与请求正文，供 context-only 的归档必要审计端口使用。
 func BindSessionArchiveRequiredAuditActor() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -42,7 +42,7 @@ func BindSessionArchiveRequiredAuditActor() gin.HandlerFunc {
 	}
 }
 
-// NewSessionArchiveAdminID 提供归档 Handler 所需的真人管理员 ID 读取器。
+// NewSessionArchiveAdminID 提供归档 Handler 所需的已认证管理员 ID 读取器。
 func NewSessionArchiveAdminID() sessionarchive.AdminIDFunc {
 	return func(c *gin.Context) (int64, bool) {
 		subject, ok := GetAuthSubjectFromContext(c)

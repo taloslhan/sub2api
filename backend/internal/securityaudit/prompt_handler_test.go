@@ -173,6 +173,16 @@ func TestPromptAdminGetConfigReturnsSecretFreeUnavailableError(t *testing.T) {
 	require.NotContains(t, response.Body.String(), `"token"`)
 }
 
+func TestPromptAdminGetEventIsNeverCacheable(t *testing.T) {
+	service := &fakePromptAdminService{get: func(context.Context, int64) (*Event, error) {
+		return &Event{ID: 7, Snapshot: PromptSnapshot{FullPrompt: "sensitive"}}, nil
+	}}
+	response := promptAdminRequest(t, promptAdminRouter(service), http.MethodGet, "/admin/prompt-audit/events/7", nil)
+	require.Equal(t, http.StatusOK, response.Code)
+	require.Equal(t, "private, no-store", response.Header().Get("Cache-Control"))
+	require.Equal(t, "no-cache", response.Header().Get("Pragma"))
+}
+
 func TestPromptAdminProbeSupportsTemporaryOrSavedTokenWithoutEcho(t *testing.T) {
 	const canary = "probe-token-canary"
 	for _, tc := range []struct {

@@ -19,7 +19,10 @@ FRONTEND_CRITICAL_VITEST := \
 	src/features/session-archive/__tests__/viewModel.spec.ts \
 	src/features/session-archive/__tests__/api.spec.ts \
 	src/features/session-archive/__tests__/components.spec.ts \
-	src/features/session-archive/__tests__/SessionArchiveView.spec.ts
+	src/features/session-archive/__tests__/SessionArchiveView.spec.ts \
+	src/features/prompt-audit/__tests__/PromptAuditView.spec.ts \
+	src/features/prompt-audit/__tests__/api.spec.ts \
+	src/features/prompt-audit/__tests__/integrationSurface.spec.ts
 
 # 一键编译前后端
 build: build-backend build-frontend

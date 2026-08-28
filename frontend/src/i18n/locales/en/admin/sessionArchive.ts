@@ -9,7 +9,7 @@ export default {
     },
     workspace: {
       title: 'Archived sessions',
-      description: 'Search narrow metadata first. Request, response, Tool, and Raw content is loaded only after explicit strong authentication.',
+      description: 'Search narrow metadata first. Request, response, Tool, and Raw content is loaded on demand by authenticated administrators.',
       empty: 'No matching archived sessions.', truncated: 'Truncated', controlPlaneOnly: 'Control plane only',
     },
     fields: {
@@ -27,7 +27,7 @@ export default {
       title: 'Session archive details', timeline: 'Turn timeline', turn: 'Turn {sequence}', request: 'Request {sequence}',
       attempt: 'Attempt {sequence}', finalAttempt: 'Final attempt', noRequests: 'This session has no request projections.',
       sensitiveHint: 'This content is sensitive, never prefetched, and may be unavailable or truncated.',
-      contentNotLoaded: 'Select load to retrieve this content after step-up verification.',
+      contentNotLoaded: 'Select load to retrieve this content.',
       contentIncomplete: 'Incomplete observation: observed {observed}, stored {stored}, reason {reason}.',
       tabs: { attempts: 'Attempts', request: 'Request', upstream: 'Upstream request', response: 'Response', tool: 'Tool', attachment: 'Attachment', raw: 'Raw diagnostic' },
     },
@@ -39,7 +39,7 @@ export default {
       scope: 'Scope', scopeId: 'Scope ID', policyState: 'State', retentionDays: 'Retention (days)', bodyLimit: 'Per-body limit (bytes)',
       capture: 'Captured content', capture_request: 'Original request', capture_response: 'Client-visible response',
       capture_transformed_request: 'Transformed upstream request', capture_tools: 'Tool structures', capture_attachments: 'Attachment references',
-      sensitiveBoundary: 'Archived prompts and tool parameters may contain user-supplied secrets. Encryption, step-up access, retention, and deletion—not content rewriting—form the security boundary.',
+      sensitiveBoundary: 'Archived prompts and tool parameters may contain user-supplied secrets. Administrator authorization, required audit, encryption, retention, and deletion—not content rewriting—form the security boundary.',
     },
     scope: { global: 'Global', group: 'Group', user: 'User', api_key: 'API Key' },
     policyState: { inherit: 'Inherit', on: 'On', off: 'Off' },

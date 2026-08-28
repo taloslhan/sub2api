@@ -62,15 +62,63 @@ func NewRepository(db *sql.DB) (*Repository, error) {
 }
 
 func (r *Repository) CheckSchema(ctx context.Context) error {
-	var present bool
-	err := r.db.QueryRowContext(ctx, "SELECT to_regclass('session_archive_sessions') IS NOT NULL").Scan(&present)
+	var sessions, blobs, pgObjects, pgChunks, backendColumn, backendCAS, backendObject bool
+	err := r.db.QueryRowContext(ctx, `
+		SELECT
+			to_regclass('session_archive_sessions') IS NOT NULL,
+			to_regclass('session_archive_blobs') IS NOT NULL,
+			to_regclass('session_archive_pg_objects') IS NOT NULL,
+			to_regclass('session_archive_pg_object_chunks') IS NOT NULL,
+			EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid=to_regclass('session_archive_blobs') AND attname='storage_backend' AND NOT attisdropped),
+			EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid=to_regclass('session_archive_blobs') AND conname='uq_session_archive_blobs_backend_cas'),
+			EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid=to_regclass('session_archive_blobs') AND conname='uq_session_archive_blobs_backend_object_key')
+	`).Scan(&sessions, &blobs, &pgObjects, &pgChunks, &backendColumn, &backendCAS, &backendObject)
 	if err != nil {
 		return fmt.Errorf("check session archive schema: %w", err)
 	}
-	if !present {
-		return errors.New("session archive schema is missing")
+	if !sessions || !blobs || !pgObjects || !pgChunks || !backendColumn || !backendCAS || !backendObject {
+		return errors.New("session archive multi-storage schema is missing migration 236")
 	}
 	return nil
+}
+
+func (r *Repository) LegacyBlobConstraintsPresent(ctx context.Context) (bool, error) {
+	var present bool
+	err := r.db.QueryRowContext(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM pg_constraint c
+			WHERE c.conrelid='session_archive_blobs'::regclass AND c.contype='u'
+			AND c.conkey=ARRAY[
+				(SELECT attnum FROM pg_attribute WHERE attrelid=c.conrelid AND attname='stored_plaintext_sha256'),
+				(SELECT attnum FROM pg_attribute WHERE attrelid=c.conrelid AND attname='format_version'),
+				(SELECT attnum FROM pg_attribute WHERE attrelid=c.conrelid AND attname='key_id')
+			]::SMALLINT[]
+		)
+	`).Scan(&present)
+	return present, err
+}
+
+func (r *Repository) ExistingBlobBackends(ctx context.Context) ([]string, error) {
+	rows, err := r.db.QueryContext(ctx, "SELECT DISTINCT storage_backend FROM session_archive_blobs ORDER BY storage_backend")
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var backends []string
+	for rows.Next() {
+		var backend string
+		if err := rows.Scan(&backend); err != nil {
+			return nil, err
+		}
+		backends = append(backends, normalizeStorageBackend(backend))
+	}
+	return backends, rows.Err()
+}
+
+func (r *Repository) BlobObjectExists(ctx context.Context, backend, objectKey string) (bool, error) {
+	var exists bool
+	err := r.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM session_archive_blobs WHERE storage_backend=$1 AND object_key=$2)", normalizeStorageBackend(backend), objectKey).Scan(&exists)
+	return exists, err
 }
 
 func (r *Repository) PoliciesFor(ctx context.Context, identity PolicyIdentity) ([]Policy, error) {
@@ -78,7 +126,7 @@ func (r *Repository) PoliciesFor(ctx context.Context, identity PolicyIdentity) (
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanPolicies(rows)
 }
 
@@ -87,7 +135,7 @@ func (r *Repository) ListPolicies(ctx context.Context) ([]Policy, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	return scanPolicies(rows)
 }
 
@@ -282,21 +330,23 @@ func normalizeStatus(status string) string {
 }
 
 type BlobRecord struct {
-	ID        int64
-	Info      EncodingInfo
-	ObjectKey string
-	Status    string
+	ID             int64
+	Info           EncodingInfo
+	StorageBackend string
+	ObjectKey      string
+	Status         string
 }
 
-func (r *Repository) ReserveBlob(ctx context.Context, info EncodingInfo, objectKey, ownerToken string, lease time.Duration) (BlobRecord, bool, error) {
-	record := BlobRecord{Info: info}
+func (r *Repository) ReserveBlob(ctx context.Context, info EncodingInfo, storageBackend, objectKey, ownerToken string, lease time.Duration) (BlobRecord, bool, error) {
+	storageBackend = normalizeStorageBackend(storageBackend)
+	record := BlobRecord{Info: info, StorageBackend: storageBackend}
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return BlobRecord{}, false, err
 	}
 	defer func() { _ = tx.Rollback() }()
-	query := "INSERT INTO session_archive_blobs (stored_plaintext_sha256,stored_bytes,compressed_bytes,ciphertext_bytes,gzip_version,format_version,key_id,object_key,status,owner_token,lease_expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9,NOW()+$10::interval) ON CONFLICT (stored_plaintext_sha256,format_version,key_id) DO NOTHING RETURNING id,object_key,status"
-	err = tx.QueryRowContext(ctx, query, info.StoredPlaintextSHA256, info.StoredBytes, info.CompressedBytes, info.CiphertextBytes, info.GZIPVersion, info.FormatVersion, info.KeyID, objectKey, ownerToken, intervalLiteral(lease)).Scan(&record.ID, &record.ObjectKey, &record.Status)
+	query := "INSERT INTO session_archive_blobs (storage_backend,stored_plaintext_sha256,stored_bytes,compressed_bytes,ciphertext_bytes,gzip_version,format_version,key_id,object_key,status,owner_token,lease_expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'pending',$10,NOW()+$11::interval) ON CONFLICT (storage_backend,stored_plaintext_sha256,format_version,key_id) DO NOTHING RETURNING id,object_key,status"
+	err = tx.QueryRowContext(ctx, query, storageBackend, info.StoredPlaintextSHA256, info.StoredBytes, info.CompressedBytes, info.CiphertextBytes, info.GZIPVersion, info.FormatVersion, info.KeyID, objectKey, ownerToken, intervalLiteral(lease)).Scan(&record.ID, &record.ObjectKey, &record.Status)
 	if err == nil {
 		return record, true, tx.Commit()
 	}
@@ -304,7 +354,7 @@ func (r *Repository) ReserveBlob(ctx context.Context, info EncodingInfo, objectK
 		return BlobRecord{}, false, err
 	}
 	var leaseExpired bool
-	err = tx.QueryRowContext(ctx, "SELECT id,object_key,status,COALESCE(lease_expires_at<=NOW(),TRUE) FROM session_archive_blobs WHERE stored_plaintext_sha256=$1 AND format_version=$2 AND key_id=$3 FOR UPDATE", info.StoredPlaintextSHA256, info.FormatVersion, info.KeyID).Scan(&record.ID, &record.ObjectKey, &record.Status, &leaseExpired)
+	err = tx.QueryRowContext(ctx, "SELECT id,object_key,status,COALESCE(lease_expires_at<=NOW(),TRUE) FROM session_archive_blobs WHERE storage_backend=$1 AND stored_plaintext_sha256=$2 AND format_version=$3 AND key_id=$4 FOR UPDATE", storageBackend, info.StoredPlaintextSHA256, info.FormatVersion, info.KeyID).Scan(&record.ID, &record.ObjectKey, &record.Status, &leaseExpired)
 	if err != nil {
 		return BlobRecord{}, false, err
 	}

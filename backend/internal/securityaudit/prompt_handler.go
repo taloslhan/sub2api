@@ -119,6 +119,8 @@ func (h *PromptAdminHandler) GetEvent(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
+	c.Header("Cache-Control", "private, no-store")
+	c.Header("Pragma", "no-cache")
 	response.Success(c, event)
 }
 

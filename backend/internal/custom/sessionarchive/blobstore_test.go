@@ -5,10 +5,12 @@ import (
 	"context"
 	"errors"
 	"io"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -65,7 +67,7 @@ func TestS3BlobStoreOperationsHaveBoundedTimeouts(t *testing.T) {
 
 	err = store.Delete(context.Background(), "archive/blob")
 	require.ErrorIs(t, err, context.DeadlineExceeded)
-	_, err = store.List(context.Background(), "", 10)
+	_, err = store.List(context.Background(), "", "", 10)
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 }
 
@@ -84,3 +86,37 @@ func TestS3BlobStoreRespectsShorterParentDeadline(t *testing.T) {
 }
 
 var _ io.ReadCloser = (*deadlineReadCloser)(nil)
+
+type pagingS3API struct {
+	deadlineS3API
+	mu     sync.Mutex
+	inputs []*s3.ListObjectsV2Input
+}
+
+func (p *pagingS3API) ListObjectsV2(_ context.Context, input *s3.ListObjectsV2Input, _ ...func(*s3.Options)) (*s3.ListObjectsV2Output, error) {
+	p.mu.Lock()
+	p.inputs = append(p.inputs, input)
+	p.mu.Unlock()
+	first := "archive/v1/a.sar"
+	second := "archive/v1/b.sar"
+	if input.ContinuationToken == nil {
+		next := "opaque-next"
+		return &s3.ListObjectsV2Output{Contents: []types.Object{{Key: &first}}, NextContinuationToken: &next}, nil
+	}
+	return &s3.ListObjectsV2Output{Contents: []types.Object{{Key: &second}}}, nil
+}
+
+func TestS3BlobStorePreservesOpaquePaginationCursor(t *testing.T) {
+	api := &pagingS3API{}
+	store, err := newS3BlobStore(api, "private", "archive")
+	require.NoError(t, err)
+	first, err := store.List(context.Background(), "archive/v1/", "", 1)
+	require.NoError(t, err)
+	require.Equal(t, []string{"archive/v1/a.sar"}, first.Keys)
+	require.Equal(t, "opaque-next", first.NextCursor)
+	second, err := store.List(context.Background(), "archive/v1/", first.NextCursor, 1)
+	require.NoError(t, err)
+	require.Equal(t, []string{"archive/v1/b.sar"}, second.Keys)
+	require.Empty(t, second.NextCursor)
+	require.Equal(t, "opaque-next", *api.inputs[1].ContinuationToken)
+}

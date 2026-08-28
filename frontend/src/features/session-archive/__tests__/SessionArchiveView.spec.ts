@@ -7,19 +7,13 @@ const mocks = vi.hoisted(() => ({
   getRuntime: vi.fn(), listPolicies: vi.fn(), listSessions: vi.fn(), listDeletionJobs: vi.fn(),
   getSession: vi.fn(), getRequestContent: vi.fn(), savePolicy: vi.fn(), deletePolicy: vi.fn(),
   preflightExport: vi.fn(), issueExportTicket: vi.fn(), exportDownloadURL: vi.fn(), createDeletionJob: vi.fn(), getDeletionJob: vi.fn(),
-  stepUpRun: vi.fn(), showSuccess: vi.fn(), showError: vi.fn(), copy: vi.fn(), replace: vi.fn(),
+  showSuccess: vi.fn(), showError: vi.fn(), copy: vi.fn(), replace: vi.fn(),
   route: { query: { correlation_request_id: 'corr-route' } as Record<string, string> },
 }))
 
 vi.mock('../api', () => ({ default: mocks }))
 vi.mock('@/stores/app', () => ({ useAppStore: () => ({ showSuccess: mocks.showSuccess, showError: mocks.showError }) }))
 vi.mock('@/composables/useClipboard', () => ({ useClipboard: () => ({ copyToClipboard: mocks.copy }) }))
-vi.mock('@/composables/useStepUp', () => ({
-  useStepUp: () => ({ visible: { value: false }, blockedReason: { value: '' }, run: mocks.stepUpRun, onVerified: vi.fn(), onCancel: vi.fn() }),
-  isStepUpBlocked: () => false,
-  isStepUpCancelled: () => false,
-  stepUpBlockReason: () => '',
-}))
 vi.mock('vue-router', () => ({ useRoute: () => mocks.route, useRouter: () => ({ replace: mocks.replace }) }))
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
@@ -56,7 +50,6 @@ function mountView() {
         ArchiveConfigPanel: true,
         SessionDetailDialog: DetailStub,
         ConfirmDialog: ConfirmStub,
-        TotpStepUpDialog: true,
       },
     },
   })
@@ -68,7 +61,6 @@ describe('SessionArchiveView', () => {
       if (typeof value === 'function' && 'mockReset' in value) (value as ReturnType<typeof vi.fn>).mockReset()
     })
     mocks.route.query = { correlation_request_id: 'corr-route' }
-    mocks.stepUpRun.mockImplementation((action: () => Promise<unknown>) => action())
     mocks.listSessions.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 0 })
     mocks.getRuntime.mockResolvedValue({ enabled: false, process_status: 'disabled' })
     mocks.listPolicies.mockResolvedValue({ items: [] })
@@ -88,17 +80,14 @@ describe('SessionArchiveView', () => {
     expect(mocks.getRequestContent).not.toHaveBeenCalled()
   })
 
-  it('loads narrow detail directly, loads Raw through step-up, and clears content on close', async () => {
+  it('loads narrow detail and Raw content directly, then clears content on close', async () => {
     const wrapper = mountView()
     await flushPromises()
     await wrapper.get('[data-test="view"]').trigger('click')
     await flushPromises()
     expect(mocks.getSession).toHaveBeenCalledWith(1)
-    expect(mocks.stepUpRun).not.toHaveBeenCalled()
-
     await wrapper.get('[data-test="load-content"]').trigger('click')
     await flushPromises()
-    expect(mocks.stepUpRun).toHaveBeenCalledOnce()
     expect(mocks.getRequestContent).toHaveBeenCalledWith(2, 'raw')
     expect(wrapper.get('[data-test="content-count"]').text()).toBe('1')
 

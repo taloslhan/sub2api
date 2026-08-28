@@ -19,8 +19,13 @@ type BlobStore interface {
 	Put(context.Context, string, io.Reader, int64) error
 	Get(context.Context, string) (io.ReadCloser, error)
 	Delete(context.Context, string) error
-	List(context.Context, string, int32) ([]string, error)
+	List(context.Context, string, string, int32) (BlobListPage, error)
 	SelfCheck(context.Context) error
+}
+
+type BlobListPage struct {
+	Keys       []string
+	NextCursor string
 }
 
 type s3API interface {
@@ -117,19 +122,26 @@ func (s *S3BlobStore) Delete(ctx context.Context, key string) error {
 	return nil
 }
 
-func (s *S3BlobStore) List(ctx context.Context, relativePrefix string, limit int32) ([]string, error) {
-	prefix := s.prefix + "/" + strings.TrimLeft(relativePrefix, "/")
+func (s *S3BlobStore) List(ctx context.Context, relativePrefix, cursor string, limit int32) (BlobListPage, error) {
+	prefix := strings.TrimLeft(relativePrefix, "/")
+	if !strings.HasPrefix(prefix, s.prefix+"/") {
+		prefix = s.prefix + "/" + prefix
+	}
 	if strings.Contains(relativePrefix, "..") {
-		return nil, errors.New("invalid archive list prefix")
+		return BlobListPage{}, errors.New("invalid archive list prefix")
 	}
 	if limit < 1 || limit > 1000 {
 		limit = 100
 	}
 	opCtx, cancel := context.WithTimeout(ctx, s.operationTimeout(s.listTimeout, defaultS3ListTimeout))
 	defer cancel()
-	output, err := s.client.ListObjectsV2(opCtx, &s3.ListObjectsV2Input{Bucket: &s.bucket, Prefix: &prefix, MaxKeys: &limit})
+	input := &s3.ListObjectsV2Input{Bucket: &s.bucket, Prefix: &prefix, MaxKeys: &limit}
+	if cursor != "" {
+		input.ContinuationToken = &cursor
+	}
+	output, err := s.client.ListObjectsV2(opCtx, input)
 	if err != nil {
-		return nil, fmt.Errorf("list private archive objects: %w", err)
+		return BlobListPage{}, fmt.Errorf("list private archive objects: %w", err)
 	}
 	keys := make([]string, 0, len(output.Contents))
 	for _, object := range output.Contents {
@@ -137,7 +149,11 @@ func (s *S3BlobStore) List(ctx context.Context, relativePrefix string, limit int
 			keys = append(keys, *object.Key)
 		}
 	}
-	return keys, nil
+	next := ""
+	if output.NextContinuationToken != nil {
+		next = *output.NextContinuationToken
+	}
+	return BlobListPage{Keys: keys, NextCursor: next}, nil
 }
 
 func (s *S3BlobStore) SelfCheck(ctx context.Context) error {
