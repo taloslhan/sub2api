@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -8,12 +9,15 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 	"go.uber.org/zap"
@@ -42,6 +46,10 @@ func (h *OpenAIGatewayHandler) Live(c *gin.Context) {
 	if err != nil {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return
+	}
+	originalRequest := &service.LiveCallRequest{
+		SDP:     request.SDP,
+		Session: append(json.RawMessage(nil), request.Session...),
 	}
 	model := strings.TrimSpace(gjson.GetBytes(request.Session, "model").String())
 	if !compositeTargetPlatformAllowed(c, apiKey, model, service.PlatformOpenAI) {
@@ -118,6 +126,7 @@ func (h *OpenAIGatewayHandler) Live(c *gin.Context) {
 		h.writeLiveCreateError(c, err)
 		return
 	}
+	captureLiveCreate(h.sessionArchive, c, apiKey, subject.UserID, model, originalRequest, request, created)
 	c.Header("Location", liveSidebandLocation(c.FullPath(), created.CallID))
 	c.Data(http.StatusOK, "application/sdp", created.SDP)
 }
@@ -234,11 +243,54 @@ func (h *OpenAIGatewayHandler) LiveSideband(c *gin.Context) {
 		return
 	}
 	defer func() { _ = downstream.CloseNow() }()
-	if err := h.gatewayService.ProxyLiveSideband(c.Request.Context(), record, downstream); err != nil {
+
+	// CAPYBARA-PATCH: Sideband 是独立长连接逻辑请求；媒体不经过网关，归档只覆盖控制面。
+	correlationRequestID := "openai_live_sideband_" + uuid.NewString()
+	sidebandCtx := context.WithValue(c.Request.Context(), ctxkey.CorrelationRequestID, correlationRequestID)
+	service.SetOpsCorrelationRequestID(c, correlationRequestID)
+	var captureHook service.LiveSidebandCaptureHook
+	if h.liveSidebandArchiveCapture != nil {
+		scope := OpenAIWSArchiveScope{
+			UserID: record.UserID, APIKeyID: record.APIKeyID, GroupID: record.GroupID,
+			Protocol: "openai_live", Client: c.GetHeader("User-Agent"), Endpoint: GetInboundEndpoint(c),
+			Model: record.Model, StableSessionID: record.CallID,
+		}
+		captureHook = func(event service.LiveSidebandCaptureEvent) {
+			h.liveSidebandArchiveCapture(sidebandCtx, scope, event)
+		}
+		captureHook(service.LiveSidebandCaptureEvent{
+			OccurredAt: time.Now().UTC(), CorrelationRequestID: correlationRequestID,
+			EventType: "turn.accepted",
+		})
+	}
+	proxyErr := h.gatewayService.ProxyLiveSideband(sidebandCtx, record, downstream, captureHook)
+	if captureHook != nil {
+		terminal := service.LiveSidebandCaptureEvent{
+			OccurredAt: time.Now().UTC(), CorrelationRequestID: correlationRequestID,
+			EventType: "terminal", Status: "completed",
+		}
+		if !isExpectedLiveSidebandClose(proxyErr) {
+			terminal.Status, terminal.Error = "failed", "live_sideband_proxy_error"
+		}
+		captureHook(terminal)
+	}
+	if proxyErr != nil {
 		_ = downstream.Close(coderws.StatusInternalError, "live sideband closed")
 		return
 	}
 	_ = downstream.Close(coderws.StatusNormalClosure, "")
+}
+
+func isExpectedLiveSidebandClose(err error) bool {
+	if err == nil || errors.Is(err, service.ErrLiveCallNotFound) || errors.Is(err, context.Canceled) {
+		return true
+	}
+	switch coderws.CloseStatus(err) {
+	case coderws.StatusNormalClosure, coderws.StatusGoingAway, coderws.StatusNoStatusRcvd:
+		return true
+	default:
+		return false
+	}
 }
 
 func liveEnabledForAPIKey(apiKey *service.APIKey) bool {

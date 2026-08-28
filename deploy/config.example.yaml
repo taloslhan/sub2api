@@ -1232,3 +1232,38 @@ image_storage:
   presign_expiry_hours: 24
   # 当上游返回的是图片 url 时，下载该图片再转存的字节上限（默认 32MB）
   max_download_bytes: 33554432
+
+# =============================================================================
+# Session Archive (会话归档，CAPYBARA-PATCH)
+# =============================================================================
+# 默认关闭。开启进程级模块后仍需由管理员按 global/group/user/api_key 三态策略
+# 显式启用采集；优先级为 API Key > User > Group > Global，inherit 继续向下解析。
+# 正文只写入私有 S3 兼容桶，并在应用层执行 gzip + 分块 AEAD 加密。
+session_archive:
+  enabled: false
+  worker_count: 4
+  queue_size: 512
+  # 活跃流式 sink 与已排队事件共享的全局内存字节许可，默认 256 MiB。
+  queue_max_bytes: 268435456
+  # 单个原始请求、转换请求或响应最多留存 64 MiB；超限会显式标记 truncated。
+  payload_max_bytes: 67108864
+  shutdown_drain_seconds: 10
+  default_retention_days: 30
+  merge_window_seconds: 300
+  maintenance_interval_seconds: 60
+  cleanup_batch_size: 100
+  gc_grace_seconds: 300
+  s3:
+    # 生产环境只接受 HTTPS；本地测试允许 localhost HTTP。
+    endpoint: ""
+    region: "auto"
+    bucket: ""
+    # 必须使用归档专属前缀，清理和孤儿对账不会越过此前缀。
+    prefix: "session-archive/"
+    access_key_id: ""
+    secret_access_key: ""
+    force_path_style: false
+  # 专用持久密钥：值为 base64 编码的 32 字节随机密钥。
+  # 轮换 active_key_id 后，旧密钥必须保留到对应 Blob 过期并完成 GC。
+  active_key_id: ""
+  encryption_keys: {}

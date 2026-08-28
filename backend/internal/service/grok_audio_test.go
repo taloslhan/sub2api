@@ -81,6 +81,18 @@ func TestGrokRealtimeEventHasAudio(t *testing.T) {
 	require.True(t, grokRealtimeEventHasAudio([]byte(`{"type":"response.output_audio.delta","audio":"abc"}`)))
 }
 
+func TestEmitGrokRealtimeCaptureIsFailOpenAndSynchronous(t *testing.T) {
+	payload := []byte(`{"type":"response.audio.delta","delta":"abc"}`)
+	require.NotPanics(t, func() {
+		emitGrokRealtimeCapture(func(event GrokRealtimeCaptureEvent) {
+			require.Equal(t, int64(1), event.SequenceNo)
+			require.Equal(t, payload, event.Payload)
+			panic("archive adapter failure")
+		}, GrokRealtimeCaptureEvent{SequenceNo: 1, Payload: payload})
+	})
+	require.Equal(t, byte('{'), payload[0])
+}
+
 func TestForwardGrokVoice_RejectsUnknownEndpoint(t *testing.T) {
 	svc := &OpenAIGatewayService{}
 	_, err := svc.ForwardGrokVoice(context.Background(), nil, &Account{Platform: PlatformGrok}, "unknown", []byte(`{}`), "application/json")

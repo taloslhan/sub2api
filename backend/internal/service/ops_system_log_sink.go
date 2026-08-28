@@ -270,6 +270,7 @@ func (s *OpsSystemLogSink) flushBatch(baseCtx context.Context, batch []*logger.L
 		fields := copyMap(event.Fields)
 		requestID := asString(fields["request_id"])
 		clientRequestID := asString(fields["client_request_id"])
+		correlationRequestID := asString(fields["correlation_request_id"])
 		platform := asString(fields["platform"])
 		model := asString(fields["model"])
 		component := strings.TrimSpace(event.Component)
@@ -294,19 +295,20 @@ func (s *OpsSystemLogSink) flushBatch(baseCtx context.Context, batch []*logger.L
 		}
 
 		inputs = append(inputs, &OpsInsertSystemLogInput{
-			CreatedAt:       createdAt,
-			Host:            s.host,
-			Level:           strings.ToLower(strings.TrimSpace(event.Level)),
-			Component:       component,
-			Message:         message,
-			RequestID:       requestID,
-			ClientRequestID: clientRequestID,
-			UserID:          userID,
-			APIKeyID:        apiKeyID,
-			AccountID:       accountID,
-			Platform:        platform,
-			Model:           model,
-			ExtraJSON:       extraJSON,
+			CreatedAt:            createdAt,
+			Host:                 s.host,
+			Level:                strings.ToLower(strings.TrimSpace(event.Level)),
+			Component:            component,
+			Message:              message,
+			RequestID:            requestID,
+			ClientRequestID:      clientRequestID,
+			CorrelationRequestID: correlationRequestID,
+			UserID:               userID,
+			APIKeyID:             apiKeyID,
+			AccountID:            accountID,
+			Platform:             platform,
+			Model:                model,
+			ExtraJSON:            extraJSON,
 		})
 	}
 

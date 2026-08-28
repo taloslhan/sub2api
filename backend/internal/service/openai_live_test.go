@@ -208,6 +208,18 @@ func TestLiveSidebandNormalCloseEndsCall(t *testing.T) {
 	require.Equal(t, abnormalClose, liveSidebandReadError(abnormalClose))
 }
 
+func TestEmitLiveSidebandCaptureIsFailOpenAndSynchronous(t *testing.T) {
+	payload := []byte(`{"type":"session.update"}`)
+	require.NotPanics(t, func() {
+		emitLiveSidebandCapture(func(event LiveSidebandCaptureEvent) {
+			require.Equal(t, payload, event.Payload)
+			require.False(t, event.OccurredAt.IsZero())
+			panic("archive adapter failure")
+		}, LiveSidebandCaptureEvent{Payload: payload})
+	})
+	require.Equal(t, byte('{'), payload[0])
+}
+
 func TestLiveCreateFailoverUsesExistingOpenAIPolicy(t *testing.T) {
 	service := &OpenAIGatewayService{}
 	require.False(t, service.shouldFailoverLiveCreateError(&UpstreamFailoverError{

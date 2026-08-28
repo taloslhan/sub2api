@@ -1,5 +1,6 @@
 .PHONY: build build-backend build-frontend test test-backend test-frontend test-frontend-critical
 
+# CAPYBARA-PATCH: Session archive route/API/content-loading integration is release-critical.
 FRONTEND_CRITICAL_VITEST := \
 	src/api/__tests__/client.spec.ts \
 	src/api/__tests__/tokenRefresh.spec.ts \
@@ -13,7 +14,12 @@ FRONTEND_CRITICAL_VITEST := \
 	src/views/admin/__tests__/SettingsView.spec.ts \
 	src/features/channel-monitor-v2/__tests__/designSystem.structure.spec.ts \
 	src/features/channel-monitor-v2/__tests__/monitorFormat.spec.ts \
-	src/features/channel-monitor-v2/__tests__/monitorZoom.spec.ts
+	src/features/channel-monitor-v2/__tests__/monitorZoom.spec.ts \
+	src/features/session-archive/__tests__/integrationSurface.spec.ts \
+	src/features/session-archive/__tests__/viewModel.spec.ts \
+	src/features/session-archive/__tests__/api.spec.ts \
+	src/features/session-archive/__tests__/components.spec.ts \
+	src/features/session-archive/__tests__/SessionArchiveView.spec.ts
 
 # 一键编译前后端
 build: build-backend build-frontend

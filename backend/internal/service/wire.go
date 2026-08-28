@@ -533,8 +533,10 @@ func ProvideOpsAlertEvaluatorService(
 	redisClient *redis.Client,
 	cfg *config.Config,
 	proxyRepo ProxyRepository,
+	sessionArchiveMetrics SessionArchiveOpsMetrics,
 ) *OpsAlertEvaluatorService {
-	svc := NewOpsAlertEvaluatorService(opsService, opsRepo, emailService, redisClient, cfg, proxyRepo)
+	// CAPYBARA-PATCH: archive health participates in the existing configurable Ops alert engine.
+	svc := NewOpsAlertEvaluatorService(opsService, opsRepo, emailService, redisClient, cfg, proxyRepo, sessionArchiveMetrics)
 	svc.Start()
 	return svc
 }

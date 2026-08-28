@@ -136,6 +136,8 @@ export interface PromptAuditRuntime {
 
 export interface PromptSnapshot {
   request_id: string
+  // CAPYBARA-PATCH: Stable cross-module association; billing request_id retains its original semantics.
+  correlation_request_id?: string
   user_id: number
   username: string
   user_email: string
@@ -203,6 +205,7 @@ export interface PromptEventFilters {
   user_id: string
   api_key_id: string
   request_id: string
+  correlation_request_id: string
   prompt_hash: string
   keyword: string
   start_at: string

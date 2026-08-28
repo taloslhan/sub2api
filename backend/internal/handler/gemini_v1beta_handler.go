@@ -211,6 +211,8 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 		googleSecurityAuditError(c, decision)
 		return
 	}
+	finishArchive := beginSessionArchiveHTTP(h.sessionArchive, c, apiKey, authSubject.UserID, service.ContentModerationProtocolGemini, modelName, body)
+	defer finishArchive()
 
 	// 解析渠道级模型映射
 	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, modelName)
@@ -519,6 +521,7 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 		} else {
 			result, err = h.geminiCompatService.ForwardNative(requestCtx, c, account, modelName, action, stream, body)
 		}
+		service.FinalizeLatestHTTPUpstreamAttempt(requestCtx, err)
 		if accountReleaseFunc != nil {
 			accountReleaseFunc()
 		}

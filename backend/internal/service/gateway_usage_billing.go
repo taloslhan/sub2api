@@ -1211,10 +1211,12 @@ func (s *GatewayService) buildRecordUsageLog(
 		)
 	}
 	usageLog := &UsageLog{
-		UserID:                user.ID,
-		APIKeyID:              apiKey.ID,
-		AccountID:             account.ID,
-		RequestID:             requestID,
+		UserID:    user.ID,
+		APIKeyID:  apiKey.ID,
+		AccountID: account.ID,
+		RequestID: requestID,
+		// CAPYBARA-PATCH: 关联 ID 独立双写，不参与 resolveUsageBillingRequestID 与扣费幂等。
+		CorrelationRequestID:  CorrelationRequestIDFromContext(ctx),
 		Model:                 result.Model,
 		RequestedModel:        requestedModel,
 		UpstreamModel:         optionalTrimmedStringPtr(result.UpstreamModel),

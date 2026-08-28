@@ -167,6 +167,12 @@ func runMainServer() {
 			log.Printf("Prompt Audit started in degraded state: %v", err)
 		}
 	}
+	if app.SessionArchive != nil {
+		if err := app.SessionArchive.Start(context.Background()); err != nil {
+			// 归档故障只降级归档能力，不能阻断模型网关启动。
+			log.Printf("Session archive started in degraded state: %v", err)
+		}
+	}
 
 	// 启动服务器
 	go func() {

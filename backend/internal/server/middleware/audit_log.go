@@ -17,11 +17,12 @@ type AuditLogMiddleware gin.HandlerFunc
 
 // 审计相关 gin context 覆写键：handler / 认证中间件可通过这些键补充审计信息。
 const (
-	auditCtxKeyAction     = "audit_action"
-	auditCtxKeyActorID    = "audit_actor_id"
-	auditCtxKeyActorEmail = "audit_actor_email"
-	auditCtxKeySkip       = "audit_skip"
-	auditCtxKeyExtra      = "audit_extra"
+	auditCtxKeyAction           = "audit_action"
+	auditCtxKeyActorID          = "audit_actor_id"
+	auditCtxKeyActorEmail       = "audit_actor_email"
+	auditCtxKeySkip             = "audit_skip"
+	auditCtxKeyExtra            = "audit_extra"
+	auditCtxKeyRequiredRecorded = "required_audit_recorded"
 	// ContextKeyAuthEmail 认证中间件写入的用户邮箱（审计用）。
 	ContextKeyAuthEmail = "auth_email"
 	// ContextKeySessionID 认证中间件写入的会话 ID（refresh token family）。
@@ -31,6 +32,73 @@ const (
 // SetAuditAction 允许 handler / 中间件为当前请求指定审计动作名（覆盖自动推导）。
 func SetAuditAction(c *gin.Context, action string) {
 	c.Set(auditCtxKeyAction, action)
+}
+
+// MarkRequiredAuditRecorded 标记当前动作已通过同步必要审计持久化，避免异步副本重复落库。
+func MarkRequiredAuditRecorded(c *gin.Context) {
+	if c != nil {
+		c.Set(auditCtxKeyRequiredRecorded, true)
+	}
+}
+
+// RequiredAuditMiddleware 在敏感 handler 执行前同步落库访问审计。
+type RequiredAuditMiddleware func(action string) gin.HandlerFunc
+
+// NewRequiredAuditMiddleware 创建敏感读取必要审计中间件。
+// CAPYBARA-PATCH: 审计不可用时 fail-closed，避免先返回 Prompt/归档正文再异步丢失审计。
+func NewRequiredAuditMiddleware(auditService *service.AuditLogService) RequiredAuditMiddleware {
+	return func(action string) gin.HandlerFunc {
+		return func(c *gin.Context) {
+			entry := requiredAuditEntry(c, action)
+			if err := auditService.RecordRequired(c.Request.Context(), entry); err != nil {
+				AbortWithError(c, 503, "REQUIRED_AUDIT_UNAVAILABLE", "Required access audit is unavailable")
+				return
+			}
+			MarkRequiredAuditRecorded(c)
+			c.Next()
+		}
+	}
+}
+
+func requiredAuditEntry(c *gin.Context, action string) *service.AuditLog {
+	entry := &service.AuditLog{
+		CreatedAt:        time.Now().UTC(),
+		Action:           strings.TrimSpace(action),
+		Method:           c.Request.Method,
+		Path:             c.FullPath(),
+		ClientIP:         SecurityClientIP(c),
+		UserAgent:        c.Request.UserAgent(),
+		StatusCode:       200,
+		AuthMethod:       c.GetString("auth_method"),
+		ActorEmail:       c.GetString(ContextKeyAuthEmail),
+		CredentialMasked: MaskedRequestCredential(c),
+	}
+	if entry.Path == "" {
+		entry.Path = c.Request.URL.Path
+	}
+	if requestID, ok := c.Request.Context().Value(ctxkey.CorrelationRequestID).(string); ok {
+		entry.RequestID = requestID
+	} else if requestID, ok := c.Request.Context().Value(ctxkey.RequestID).(string); ok {
+		entry.RequestID = requestID
+	}
+	if subject, ok := GetAuthSubjectFromContext(c); ok && subject.UserID > 0 {
+		uid := subject.UserID
+		entry.ActorUserID = &uid
+	}
+	if role, ok := GetUserRoleFromContext(c); ok {
+		entry.ActorRole = role
+	}
+	if entry.AuthMethod == "" && entry.ActorUserID != nil {
+		entry.AuthMethod = service.AuditAuthMethodJWT
+	}
+	if len(c.Params) > 0 {
+		params := make(map[string]string, len(c.Params))
+		for _, param := range c.Params {
+			params[param.Key] = truncateAuditExtraString(param.Value, 128)
+		}
+		entry.Extra = map[string]any{"params": params}
+	}
+	return entry
 }
 
 // SetAuditActor 允许 handler 在认证上下文缺失时（如登录接口）补充操作者身份。
@@ -118,6 +186,11 @@ var auditSensitiveReads = map[string]string{
 	"GET /api/v1/admin/groups/:id/api-keys":       "admin.groups.api_keys.read",
 	"GET /api/v1/admin/backups/s3-config":         "admin.backups.s3_config.read",
 	"GET /api/v1/admin/data-management/s3/config": "admin.data_management.s3_config.read",
+	// CAPYBARA-PATCH: Prompt Audit 详情包含 full_prompt，必须进入敏感读取审计范围。
+	"GET /api/v1/admin/prompt-audit/events/:id": "admin.prompt_audit.event.read",
+	// CAPYBARA-PATCH: 归档正文读取由 Handler 同步必要审计；此处仅登记敏感读取，
+	// 成功后 required_audit_recorded 会阻止异步副本重复写入。
+	"GET /api/v1/admin/session-archive/requests/:id/content": "session_archive.content.read",
 }
 
 // auditActionOverrides 变更类请求的动作名精确映射（未命中时自动推导）。
@@ -207,7 +280,7 @@ func NewAuditLogMiddleware(auditService *service.AuditLogService) AuditLogMiddle
 		start := time.Now()
 		c.Next()
 
-		if c.GetBool(auditCtxKeySkip) {
+		if c.GetBool(auditCtxKeySkip) || c.GetBool(auditCtxKeyRequiredRecorded) {
 			return
 		}
 

@@ -36,6 +36,8 @@ type OpsAlertEvaluatorService struct {
 	opsRepo      OpsRepository
 	emailService *EmailService
 	proxyRepo    ProxyRepository
+	// CAPYBARA-PATCH: session archive owns its counters; the alert engine only reads a narrow metric port.
+	sessionArchiveMetrics SessionArchiveOpsMetrics
 
 	redisClient *redis.Client
 	cfg         *config.Config
@@ -57,6 +59,12 @@ type OpsAlertEvaluatorService struct {
 	warnNoRedisOnce sync.Once
 }
 
+// SessionArchiveOpsMetrics exposes only the counters consumed by Ops alert rules.
+// The interface keeps the service layer independent from the custom archive module.
+type SessionArchiveOpsMetrics interface {
+	OpsMetric(metricType string) (float64, bool)
+}
+
 type opsAlertRuleState struct {
 	LastEvaluatedAt     time.Time
 	ConsecutiveBreaches int
@@ -69,17 +77,19 @@ func NewOpsAlertEvaluatorService(
 	redisClient *redis.Client,
 	cfg *config.Config,
 	proxyRepo ProxyRepository,
+	sessionArchiveMetrics SessionArchiveOpsMetrics,
 ) *OpsAlertEvaluatorService {
 	return &OpsAlertEvaluatorService{
-		opsService:   opsService,
-		opsRepo:      opsRepo,
-		emailService: emailService,
-		proxyRepo:    proxyRepo,
-		redisClient:  redisClient,
-		cfg:          cfg,
-		instanceID:   uuid.NewString(),
-		ruleStates:   map[int64]*opsAlertRuleState{},
-		emailLimiter: newSlidingWindowLimiter(0, time.Hour),
+		opsService:            opsService,
+		opsRepo:               opsRepo,
+		emailService:          emailService,
+		proxyRepo:             proxyRepo,
+		sessionArchiveMetrics: sessionArchiveMetrics,
+		redisClient:           redisClient,
+		cfg:                   cfg,
+		instanceID:            uuid.NewString(),
+		ruleStates:            map[int64]*opsAlertRuleState{},
+		emailLimiter:          newSlidingWindowLimiter(0, time.Hour),
 	}
 }
 
@@ -445,6 +455,14 @@ func (s *OpsAlertEvaluatorService) computeRuleMetric(
 		return 0, false
 	}
 	switch strings.TrimSpace(rule.MetricType) {
+	case "session_archive_queue_dropped",
+		"session_archive_storage_failures",
+		"session_archive_pending_backlog",
+		"session_archive_gc_backlog":
+		if s == nil || s.sessionArchiveMetrics == nil {
+			return 0, false
+		}
+		return s.sessionArchiveMetrics.OpsMetric(strings.TrimSpace(rule.MetricType))
 	case "cpu_usage_percent":
 		if systemMetrics != nil && systemMetrics.CPUUsagePercent != nil {
 			return *systemMetrics.CPUUsagePercent, true

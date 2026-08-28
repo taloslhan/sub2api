@@ -10,12 +10,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -129,9 +131,47 @@ func (h *OpenAIGatewayHandler) GrokRealtime(c *gin.Context) {
 	}
 	defer func() { _ = conn.CloseNow() }()
 
+	// CAPYBARA-PATCH: Realtime is one long-lived logical request and must not
+	// reuse the HTTP upgrade correlation for usage/archive/Ops attribution.
+	realtimeCorrelationRequestID := "grok_realtime_" + uuid.NewString()
+	realtimeCtx := context.WithValue(c.Request.Context(), ctxkey.CorrelationRequestID, realtimeCorrelationRequestID)
+	service.SetOpsCorrelationRequestID(c, realtimeCorrelationRequestID)
+	var captureHook service.GrokRealtimeCaptureHook
+	if h.grokRealtimeArchiveCapture != nil {
+		scope := OpenAIWSArchiveScope{
+			APIKeyID: apiKey.ID, Protocol: "grok_realtime",
+			Client: c.GetHeader("User-Agent"), Endpoint: GetInboundEndpoint(c), Model: model,
+			StableSessionID: firstNonEmptyString(service.ExtractClientSessionID(c), realtimeCorrelationRequestID),
+		}
+		if apiKey.User != nil {
+			scope.UserID = apiKey.User.ID
+		}
+		if apiKey.GroupID != nil {
+			scope.GroupID = *apiKey.GroupID
+		}
+		captureHook = func(event service.GrokRealtimeCaptureEvent) {
+			h.grokRealtimeArchiveCapture(realtimeCtx, scope, event)
+		}
+		captureHook(service.GrokRealtimeCaptureEvent{
+			CorrelationRequestID: realtimeCorrelationRequestID,
+			EventType:            "turn.accepted",
+		})
+	}
 	started := time.Now()
-	audioObserved, proxyErr := h.gatewayService.ProxyGrokRealtimeConn(c.Request.Context(), c, conn, upstream)
+	audioObserved, proxyErr := h.gatewayService.ProxyGrokRealtimeConn(realtimeCtx, c, conn, upstream, captureHook)
 	elapsed := time.Since(started)
+	if captureHook != nil {
+		terminal := service.GrokRealtimeCaptureEvent{
+			CorrelationRequestID: realtimeCorrelationRequestID,
+			EventType:            "terminal",
+			Status:               "completed",
+		}
+		if proxyErr != nil && !isExpectedGrokRealtimeClose(proxyErr) {
+			terminal.Status = "failed"
+			terminal.Error = "realtime_proxy_error"
+		}
+		captureHook(terminal)
+	}
 	if proxyErr != nil {
 		reqLog.Info("grok_realtime.proxy_failed", zap.Error(proxyErr))
 		if !isExpectedGrokRealtimeClose(proxyErr) {
@@ -140,7 +180,7 @@ func (h *OpenAIGatewayHandler) GrokRealtime(c *gin.Context) {
 		}
 	}
 	if result := grokRealtimeBillingResult(model, elapsed, audioObserved); result != nil {
-		h.recordGrokVoiceUsage(c, apiKey, selection.Account, subscription, "realtime", nil, result)
+		h.recordGrokVoiceUsageContext(realtimeCtx, c, apiKey, selection.Account, subscription, "realtime", nil, result)
 	}
 }
 
@@ -293,6 +333,23 @@ func (h *OpenAIGatewayHandler) recordGrokVoiceUsage(
 	body []byte,
 	result *service.OpenAIForwardResult,
 ) {
+	recordCtx := context.Background()
+	if c != nil && c.Request != nil {
+		recordCtx = c.Request.Context()
+	}
+	h.recordGrokVoiceUsageContext(recordCtx, c, apiKey, account, subscription, endpoint, body, result)
+}
+
+func (h *OpenAIGatewayHandler) recordGrokVoiceUsageContext(
+	recordCtx context.Context,
+	c *gin.Context,
+	apiKey *service.APIKey,
+	account *service.Account,
+	subscription *service.UserSubscription,
+	endpoint string,
+	body []byte,
+	result *service.OpenAIForwardResult,
+) {
 	if h == nil || c == nil || apiKey == nil || account == nil || result == nil {
 		return
 	}
@@ -320,7 +377,7 @@ func (h *OpenAIGatewayHandler) recordGrokVoiceUsage(
 		model = endpoint
 	}
 
-	h.submitMandatoryUsageRecordTask(c.Request.Context(), func(ctx context.Context) {
+	h.submitMandatoryUsageRecordTask(recordCtx, func(ctx context.Context) {
 		if err := h.gatewayService.RecordUsage(ctx, &service.OpenAIRecordUsageInput{
 			Result:             result,
 			APIKey:             apiKey,

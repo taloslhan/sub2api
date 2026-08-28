@@ -3,6 +3,7 @@ package config
 
 import (
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"log/slog"
@@ -104,7 +105,9 @@ type Config struct {
 	Idempotency             IdempotencyConfig             `mapstructure:"idempotency"`
 	BatchImage              BatchImageConfig              `mapstructure:"batch_image"`
 	ImageStorage            ImageStorageConfig            `mapstructure:"image_storage"`
-	Plugins                 PluginConfig                  `mapstructure:"plugins"`
+	// CAPYBARA-PATCH: 内建会话归档保持独立、默认关闭，并使用专用私有对象存储与持久密钥。
+	SessionArchive SessionArchiveConfig `mapstructure:"session_archive"`
+	Plugins        PluginConfig         `mapstructure:"plugins"`
 }
 
 // PluginConfig 控制管理员手动上传的本地进程插件。
@@ -263,6 +266,109 @@ type ImageStorageConfig struct {
 	PublicBaseURL   string `mapstructure:"public_base_url"`      // 配了则返回 public_base_url/key 直链；否则 presigned
 	PresignExpiry   int    `mapstructure:"presign_expiry_hours"` // public_base_url 为空时的 presigned 过期时长(小时)
 	MaxDownloadByte int64  `mapstructure:"max_download_bytes"`   // 下载上游 url 图片的字节上限
+}
+
+// SessionArchiveConfig 控制会话正文的有界采集、私有对象存储和后台清理。
+// EncryptionKeys 的值必须是 base64 编码的 32 字节专用密钥；密钥轮换后需保留旧 key ID，
+// 直到使用该密钥的归档 Blob 全部过期并完成 GC。
+type SessionArchiveConfig struct {
+	Enabled                 bool                   `mapstructure:"enabled"`
+	WorkerCount             int                    `mapstructure:"worker_count"`
+	QueueSize               int                    `mapstructure:"queue_size"`
+	QueueMaxBytes           int64                  `mapstructure:"queue_max_bytes"`
+	PayloadMaxBytes         int64                  `mapstructure:"payload_max_bytes"`
+	ShutdownDrainSeconds    int                    `mapstructure:"shutdown_drain_seconds"`
+	DefaultRetentionDays    int                    `mapstructure:"default_retention_days"`
+	MergeWindowSeconds      int                    `mapstructure:"merge_window_seconds"`
+	MaintenanceIntervalSecs int                    `mapstructure:"maintenance_interval_seconds"`
+	CleanupBatchSize        int                    `mapstructure:"cleanup_batch_size"`
+	GCGraceSeconds          int                    `mapstructure:"gc_grace_seconds"`
+	S3                      SessionArchiveS3Config `mapstructure:"s3"`
+	ActiveKeyID             string                 `mapstructure:"active_key_id"`
+	EncryptionKeys          map[string]string      `mapstructure:"encryption_keys"`
+}
+
+type SessionArchiveS3Config struct {
+	Endpoint        string `mapstructure:"endpoint"`
+	Region          string `mapstructure:"region"`
+	Bucket          string `mapstructure:"bucket"`
+	Prefix          string `mapstructure:"prefix"`
+	AccessKeyID     string `mapstructure:"access_key_id"`
+	SecretAccessKey string `mapstructure:"secret_access_key"`
+	ForcePathStyle  bool   `mapstructure:"force_path_style"`
+}
+
+// DecodedEncryptionKeys 返回一份独立的解密密钥快照。
+func (c SessionArchiveConfig) DecodedEncryptionKeys() (map[string][]byte, error) {
+	keys := make(map[string][]byte, len(c.EncryptionKeys))
+	for id, encoded := range c.EncryptionKeys {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			return nil, fmt.Errorf("session_archive.encryption_keys contains an empty key ID")
+		}
+		key, err := base64.StdEncoding.DecodeString(strings.TrimSpace(encoded))
+		if err != nil || len(key) != 32 {
+			return nil, fmt.Errorf("session_archive.encryption_keys.%s must be base64-encoded 32 bytes", id)
+		}
+		keys[id] = append([]byte(nil), key...)
+	}
+	return keys, nil
+}
+
+func (c SessionArchiveConfig) validate() error {
+	if c.WorkerCount < 1 || c.WorkerCount > 64 {
+		return fmt.Errorf("session_archive.worker_count must be between 1 and 64")
+	}
+	if c.QueueSize < 1 || c.QueueSize > 65536 {
+		return fmt.Errorf("session_archive.queue_size must be between 1 and 65536")
+	}
+	if c.QueueMaxBytes < 1 || c.QueueMaxBytes > 4*1024*1024*1024 {
+		return fmt.Errorf("session_archive.queue_max_bytes must be between 1 and 4294967296")
+	}
+	if c.PayloadMaxBytes < 1 || c.PayloadMaxBytes > c.QueueMaxBytes {
+		return fmt.Errorf("session_archive.payload_max_bytes must be positive and not exceed queue_max_bytes")
+	}
+	if c.ShutdownDrainSeconds < 1 || c.ShutdownDrainSeconds > 300 {
+		return fmt.Errorf("session_archive.shutdown_drain_seconds must be between 1 and 300")
+	}
+	if c.DefaultRetentionDays < 1 || c.DefaultRetentionDays > 3650 {
+		return fmt.Errorf("session_archive.default_retention_days must be between 1 and 3650")
+	}
+	if c.MergeWindowSeconds < 1 || c.MergeWindowSeconds > 3600 {
+		return fmt.Errorf("session_archive.merge_window_seconds must be between 1 and 3600")
+	}
+	if c.MaintenanceIntervalSecs < 1 || c.CleanupBatchSize < 1 || c.GCGraceSeconds < 0 {
+		return fmt.Errorf("session_archive maintenance interval/batch must be positive and gc_grace_seconds non-negative")
+	}
+	if !c.Enabled {
+		return nil
+	}
+	endpoint, err := url.Parse(strings.TrimSpace(c.S3.Endpoint))
+	if err != nil || endpoint.Host == "" {
+		return fmt.Errorf("session_archive.s3.endpoint must be an absolute HTTPS URL when enabled")
+	}
+	local := endpoint.Hostname() == "localhost" || endpoint.Hostname() == "127.0.0.1" || endpoint.Hostname() == "::1"
+	if endpoint.Scheme != "https" && !(endpoint.Scheme == "http" && local) {
+		return fmt.Errorf("session_archive.s3.endpoint must use HTTPS (HTTP is allowed only for localhost)")
+	}
+	if strings.TrimSpace(c.S3.Bucket) == "" || strings.TrimSpace(c.S3.AccessKeyID) == "" || strings.TrimSpace(c.S3.SecretAccessKey) == "" {
+		return fmt.Errorf("session_archive.s3 bucket/access_key_id/secret_access_key are required when enabled")
+	}
+	if strings.Trim(strings.TrimSpace(c.S3.Prefix), "/") == "" {
+		return fmt.Errorf("session_archive.s3.prefix must not be empty when enabled")
+	}
+	keys, err := c.DecodedEncryptionKeys()
+	if err != nil {
+		return err
+	}
+	active := strings.TrimSpace(c.ActiveKeyID)
+	if active == "" {
+		return fmt.Errorf("session_archive.active_key_id is required when enabled")
+	}
+	if _, ok := keys[active]; !ok {
+		return fmt.Errorf("session_archive.active_key_id must reference encryption_keys")
+	}
+	return nil
 }
 
 // IsConfigured 检查对象存储必要字段是否已配置
@@ -2246,6 +2352,27 @@ func setDefaults() {
 	viper.SetDefault("image_storage.secret_access_key", "")
 	viper.SetDefault("image_storage.public_base_url", "")
 
+	// CAPYBARA-PATCH: 会话归档默认关闭；所有标量键都注册默认值以保证环境变量可达。
+	viper.SetDefault("session_archive.enabled", false)
+	viper.SetDefault("session_archive.worker_count", 4)
+	viper.SetDefault("session_archive.queue_size", 512)
+	viper.SetDefault("session_archive.queue_max_bytes", int64(256*1024*1024))
+	viper.SetDefault("session_archive.payload_max_bytes", int64(64*1024*1024))
+	viper.SetDefault("session_archive.shutdown_drain_seconds", 10)
+	viper.SetDefault("session_archive.default_retention_days", 30)
+	viper.SetDefault("session_archive.merge_window_seconds", 300)
+	viper.SetDefault("session_archive.maintenance_interval_seconds", 60)
+	viper.SetDefault("session_archive.cleanup_batch_size", 100)
+	viper.SetDefault("session_archive.gc_grace_seconds", 300)
+	viper.SetDefault("session_archive.s3.endpoint", "")
+	viper.SetDefault("session_archive.s3.region", "auto")
+	viper.SetDefault("session_archive.s3.bucket", "")
+	viper.SetDefault("session_archive.s3.prefix", "session-archive/")
+	viper.SetDefault("session_archive.s3.access_key_id", "")
+	viper.SetDefault("session_archive.s3.secret_access_key", "")
+	viper.SetDefault("session_archive.s3.force_path_style", false)
+	viper.SetDefault("session_archive.active_key_id", "")
+
 	// Ops (vNext)
 	viper.SetDefault("ops.enabled", true)
 	viper.SetDefault("ops.use_preaggregated_tables", true)
@@ -2647,6 +2774,9 @@ func setEnvReachableDefaults() {
 }
 
 func (c *Config) Validate() error {
+	if err := c.SessionArchive.validate(); err != nil {
+		return err
+	}
 	forwardedClientIPHeaders, err := NormalizeForwardedClientIPHeaders(c.Security.ForwardedClientIPHeaders)
 	if err != nil {
 		return fmt.Errorf("security.forwarded_client_ip_headers: %w", err)

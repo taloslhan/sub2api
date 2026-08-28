@@ -23,6 +23,10 @@ const (
 	// RequestID 为服务端生成/透传的请求 ID。
 	RequestID Key = "ctx_request_id"
 
+	// CorrelationRequestID 是跨 usage、Prompt Audit、Ops 与会话归档的关联键。
+	// CAPYBARA-PATCH: 与可能采用上游 ID 的计费 request_id 分离，避免改变计费幂等语义。
+	CorrelationRequestID Key = "ctx_correlation_request_id"
+
 	// ClientRequestID 客户端请求的唯一标识，用于追踪请求全生命周期（用于 Ops 监控与排障）。
 	ClientRequestID Key = "ctx_client_request_id"
 

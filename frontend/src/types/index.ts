@@ -1638,6 +1638,8 @@ export interface UsageLog {
   api_key_id: number
   account_id: number | null
   request_id: string
+  // CAPYBARA-PATCH: Cross-module association; request_id remains the billing idempotency key.
+  correlation_request_id?: string | null
   model: string
   service_tier?: string | null
   reasoning_effort?: string | null
@@ -2111,6 +2113,7 @@ export interface UsageQueryParams {
   timezone?: string
   sort_by?: string
   sort_order?: 'asc' | 'desc'
+  correlation_request_id?: string
 }
 
 // ==================== Account Usage Statistics ====================

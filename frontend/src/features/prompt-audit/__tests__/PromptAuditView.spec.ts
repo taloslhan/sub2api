@@ -9,10 +9,12 @@ const mocks = vi.hoisted(() => ({
   getConfig: vi.fn(), updateConfig: vi.fn(), probeEndpoint: vi.fn(), getRuntime: vi.fn(), listEvents: vi.fn(),
   getEvent: vi.fn(), deleteEvent: vi.fn(), batchDeleteEvents: vi.fn(), previewDelete: vi.fn(), deleteEventsByFilter: vi.fn(), listGroups: vi.fn(),
   showSuccess: vi.fn(), showError: vi.fn(),
+  route: { query: {} as Record<string, string> },
 }))
 
 vi.mock('../api', () => ({ default: mocks }))
 vi.mock('@/stores/app', () => ({ useAppStore: () => ({ showSuccess: mocks.showSuccess, showError: mocks.showError }) }))
+vi.mock('vue-router', () => ({ useRoute: () => mocks.route }))
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
   return { ...actual, useI18n: () => ({ locale: { value: 'en' }, t: (key: string, params?: Record<string, unknown>) => key.replace(/\{(\w+)\}/g, (_, token) => String(params?.[token] ?? `{${token}}`)) }) }
@@ -42,9 +44,13 @@ const PolicyStub = defineComponent({ props: ['draft', 'groups'], emits: ['update
 const EventsStub = defineComponent({
   props: ['events', 'filters', 'selectedIds', 'loading', 'error', 'total', 'page', 'pageSize'],
   emits: ['filters-change', 'search', 'selection', 'page', 'page-size', 'view', 'delete', 'batch-delete', 'preview-delete'],
-  template: '<div data-test="events"><button data-test="preview" @click="$emit(\'preview-delete\')">preview</button><button data-test="change-filter" @click="$emit(\'filters-change\', { ...filters, keyword: \'changed\' })">change</button><button data-test="delete-one" @click="$emit(\'delete\', 5)">delete</button><button data-test="select-batch" @click="$emit(\'selection\', [5, 6])">select</button><button data-test="delete-batch" @click="$emit(\'batch-delete\')">batch</button></div>',
+  template: '<div data-test="events"><button data-test="preview" @click="$emit(\'preview-delete\')">preview</button><button data-test="change-filter" @click="$emit(\'filters-change\', { ...filters, keyword: \'changed\' })">change</button><button data-test="view-one" @click="$emit(\'view\', 5)">view</button><button data-test="delete-one" @click="$emit(\'delete\', 5)">delete</button><button data-test="select-batch" @click="$emit(\'selection\', [5, 6])">select</button><button data-test="delete-batch" @click="$emit(\'batch-delete\')">batch</button></div>',
 })
-const DetailStub = defineComponent({ props: ['show', 'event', 'loading'], emits: ['close'], template: '<div data-test="detail" />' })
+const DetailStub = defineComponent({ props: ['show', 'event', 'loading'], emits: ['close'], template: '<div v-if="show" data-test="detail"><span data-test="detail-body">{{ event?.snapshot?.full_prompt || \'\' }}</span><button data-test="close-detail" @click="$emit(\'close\')">close</button></div>' })
+const StepUpStub = defineComponent({
+  props: ['controller'],
+  template: '<div v-if="controller.visible.value" data-test="step-up"><button data-test="step-up-verify" @click="controller.onVerified()">verify</button><button data-test="step-up-cancel" @click="controller.onCancel()">cancel</button></div>',
+})
 const ConfirmStub = defineComponent({ props: ['show', 'title', 'message'], emits: ['confirm', 'cancel'], template: '<div v-if="show" data-test="confirm"><button data-test="confirm-action" @click="$emit(\'confirm\')">confirm</button></div>' })
 const FilterDeleteStub = defineComponent({
   props: ['show', 'initialFilters', 'preview', 'previewing', 'deleting'],
@@ -54,13 +60,15 @@ const FilterDeleteStub = defineComponent({
 
 function mountView() {
   return mount(PromptAuditView, {
-    global: { stubs: { AppLayout: AppLayoutStub, RuntimeOverview: RuntimeStub, EndpointPool: EndpointStub, PolicyPanel: PolicyStub, EventWorkspace: EventsStub, EventDetailDialog: DetailStub, FilterDeleteDialog: FilterDeleteStub, ConfirmDialog: ConfirmStub } },
+    global: { stubs: { AppLayout: AppLayoutStub, RuntimeOverview: RuntimeStub, EndpointPool: EndpointStub, PolicyPanel: PolicyStub, EventWorkspace: EventsStub, EventDetailDialog: DetailStub, FilterDeleteDialog: FilterDeleteStub, ConfirmDialog: ConfirmStub, TotpStepUpDialog: StepUpStub } },
   })
 }
 
 describe('PromptAuditView', () => {
   beforeEach(() => {
-    Object.values(mocks).forEach((mock) => mock.mockReset())
+    Object.values(mocks).forEach((mock) => {
+      if (typeof mock === 'function' && 'mockReset' in mock) mock.mockReset()
+    })
     mocks.getConfig.mockResolvedValue(baseConfig())
     mocks.getRuntime.mockResolvedValue(runtime())
     mocks.listGroups.mockResolvedValue([])
@@ -71,6 +79,8 @@ describe('PromptAuditView', () => {
     mocks.deleteEventsByFilter.mockResolvedValue({ deleted_events: 2, deleted_jobs: 2 })
     mocks.deleteEvent.mockResolvedValue({ deleted_events: 1, deleted_jobs: 1 })
     mocks.batchDeleteEvents.mockResolvedValue({ deleted_events: 2, deleted_jobs: 2 })
+    mocks.getEvent.mockResolvedValue({ id: 5, snapshot: { full_prompt: 'sensitive prompt' } })
+    mocks.route.query = {}
   })
 
   it('starts config, runtime, groups, and events loads independently', async () => {
@@ -84,6 +94,18 @@ describe('PromptAuditView', () => {
     expect(wrapper.get('[data-test="runtime"]').text()).toContain('runtime offline')
     expect(wrapper.find('[data-test="endpoint"]').exists()).toBe(true)
     expect(wrapper.find('[data-test="events"]').exists()).toBe(true)
+  })
+
+  it('hydrates correlation_request_id into the narrow event list query', async () => {
+    mocks.route.query = { correlation_request_id: 'corr-prompt-route' }
+    mountView()
+    await flushPromises()
+    expect(mocks.listEvents).toHaveBeenCalledWith(
+      expect.objectContaining({ correlation_request_id: 'corr-prompt-route' }),
+      1,
+      20,
+    )
+    expect(mocks.getEvent).not.toHaveBeenCalled()
   })
 
   it('separates configuration and audit events into page tabs', async () => {
@@ -237,5 +259,46 @@ describe('PromptAuditView', () => {
       confirmation_token: 'opaque-confirmation',
     }))
     expect(wrapper.find('[data-test="filter-delete-dialog"]').exists()).toBe(false)
+  })
+
+  it('retries a full-text detail read after step-up and clears the body on close', async () => {
+    mocks.getEvent
+      .mockRejectedValueOnce({ code: 'STEP_UP_REQUIRED', message: 'step up' })
+      .mockResolvedValueOnce({ id: 5, snapshot: { full_prompt: 'sensitive prompt' } })
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-test="view-one"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-test="step-up"]').exists()).toBe(true)
+    expect(mocks.getEvent).toHaveBeenCalledTimes(1)
+
+    await wrapper.get('[data-test="step-up-verify"]').trigger('click')
+    await flushPromises()
+    expect(mocks.getEvent).toHaveBeenCalledTimes(2)
+    expect(wrapper.get('[data-test="detail-body"]').text()).toBe('sensitive prompt')
+
+    await wrapper.get('[data-test="close-detail"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-test="detail"]').exists()).toBe(false)
+    expect(wrapper.html()).not.toContain('sensitive prompt')
+  })
+
+  it('treats step-up cancellation as silent and reports non-interactive admin credentials', async () => {
+    mocks.getEvent.mockRejectedValueOnce({ code: 'STEP_UP_REQUIRED', message: 'step up' })
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.get('[data-test="view-one"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-test="step-up-cancel"]').trigger('click')
+    await flushPromises()
+    expect(mocks.showError).not.toHaveBeenCalledWith(expect.stringContaining('loadDetail'))
+    expect(wrapper.find('[data-test="detail"]').exists()).toBe(false)
+
+    mocks.getEvent.mockRejectedValueOnce({ code: 'STEP_UP_ADMIN_API_KEY_FORBIDDEN', message: 'blocked' })
+    await wrapper.get('[data-test="view-one"]').trigger('click')
+    await flushPromises()
+    expect(mocks.showError).toHaveBeenCalledWith('stepUp.adminApiKeyForbidden')
+    expect(wrapper.find('[data-test="step-up"]').exists()).toBe(false)
   })
 })

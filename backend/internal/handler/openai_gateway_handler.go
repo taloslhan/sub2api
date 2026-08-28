@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/custom/sessionarchive"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
@@ -37,13 +38,45 @@ type OpenAIGatewayHandler struct {
 	errorPassthroughService    *service.ErrorPassthroughService
 	contentModerationService   *service.ContentModerationService
 	securityAuditCoordinator   *securityaudit.Coordinator
+	sessionArchive             *sessionarchive.Service
 	grokMediaEligibilityProber grokMediaEligibilityProber
 	opsService                 *service.OpsService
 	concurrencyHelper          *ConcurrencyHelper
 	imageLimiter               *imageConcurrencyLimiter
 	maxAccountSwitches         int
+	openAIWSArchiveCapture     OpenAIWSArchiveCaptureFunc
+	grokRealtimeArchiveCapture GrokRealtimeArchiveCaptureFunc
+	liveSidebandArchiveCapture LiveSidebandArchiveCaptureFunc
 	cfg                        *config.Config
 }
+
+// SetSessionArchive 注入默认关闭、失败放行的会话归档 Collector。
+func (h *OpenAIGatewayHandler) SetSessionArchive(archive *sessionarchive.Service) {
+	if h != nil {
+		h.sessionArchive = archive
+	}
+}
+
+// OpenAIWSArchiveScope is immutable request metadata supplied to the concrete
+// session archive adapter outside the protocol relay package.
+type OpenAIWSArchiveScope struct {
+	UserID          int64
+	APIKeyID        int64
+	GroupID         int64
+	Protocol        string
+	Client          string
+	Endpoint        string
+	Model           string
+	StableSessionID string
+}
+
+// OpenAIWSArchiveCaptureFunc adapts service lifecycle observations to a
+// concrete non-blocking archive collector. Implementations must fail open.
+type OpenAIWSArchiveCaptureFunc func(context.Context, OpenAIWSArchiveScope, service.OpenAIWSArchiveEvent)
+
+type GrokRealtimeArchiveCaptureFunc func(context.Context, OpenAIWSArchiveScope, service.GrokRealtimeCaptureEvent)
+
+type LiveSidebandArchiveCaptureFunc func(context.Context, OpenAIWSArchiveScope, service.LiveSidebandCaptureEvent)
 
 type openAIWSTurnChannelMappingSnapshot struct {
 	turn    int
@@ -174,6 +207,11 @@ func usageRecordContext(parent context.Context, base context.Context) context.Co
 	if requestID, _ := parent.Value(ctxkey.RequestID).(string); strings.TrimSpace(requestID) != "" {
 		base = context.WithValue(base, ctxkey.RequestID, strings.TrimSpace(requestID))
 	}
+	// CAPYBARA-PATCH: Detached billing workers must retain the archive
+	// correlation key without changing the billing request_id semantics.
+	if correlationRequestID, _ := parent.Value(ctxkey.CorrelationRequestID).(string); strings.TrimSpace(correlationRequestID) != "" {
+		base = context.WithValue(base, ctxkey.CorrelationRequestID, strings.TrimSpace(correlationRequestID))
+	}
 	return base
 }
 
@@ -290,6 +328,24 @@ func NewOpenAIGatewayHandler(
 		imageLimiter:             &imageConcurrencyLimiter{},
 		maxAccountSwitches:       maxAccountSwitches,
 		cfg:                      cfg,
+	}
+}
+
+func (h *OpenAIGatewayHandler) SetOpenAIWSArchiveCapture(capture OpenAIWSArchiveCaptureFunc) {
+	if h != nil {
+		h.openAIWSArchiveCapture = capture
+	}
+}
+
+func (h *OpenAIGatewayHandler) SetGrokRealtimeArchiveCapture(capture GrokRealtimeArchiveCaptureFunc) {
+	if h != nil {
+		h.grokRealtimeArchiveCapture = capture
+	}
+}
+
+func (h *OpenAIGatewayHandler) SetLiveSidebandArchiveCapture(capture LiveSidebandArchiveCaptureFunc) {
+	if h != nil {
+		h.liveSidebandArchiveCapture = capture
 	}
 }
 
@@ -441,6 +497,8 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		h.openAISecurityAuditError(c, decision)
 		return
 	}
+	finishArchive := beginSessionArchiveHTTP(h.sessionArchive, c, apiKey, subject.UserID, service.ContentModerationProtocolOpenAIResponses, reqModel, body)
+	defer finishArchive()
 
 	// 使用 IsExplicitImageGenerationIntent 排除被动 image_gen namespace 声明。
 	// Codex 在所有请求中被动声明 image_gen namespace，宽泛检测会导致禁了生图的
@@ -681,6 +739,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 			}()
 			return h.gatewayService.Forward(c.Request.Context(), c, account, attemptBody)
 		}()
+		service.FinalizeLatestHTTPUpstreamAttempt(c.Request.Context(), err)
 		var cyberBlockBodyHTTP []byte
 		if service.GetOpsCyberPolicy(c) != nil {
 			cyberBlockBodyHTTP = sessionHashBody
@@ -1097,6 +1156,8 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 		h.anthropicSecurityAuditError(c, decision)
 		return
 	}
+	finishArchive := beginSessionArchiveHTTP(h.sessionArchive, c, apiKey, subject.UserID, service.ContentModerationProtocolAnthropicMessages, reqModel, body)
+	defer finishArchive()
 
 	// 解析渠道级模型映射
 	channelMappingMsg, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, reqModel)
@@ -1244,6 +1305,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 			}()
 			return h.gatewayService.ForwardAsAnthropic(c.Request.Context(), c, account, forwardBody, promptCacheKey, defaultMappedModel)
 		}()
+		service.FinalizeLatestHTTPUpstreamAttempt(c.Request.Context(), err)
 		var cyberBlockBodyMsg []byte
 		if service.GetOpsCyberPolicy(c) != nil {
 			cyberBlockBodyMsg = body
@@ -1562,6 +1624,38 @@ const (
 type openAIWSTurnPricing struct {
 	mu sync.Mutex
 	at time.Time
+}
+
+// openAIWSTurnCorrelations owns one immutable correlation ID per logical turn.
+// Account/reconnect retries reuse the same turn number and therefore the same
+// key, while a later response.create always receives a new key.
+type openAIWSTurnCorrelations struct {
+	mu  sync.Mutex
+	ids map[int]string
+}
+
+func (c *openAIWSTurnCorrelations) id(turn int) string {
+	if turn <= 0 {
+		return ""
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.ids == nil {
+		c.ids = make(map[int]string, 4)
+	}
+	if existing := c.ids[turn]; existing != "" {
+		return existing
+	}
+	correlationRequestID := "ws_turn_" + uuid.NewString()
+	c.ids[turn] = correlationRequestID
+	return correlationRequestID
+}
+
+func (c *openAIWSTurnCorrelations) context(parent context.Context, turn int) context.Context {
+	if parent == nil {
+		parent = context.Background()
+	}
+	return context.WithValue(parent, ctxkey.CorrelationRequestID, c.id(turn))
 }
 
 func (p *openAIWSTurnPricing) freeze(at time.Time) {
@@ -1904,7 +1998,12 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 	setOpsRequestContext(c, reqModel, true)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeWSV2))
 
-	if decision := h.checkSecurityAuditStage(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIResponses, reqModel, firstMessage, "first_turn"); decision != nil && !decision.AllowNextStage {
+	// CAPYBARA-PATCH: A Responses WS connection has one correlation key per
+	// logical response.create; the handshake request ID remains log-only.
+	var turnCorrelations openAIWSTurnCorrelations
+	firstTurnCtx := turnCorrelations.context(ctx, 1)
+	service.SetOpsCorrelationRequestID(c, turnCorrelations.id(1))
+	if decision := h.checkSecurityAuditStageContext(firstTurnCtx, c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIResponses, reqModel, firstMessage, "first_turn"); decision != nil && !decision.AllowNextStage {
 		writeSecurityAuditWSError(ctx, wsConn, decision)
 		closeOpenAIClientWS(wsConn, securityAuditWSCloseStatus(decision), securityAuditWSCloseReason(decision))
 		return
@@ -2097,6 +2196,25 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 	// 建连时刻只用于选号/准入，不作为任何 turn 的计费定价时刻。
 	wsPricingCtx, _ := h.gatewayService.WithOpenAIRequestPricingContext(ctx, apiKey.GroupID)
 	ctx = wsPricingCtx
+	archiveScope := OpenAIWSArchiveScope{
+		UserID: subject.UserID, APIKeyID: apiKey.ID,
+		Protocol: service.ContentModerationProtocolOpenAIResponses,
+		Client:   userAgent, Endpoint: GetInboundEndpoint(c), Model: reqModel,
+		StableSessionID: firstNonEmptyString(service.ExtractClientSessionID(c), sessionHash),
+	}
+	if apiKey.GroupID != nil {
+		archiveScope.GroupID = *apiKey.GroupID
+	}
+	var archiveEvent func(service.OpenAIWSArchiveEvent)
+	if h.openAIWSArchiveCapture != nil {
+		tracker := newOpenAIWSArchiveEventTracker(func(event service.OpenAIWSArchiveEvent) {
+			h.openAIWSArchiveCapture(turnCorrelations.context(ctx, event.Turn), archiveScope, event)
+		})
+		archiveEvent = tracker.Capture
+		defer func() {
+			tracker.Finish(ctx.Err() != nil)
+		}()
+	}
 
 	for {
 		if ctx.Err() != nil {
@@ -2267,10 +2385,17 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 			ClientLifecycleContext:  clientLifecycleCtx,
 			InitialRequestModel:     reqModel,
 			InitialTurnStartedAt:    firstTurnStartedAt,
+			InitialRawClientMessage: firstMessage,
 			MaxReasoningEffort:      maxReasoningEffort,
 			ReasoningEffortMappings: reasoningEffortMappings,
-			TurnStarted:             recordTurnStart,
+			TurnCorrelationRequestID: func(turn int) string {
+				return turnCorrelations.id(turn)
+			},
+			ArchiveEvent: archiveEvent,
+			TurnStarted:  recordTurnStart,
 			BeforeRequest: func(turn int, payload []byte, originalModel string) error {
+				turnCtx := turnCorrelations.context(ctx, turn)
+				service.SetOpsCorrelationRequestID(c, turnCorrelations.id(turn))
 				c.Set(securityAuditWSTurnContextKey, turn)
 				service.BeginOpsStreamTurn(c, turn)
 				setCyberTurnBody(turn, payload)
@@ -2287,7 +2412,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				if model == "" {
 					model = reqModel
 				}
-				if decision := h.checkSecurityAuditStage(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIResponses, model, payload, "subsequent_turn"); decision != nil && !decision.AllowNextStage {
+				if decision := h.checkSecurityAuditStageContext(turnCtx, c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIResponses, model, payload, "subsequent_turn"); decision != nil && !decision.AllowNextStage {
 					writeSecurityAuditWSError(ctx, wsConn, decision)
 					return service.NewOpenAIWSClientCloseError(securityAuditWSCloseStatus(decision), securityAuditWSCloseReason(decision), nil)
 				}
@@ -2358,6 +2483,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				return nil
 			},
 			AfterTurn: func(turn int, result *service.OpenAIForwardResult, turnErr error) {
+				turnCtx := turnCorrelations.context(ctx, turn)
 				turnStart := getTurnStart(turn)
 				cyberBlockBody := takeCyberTurnBody(turn)
 				// F1: cyber 标记按 turn 生命周期清理——defer 保证任意早返回路径都执行；
@@ -2385,7 +2511,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 					turnUpstreamModel = turnRequestedModel
 				}
 				turnUsageFields := turnMapping.ToUsageFields(turnRequestedModel, turnUpstreamModel)
-				h.recordCyberPolicyIfMarked(c, apiKey, account, subscription, turnRequestedModel, turnErr != nil, cyberBlockBody, turnUsageFields, requestPayloadHash)
+				h.recordCyberPolicyIfMarkedContext(turnCtx, c, apiKey, account, subscription, turnRequestedModel, turnErr != nil, cyberBlockBody, turnUsageFields, requestPayloadHash)
 				if service.GetOpsCyberPolicy(c) != nil {
 					cyberBlockedThisConn = true
 				}
@@ -2429,7 +2555,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				sessionID := service.ExtractClientSessionID(c)
 				turnRecordPricingAt := turnPricing.currentOr(turnStart)
 				cyberBlocked := service.GetOpsCyberPolicy(c) != nil
-				h.submitOpenAIUsageRecordTask(ctx, result, func(taskCtx context.Context) {
+				h.submitOpenAIUsageRecordTask(turnCtx, result, func(taskCtx context.Context) {
 					if err := h.gatewayService.RecordUsage(taskCtx, &service.OpenAIRecordUsageInput{
 						Result:             result,
 						APIKey:             apiKey,
@@ -3300,22 +3426,23 @@ const cyberPolicyRecordedKey = "ops_cyber_recorded"
 // cyberPolicyOpsErrorMeta carries request-scoped fields captured outside the
 // async goroutine for building the cyber ops_error_logs entry.
 type cyberPolicyOpsErrorMeta struct {
-	RequestID       string
-	ClientRequestID string
-	Platform        string
-	Model           string
-	RequestPath     string
-	Stream          bool
-	InboundEndpoint string
-	UserAgent       string
-	APIKeyPrefix    string
-	UserID          int64
-	APIKeyID        int64
-	AccountID       int64
-	GroupID         *int64
-	ClientIP        string
-	CreatedAt       time.Time
-	SessionBlockKey string
+	RequestID            string
+	ClientRequestID      string
+	CorrelationRequestID string
+	Platform             string
+	Model                string
+	RequestPath          string
+	Stream               bool
+	InboundEndpoint      string
+	UserAgent            string
+	APIKeyPrefix         string
+	UserID               int64
+	APIKeyID             int64
+	AccountID            int64
+	GroupID              *int64
+	ClientIP             string
+	CreatedAt            time.Time
+	SessionBlockKey      string
 }
 
 // buildCyberPolicyOpsErrorEntry builds the ops_error_logs entry for an upstream
@@ -3324,22 +3451,23 @@ type cyberPolicyOpsErrorMeta struct {
 func buildCyberPolicyOpsErrorEntry(meta cyberPolicyOpsErrorMeta, mark *service.CyberPolicyMark) *service.OpsInsertErrorLogInput {
 	rt := int16(service.RequestTypeCyberBlocked)
 	entry := &service.OpsInsertErrorLogInput{
-		RequestID:         meta.RequestID,
-		ClientRequestID:   meta.ClientRequestID,
-		Platform:          meta.Platform,
-		Model:             meta.Model,
-		RequestPath:       meta.RequestPath,
-		Stream:            meta.Stream,
-		InboundEndpoint:   meta.InboundEndpoint,
-		RequestType:       &rt,
-		UserAgent:         meta.UserAgent,
-		APIKeyPrefix:      meta.APIKeyPrefix,
-		ErrorPhase:        "request",
-		ErrorType:         "cyber_policy",
-		Severity:          "P3",
-		StatusCode:        mark.UpstreamStatus,
-		IsBusinessLimited: true,
-		ErrorMessage:      "cyber_policy: " + mark.Message,
+		RequestID:            meta.RequestID,
+		ClientRequestID:      meta.ClientRequestID,
+		CorrelationRequestID: meta.CorrelationRequestID,
+		Platform:             meta.Platform,
+		Model:                meta.Model,
+		RequestPath:          meta.RequestPath,
+		Stream:               meta.Stream,
+		InboundEndpoint:      meta.InboundEndpoint,
+		RequestType:          &rt,
+		UserAgent:            meta.UserAgent,
+		APIKeyPrefix:         meta.APIKeyPrefix,
+		ErrorPhase:           "request",
+		ErrorType:            "cyber_policy",
+		Severity:             "P3",
+		StatusCode:           mark.UpstreamStatus,
+		IsBusinessLimited:    true,
+		ErrorMessage:         "cyber_policy: " + mark.Message,
 		// 原始 body 直接入队；ops service 落库前统一走 sanitizeErrorBodyForStorage 脱敏与截断。
 		ErrorBody:   mark.Body,
 		ErrorSource: "upstream_http",
@@ -3372,25 +3500,26 @@ const cyberSessionBlockedClientMsg = "该会话已被网络安全策略屏蔽，
 func buildCyberSessionBlockedOpsEntry(meta cyberPolicyOpsErrorMeta) *service.OpsInsertErrorLogInput {
 	rt := int16(service.RequestTypeCyberBlocked)
 	entry := &service.OpsInsertErrorLogInput{
-		RequestID:         meta.RequestID,
-		ClientRequestID:   meta.ClientRequestID,
-		Platform:          meta.Platform,
-		Model:             meta.Model,
-		RequestPath:       meta.RequestPath,
-		Stream:            meta.Stream,
-		InboundEndpoint:   meta.InboundEndpoint,
-		RequestType:       &rt,
-		UserAgent:         meta.UserAgent,
-		APIKeyPrefix:      meta.APIKeyPrefix,
-		ErrorPhase:        "request",
-		ErrorType:         "cyber_policy_session_blocked",
-		Severity:          "P3",
-		StatusCode:        http.StatusForbidden,
-		IsBusinessLimited: true,
-		ErrorMessage:      "cyber_policy_session_blocked: request rejected locally by session block",
-		ErrorSource:       "gateway_local",
-		ErrorOwner:        "platform",
-		CreatedAt:         meta.CreatedAt,
+		RequestID:            meta.RequestID,
+		ClientRequestID:      meta.ClientRequestID,
+		CorrelationRequestID: meta.CorrelationRequestID,
+		Platform:             meta.Platform,
+		Model:                meta.Model,
+		RequestPath:          meta.RequestPath,
+		Stream:               meta.Stream,
+		InboundEndpoint:      meta.InboundEndpoint,
+		RequestType:          &rt,
+		UserAgent:            meta.UserAgent,
+		APIKeyPrefix:         meta.APIKeyPrefix,
+		ErrorPhase:           "request",
+		ErrorType:            "cyber_policy_session_blocked",
+		Severity:             "P3",
+		StatusCode:           http.StatusForbidden,
+		IsBusinessLimited:    true,
+		ErrorMessage:         "cyber_policy_session_blocked: request rejected locally by session block",
+		ErrorSource:          "gateway_local",
+		ErrorOwner:           "platform",
+		CreatedAt:            meta.CreatedAt,
 		// AccountID 有意不设：请求在账号选择前即被拒绝。
 	}
 	if meta.SessionBlockKey != "" {
@@ -3513,6 +3642,7 @@ func (h *OpenAIGatewayHandler) enqueueCyberSessionBlockedOpsEntry(c *gin.Context
 	// request; suppress the generic middleware record of the same 403 response.
 	c.Set(opsDedicatedErrorRecordedKey, true)
 	meta := cyberPolicyOpsErrorMeta{Model: model, InboundEndpoint: GetInboundEndpoint(c), CreatedAt: time.Now(), SessionBlockKey: sessionBlockKey}
+	meta.CorrelationRequestID = service.OpsCorrelationRequestID(c)
 	meta.RequestID = c.Writer.Header().Get("X-Request-Id")
 	if c.Request != nil && c.Request.URL != nil {
 		meta.RequestPath = c.Request.URL.Path
@@ -3546,6 +3676,14 @@ func (h *OpenAIGatewayHandler) enqueueCyberSessionBlockedOpsEntry(c *gin.Context
 // 当前请求已发给用户，本方法只做事后记录，不影响响应。forwardErrored 为 true 时才写用量行，
 // 避免与正常 RecordUsage(forward 成功路径)重复。每请求至多记录一次。
 func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarked(c *gin.Context, apiKey *service.APIKey, account *service.Account, subscription *service.UserSubscription, model string, forwardErrored bool, cyberBlockBody []byte, channelFields service.ChannelUsageFields, requestPayloadHash string) {
+	recordCtx := context.Background()
+	if c != nil && c.Request != nil {
+		recordCtx = c.Request.Context()
+	}
+	h.recordCyberPolicyIfMarkedContext(recordCtx, c, apiKey, account, subscription, model, forwardErrored, cyberBlockBody, channelFields, requestPayloadHash)
+}
+
+func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarkedContext(recordCtx context.Context, c *gin.Context, apiKey *service.APIKey, account *service.Account, subscription *service.UserSubscription, model string, forwardErrored bool, cyberBlockBody []byte, channelFields service.ChannelUsageFields, requestPayloadHash string) {
 	mark := service.GetOpsCyberPolicy(c)
 	if mark == nil {
 		return
@@ -3593,9 +3731,9 @@ func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarked(c *gin.Context, apiKey 
 	if c.Request != nil && c.Request.URL != nil {
 		requestPath = c.Request.URL.Path
 	}
-	requestCtx := context.Background()
-	if c.Request != nil {
-		requestCtx = c.Request.Context()
+	requestCtx := recordCtx
+	if requestCtx == nil {
+		requestCtx = context.Background()
 	}
 	platform := resolveOpsPlatform(requestCtx, apiKey, guessPlatformFromPath(requestPath))
 	var clientRequestID, userAgent, clientIPStr string
@@ -3611,21 +3749,22 @@ func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarked(c *gin.Context, apiKey 
 		apiKeyPrefix = keyPrefix(apiKey.Key, 8)
 	}
 	opsMeta := cyberPolicyOpsErrorMeta{
-		RequestID:       requestID,
-		ClientRequestID: clientRequestID,
-		Platform:        platform,
-		Model:           model,
-		RequestPath:     requestPath,
-		Stream:          stream,
-		InboundEndpoint: inboundEndpoint,
-		UserAgent:       userAgent,
-		APIKeyPrefix:    apiKeyPrefix,
-		UserID:          userID,
-		APIKeyID:        apiKeyID,
-		AccountID:       accountID,
-		GroupID:         groupID,
-		ClientIP:        clientIPStr,
-		CreatedAt:       time.Now(),
+		RequestID:            requestID,
+		ClientRequestID:      clientRequestID,
+		CorrelationRequestID: service.CorrelationRequestIDFromContext(requestCtx),
+		Platform:             platform,
+		Model:                model,
+		RequestPath:          requestPath,
+		Stream:               stream,
+		InboundEndpoint:      inboundEndpoint,
+		UserAgent:            userAgent,
+		APIKeyPrefix:         apiKeyPrefix,
+		UserID:               userID,
+		APIKeyID:             apiKeyID,
+		AccountID:            accountID,
+		GroupID:              groupID,
+		ClientIP:             clientIPStr,
+		CreatedAt:            time.Now(),
 	}
 	if gwSvc != nil && apiKey != nil {
 		plan := buildCyberSessionBlockWritePlan(apiKey.ID, c, cyberBlockBody)
@@ -3636,7 +3775,7 @@ func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarked(c *gin.Context, apiKey 
 		}
 	}
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		ctx, cancel := context.WithTimeout(usageRecordContext(requestCtx, context.Background()), 30*time.Second)
 		defer cancel()
 		if cmSvc != nil {
 			cmSvc.RecordCyberPolicyEvent(ctx, service.CyberPolicyRecordInput{

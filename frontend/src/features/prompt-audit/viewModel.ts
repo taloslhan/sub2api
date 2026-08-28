@@ -99,6 +99,7 @@ export function emptyEventFilters(): PromptEventFilters {
     user_id: '',
     api_key_id: '',
     request_id: '',
+    correlation_request_id: '',
     prompt_hash: '',
     keyword: '',
     start_at: '',
@@ -114,7 +115,8 @@ function toISO(value: string): string | undefined {
 
 export function eventQueryParams(filters: PromptEventFilters): Record<string, string | number> {
   const result: Record<string, string | number> = {}
-  for (const key of ['decision', 'risk_level', 'endpoint', 'request_id', 'prompt_hash', 'keyword'] as const) {
+  // CAPYBARA-PATCH: correlation_request_id is an independent cross-module filter.
+  for (const key of ['decision', 'risk_level', 'endpoint', 'request_id', 'correlation_request_id', 'prompt_hash', 'keyword'] as const) {
     const value = filters[key].trim()
     if (value) result[key] = value
   }

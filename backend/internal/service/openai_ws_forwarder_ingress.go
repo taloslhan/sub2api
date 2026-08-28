@@ -122,6 +122,10 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 	}
 
 	wsDecision := s.getOpenAIWSProtocolResolver().Resolve(account)
+	initialRawClientMessage := firstClientMessage
+	if hooks != nil && len(hooks.InitialRawClientMessage) > 0 {
+		initialRawClientMessage = hooks.InitialRawClientMessage
+	}
 	forceHTTPBridge := account.Platform == PlatformGrok ||
 		(s.pluginManager != nil && s.pluginManager.ShouldRouteOpenAIOAuth(account))
 	modeRouterV2Enabled := s != nil && s.cfg != nil && s.cfg.Gateway.OpenAIWS.ModeRouterV2Enabled
@@ -140,6 +144,17 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			if wsDecision.Transport != OpenAIUpstreamTransportResponsesWebsocketV2 {
 				return fmt.Errorf("websocket ingress requires ws_v2 transport, got=%s", wsDecision.Transport)
 			}
+			// CAPYBARA-PATCH: The first frame bypasses the passthrough filter, so
+			// observe it here while it is still the exact client payload.
+			emitOpenAIWSArchiveEvent(hooks, OpenAIWSArchiveEvent{
+				Kind: OpenAIWSArchiveTurnAccepted, Turn: 1, AccountID: account.ID,
+				Mode: OpenAIWSIngressModePassthrough, Transport: string(wsDecision.Transport),
+			})
+			emitOpenAIWSArchiveEvent(hooks, OpenAIWSArchiveEvent{
+				Kind: OpenAIWSArchiveRawFrame, Turn: 1, AccountID: account.ID,
+				Mode: OpenAIWSIngressModePassthrough, Transport: string(wsDecision.Transport),
+				Direction: "client_to_gateway", Payload: initialRawClientMessage,
+			})
 			// 透传 relay 通过 TurnStarted 记录每个 turn 的开始时刻，但不触发
 			// BeforeTurn；因此仍只有建连时的利润准入门，没有 turn 级复核。
 			// handler 计费在 turn 定价未冻结时回退到对应的 turn 开始时刻。
@@ -169,6 +184,10 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		return fmt.Errorf("websocket ingress requires ws_v2 transport, got=%s", wsDecision.Transport)
 	}
 	dedicatedMode := modeRouterV2Enabled && ingressMode == OpenAIWSIngressModeDedicated
+	archiveMode := ingressMode
+	if forceHTTPBridge {
+		archiveMode = OpenAIWSIngressModeHTTPBridge
+	}
 
 	wsURL := ""
 	wsHost := "-"
@@ -483,10 +502,15 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		}, nil
 	}
 
-	writeClientMessage := func(message []byte) error {
+	writeClientMessage := func(turn int, message []byte) error {
 		writeCtx, cancel := newOpenAIWSDownstreamWriteContext(ctx, hooks, s.openAIWSWriteTimeout())
 		defer cancel()
 		message = restoreCodexToolNamesFromContext(c, message)
+		emitOpenAIWSArchiveEvent(hooks, OpenAIWSArchiveEvent{
+			Kind: OpenAIWSArchiveDownstream, Turn: turn, AccountID: account.ID,
+			Mode: archiveMode, Transport: string(wsDecision.Transport),
+			Direction: "gateway_to_client", EventType: strings.TrimSpace(gjson.GetBytes(message, "type").String()), Payload: message,
+		})
 		return clientConn.Write(writeCtx, coderws.MessageText, message)
 	}
 
@@ -521,6 +545,17 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		return payload, nil
 	}
 
+	// CAPYBARA-PATCH: Create the logical request and preserve the raw frame
+	// before parse/compatibility/identity/reasoning policy mutations.
+	emitOpenAIWSArchiveEvent(hooks, OpenAIWSArchiveEvent{
+		Kind: OpenAIWSArchiveTurnAccepted, Turn: 1, AccountID: account.ID,
+		Mode: archiveMode, Transport: string(wsDecision.Transport),
+	})
+	emitOpenAIWSArchiveEvent(hooks, OpenAIWSArchiveEvent{
+		Kind: OpenAIWSArchiveRawFrame, Turn: 1, AccountID: account.ID,
+		Mode: archiveMode, Transport: string(wsDecision.Transport),
+		Direction: "client_to_gateway", Payload: initialRawClientMessage,
+	})
 	firstPayload, err := parseClientPayload(1, firstClientMessage)
 	if err != nil {
 		return err
@@ -558,6 +593,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 	refreshIngressRouteState(firstPayload)
 
 	if forceHTTPBridge || s.shouldBridgeOpenAIWSHTTP(account, firstPayload.payloadBytes, firstPayload.previousResponseID) {
+		archiveMode = OpenAIWSIngressModeHTTPBridge
 		logOpenAIWSModeInfo(
 			"ingress_ws_http_bridge_start account_id=%d account_type=%s payload_bytes=%d threshold_bytes=%d has_session_hash=%v store_disabled=%v",
 			account.ID,
@@ -576,6 +612,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		bridgeReplayInputExists := false
 		var bridgeAccountFailoverInput []json.RawMessage
 		bridgeAccountFailoverInputExists := false
+		attempts := make(map[int]int, 2)
 		for turn := 1; ; turn++ {
 			if turn > 1 && hooks != nil && hooks.BeforeRequest != nil {
 				if err := hooks.BeforeRequest(turn, currentBridgePayload.payloadRaw, currentBridgePayload.originalModel); err != nil {
@@ -646,6 +683,12 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 					return fmt.Errorf("resolve Grok websocket cache identity: %w", err)
 				}
 			}
+			attempts[turn]++
+			emitOpenAIWSArchiveEvent(hooks, OpenAIWSArchiveEvent{
+				Kind: OpenAIWSArchiveAttempt, Turn: turn, AttemptNo: attempts[turn], AccountID: account.ID,
+				Mode: archiveMode, Transport: string(OpenAIUpstreamTransportHTTPSSE),
+				Direction: "gateway_to_upstream", Payload: bridgePayloadRaw,
+			})
 			result, bridgeErr := s.proxyOpenAIWSHTTPBridgeTurn(
 				ctx,
 				c,
@@ -659,10 +702,32 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 				currentBridgePayload.imageInputSize,
 				grokCacheIdentity,
 				turn,
-				writeClientMessage,
+				func(message []byte) error { return writeClientMessage(turn, message) },
 			)
 			if bridgeErr != nil && isOpenAIWSSessionPreempted(ctx) {
 				return errOpenAIWSSessionPreempted
+			}
+			terminal := OpenAIWSArchiveEvent{
+				Kind: OpenAIWSArchiveTerminal, Turn: turn, AttemptNo: attempts[turn], AccountID: account.ID,
+				Mode: archiveMode, Transport: string(OpenAIUpstreamTransportHTTPSSE),
+			}
+			if bridgeErr != nil {
+				terminal.Status = "error"
+				terminal.Error = bridgeErr.Error()
+			} else {
+				terminal.Status = "completed"
+				if result != nil {
+					terminal.RequestID = strings.TrimSpace(result.RequestID)
+				}
+			}
+			var retryableBridgeErr *UpstreamFailoverError
+			if errors.As(bridgeErr, &retryableBridgeErr) {
+				attemptTerminal := terminal
+				attemptTerminal.Kind = OpenAIWSArchiveAttempt
+				attemptTerminal.Status = "failed"
+				emitOpenAIWSArchiveEvent(hooks, attemptTerminal)
+			} else {
+				emitOpenAIWSArchiveEvent(hooks, terminal)
 			}
 			if hooks != nil && hooks.AfterTurn != nil {
 				hooks.AfterTurn(turn, result, bridgeErr)
@@ -732,6 +797,15 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 				}
 				return fmt.Errorf("read client websocket request: %w", readErr)
 			}
+			emitOpenAIWSArchiveEvent(hooks, OpenAIWSArchiveEvent{
+				Kind: OpenAIWSArchiveTurnAccepted, Turn: turn + 1, AccountID: account.ID,
+				Mode: archiveMode, Transport: string(wsDecision.Transport),
+			})
+			emitOpenAIWSArchiveEvent(hooks, OpenAIWSArchiveEvent{
+				Kind: OpenAIWSArchiveRawFrame, Turn: turn + 1, AccountID: account.ID,
+				Mode: archiveMode, Transport: string(wsDecision.Transport),
+				Direction: "client_to_gateway", Payload: nextClientMessage,
+			})
 			nextPayload, parseErr := parseClientPayload(turn+1, nextClientMessage)
 			if parseErr != nil {
 				return parseErr
@@ -921,6 +995,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 	}
 
 	var rejectedFieldRetryState *openAIResponsesRejectedFieldRetryState
+	attempts := make(map[int]int, 2)
 	sendAndRelay := func(turn int, lease *openAIWSConnLease, payload []byte, payloadBytes int, originalModel string, imageBillingModel string, imageSizeTier string, imageInputSize string) (*OpenAIForwardResult, error) {
 		responseModelObserver := &upstreamResponseModelObserver{}
 		if lease == nil {
@@ -928,6 +1003,12 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		}
 		turnStart := time.Now()
 		wroteDownstream := false
+		attempts[turn]++
+		emitOpenAIWSArchiveEvent(hooks, OpenAIWSArchiveEvent{
+			Kind: OpenAIWSArchiveAttempt, Turn: turn, AttemptNo: attempts[turn], AccountID: account.ID,
+			Mode: archiveMode, Transport: string(wsDecision.Transport),
+			Direction: "gateway_to_upstream", Payload: payload,
+		})
 		if err := lease.WriteJSONWithContextTimeout(ctx, json.RawMessage(payload), s.openAIWSWriteTimeout()); err != nil {
 			return nil, wrapOpenAIWSIngressTurnError(
 				"write_upstream",
@@ -1130,7 +1211,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 					}
 				}
 				replayCollector.AddEvent(eventType, upstreamMessage)
-				if err := writeClientMessage(upstreamMessage); err != nil {
+				if err := writeClientMessage(turn, upstreamMessage); err != nil {
 					if isOpenAIWSClientDisconnectError(err) {
 						clientDisconnected = true
 						closeStatus, closeReason := summarizeOpenAIWSReadCloseError(err)
@@ -1153,6 +1234,14 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 					wroteDownstream = true
 					markOpenAIWSClientVisibleFailure(c, eventType, upstreamMessage)
 				}
+			} else {
+				// CAPYBARA-PATCH: Usage drain continues after disconnect; archive
+				// observation remains independent from the client writer.
+				emitOpenAIWSArchiveEvent(hooks, OpenAIWSArchiveEvent{
+					Kind: OpenAIWSArchiveDownstream, Turn: turn, AccountID: account.ID,
+					Mode: archiveMode, Transport: string(wsDecision.Transport),
+					Direction: "upstream_to_gateway", EventType: eventType, Payload: upstreamMessage,
+				})
 			}
 			if isTerminalEvent {
 				terminalEvent := s.handleOpenAIWSTerminalTransientFailure(ctx, account, mappedModel, lease.HandshakeHeaders(), upstreamMessage)
@@ -1733,6 +1822,14 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			if unwrapped := errors.Unwrap(relayErr); unwrapped != nil {
 				finalErr = unwrapped
 			}
+			terminal := OpenAIWSArchiveEvent{
+				Kind: OpenAIWSArchiveTerminal, Turn: turn, AttemptNo: attempts[turn], AccountID: account.ID,
+				Mode: archiveMode, Transport: string(wsDecision.Transport), Status: "error", Error: finalErr.Error(),
+			}
+			var retryableFinalErr *UpstreamFailoverError
+			if !errors.As(finalErr, &retryableFinalErr) {
+				emitOpenAIWSArchiveEvent(hooks, terminal)
+			}
 			if hooks != nil && hooks.AfterTurn != nil {
 				hooks.AfterTurn(turn, nil, finalErr)
 			}
@@ -1743,11 +1840,15 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		turnPrevRecoveryTried = false
 		lastTurnFinishedAt = time.Now()
 		lastTurnClean = true
-		if hooks != nil && hooks.AfterTurn != nil {
-			hooks.AfterTurn(turn, result, nil)
-		}
 		if result == nil {
 			return errors.New("websocket turn result is nil")
+		}
+		emitOpenAIWSArchiveEvent(hooks, OpenAIWSArchiveEvent{
+			Kind: OpenAIWSArchiveTerminal, Turn: turn, AttemptNo: attempts[turn], AccountID: account.ID,
+			Mode: archiveMode, Transport: string(wsDecision.Transport), Status: "completed", RequestID: strings.TrimSpace(result.RequestID),
+		})
+		if hooks != nil && hooks.AfterTurn != nil {
+			hooks.AfterTurn(turn, result, nil)
 		}
 		responseID := strings.TrimSpace(result.RequestID)
 		lastTurnResponseID = responseID
@@ -1803,6 +1904,15 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			return fmt.Errorf("read client websocket request: %w", readErr)
 		}
 
+		emitOpenAIWSArchiveEvent(hooks, OpenAIWSArchiveEvent{
+			Kind: OpenAIWSArchiveTurnAccepted, Turn: turn + 1, AccountID: account.ID,
+			Mode: archiveMode, Transport: string(wsDecision.Transport),
+		})
+		emitOpenAIWSArchiveEvent(hooks, OpenAIWSArchiveEvent{
+			Kind: OpenAIWSArchiveRawFrame, Turn: turn + 1, AccountID: account.ID,
+			Mode: archiveMode, Transport: string(wsDecision.Transport),
+			Direction: "client_to_gateway", Payload: nextClientMessage,
+		})
 		nextPayload, parseErr := parseClientPayload(turn+1, nextClientMessage)
 		if parseErr != nil {
 			return parseErr

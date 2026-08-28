@@ -455,6 +455,11 @@ func (s *OpsService) prepareErrorLogInput(ctx context.Context, entry *OpsInsertE
 	if s.opsRepo == nil {
 		return nil, false, nil
 	}
+	// CAPYBARA-PATCH: 同步调用可直接从 HTTP/WS Turn context 双写关联 ID；
+	// 异步队列调用方需在入队前填充，已有值不会被覆盖。
+	if strings.TrimSpace(entry.CorrelationRequestID) == "" {
+		entry.CorrelationRequestID = CorrelationRequestIDFromContext(ctx)
+	}
 
 	// Ensure timestamps are always populated.
 	if entry.CreatedAt.IsZero() {

@@ -1183,6 +1183,8 @@ func OpsErrorLoggerMiddleware(ops *service.OpsService) gin.HandlerFunc {
 		entry := &service.OpsInsertErrorLogInput{
 			RequestID:       requestID,
 			ClientRequestID: clientRequestID,
+			// CAPYBARA-PATCH: 队列异步落库前固化 HTTP/WS Turn 关联 ID。
+			CorrelationRequestID: service.OpsCorrelationRequestID(c),
 
 			AccountID: accountID,
 			Platform:  platform,
@@ -1347,6 +1349,8 @@ func logOpsRecoveredUpstream(c *gin.Context, ops *service.OpsService, finalStatu
 		if c.Request.Context() != nil {
 			entry.ClientRequestID, _ = c.Request.Context().Value(ctxkey.ClientRequestID).(string)
 			entry.RequestID, _ = c.Request.Context().Value(ctxkey.RequestID).(string)
+			// CAPYBARA-PATCH: recovered upstream 行与最终错误共享关联 ID。
+			entry.CorrelationRequestID = service.OpsCorrelationRequestID(c)
 		}
 	}
 	entry.RequestID = strings.TrimSpace(entry.RequestID)
@@ -1478,6 +1482,13 @@ func logOpsStreamErrorValue(c *gin.Context, ops *service.OpsService, wireStatus 
 	entry := &service.OpsInsertErrorLogInput{
 		RequestID:       requestID,
 		ClientRequestID: clientRequestID,
+		// CAPYBARA-PATCH: SSE 内带错误在排队前固化关联 ID。
+		CorrelationRequestID: func() string {
+			if strings.TrimSpace(streamErr.CorrelationRequestID) != "" {
+				return strings.TrimSpace(streamErr.CorrelationRequestID)
+			}
+			return service.OpsCorrelationRequestID(c)
+		}(),
 
 		AccountID: accountID,
 		Platform:  platform,

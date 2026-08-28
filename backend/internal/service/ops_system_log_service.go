@@ -89,14 +89,15 @@ func marshalSystemLogCleanupConditions(filter *OpsSystemLogCleanupFilter) string
 		return "{}"
 	}
 	payload := map[string]any{
-		"host":              strings.TrimSpace(filter.Host),
-		"level":             strings.TrimSpace(filter.Level),
-		"component":         strings.TrimSpace(filter.Component),
-		"request_id":        strings.TrimSpace(filter.RequestID),
-		"client_request_id": strings.TrimSpace(filter.ClientRequestID),
-		"platform":          strings.TrimSpace(filter.Platform),
-		"model":             strings.TrimSpace(filter.Model),
-		"query":             strings.TrimSpace(filter.Query),
+		"host":                   strings.TrimSpace(filter.Host),
+		"level":                  strings.TrimSpace(filter.Level),
+		"component":              strings.TrimSpace(filter.Component),
+		"request_id":             strings.TrimSpace(filter.RequestID),
+		"client_request_id":      strings.TrimSpace(filter.ClientRequestID),
+		"correlation_request_id": strings.TrimSpace(filter.CorrelationRequestID),
+		"platform":               strings.TrimSpace(filter.Platform),
+		"model":                  strings.TrimSpace(filter.Model),
+		"query":                  strings.TrimSpace(filter.Query),
 	}
 	if filter.UserID != nil {
 		payload["user_id"] = *filter.UserID

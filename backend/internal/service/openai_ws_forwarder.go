@@ -253,17 +253,77 @@ type OpenAIWSIngressHooks struct {
 	InitialRequestModel string
 	// InitialTurnStartedAt freezes when the first response.create was accepted.
 	InitialTurnStartedAt time.Time
+	// InitialRawClientMessage preserves the first frame before handler-level
+	// failover/continuation rewrites. Service falls back to its input when empty.
+	InitialRawClientMessage []byte
 	// MaxReasoningEffort limits explicit reasoning effort values for this WS session.
 	MaxReasoningEffort string
 	// ReasoningEffortMappings rewrites explicit effort values for this WS session.
 	ReasoningEffortMappings []ReasoningEffortMapping
-	TurnStarted             func(turn int, startedAt time.Time)
-	BeforeTurn              func(turn int) error
-	BeforeRequest           func(turn int, payload []byte, originalModel string) error
+	// TurnCorrelationRequestID returns the immutable correlation key for one
+	// logical turn. It must not reuse the WebSocket handshake request ID.
+	TurnCorrelationRequestID func(turn int) string
+	// ArchiveEvent is a fail-open, non-blocking observation hook. It must never
+	// perform storage I/O inline; panics are isolated by emitOpenAIWSArchiveEvent.
+	ArchiveEvent  func(OpenAIWSArchiveEvent)
+	TurnStarted   func(turn int, startedAt time.Time)
+	BeforeTurn    func(turn int) error
+	BeforeRequest func(turn int, payload []byte, originalModel string) error
 	// MapRequestModel resolves the current turn's client model to the model
 	// that must be written into the upstream response.create frame.
 	MapRequestModel func(turn int, originalModel string) (string, error)
 	AfterTurn       func(turn int, result *OpenAIForwardResult, turnErr error)
+}
+
+// OpenAIWSArchiveEventKind identifies an observable Responses WebSocket
+// lifecycle boundary without coupling the gateway service to archive storage.
+type OpenAIWSArchiveEventKind string
+
+const (
+	OpenAIWSArchiveTurnAccepted OpenAIWSArchiveEventKind = "turn_accepted"
+	OpenAIWSArchiveRawFrame     OpenAIWSArchiveEventKind = "raw_client_frame"
+	OpenAIWSArchiveAttempt      OpenAIWSArchiveEventKind = "outbound_attempt"
+	OpenAIWSArchiveDownstream   OpenAIWSArchiveEventKind = "downstream_event"
+	OpenAIWSArchiveTerminal     OpenAIWSArchiveEventKind = "terminal"
+)
+
+// OpenAIWSArchiveEvent 的 Payload 只在同步回调期间有效。回调不得修改或保留该
+// slice；需要留存时应在回调返回前复制到自身受限缓冲区。
+type OpenAIWSArchiveEvent struct {
+	Kind                 OpenAIWSArchiveEventKind
+	OccurredAt           time.Time
+	Turn                 int
+	TurnSequenceNo       int
+	SequenceNo           int64
+	CorrelationRequestID string
+	AttemptNo            int
+	AccountID            int64
+	Mode                 string
+	Transport            string
+	Direction            string
+	EventType            string
+	RequestID            string
+	Status               string
+	Error                string
+	Payload              []byte
+}
+
+// emitOpenAIWSArchiveEvent keeps archive observation strictly fail-open. The
+// configured hook is responsible for returning quickly (normally TryCapture).
+func emitOpenAIWSArchiveEvent(hooks *OpenAIWSIngressHooks, event OpenAIWSArchiveEvent) {
+	if hooks == nil || hooks.ArchiveEvent == nil || event.Turn <= 0 {
+		return
+	}
+	if event.OccurredAt.IsZero() {
+		event.OccurredAt = time.Now().UTC()
+	}
+	if hooks.TurnCorrelationRequestID != nil {
+		event.CorrelationRequestID = strings.TrimSpace(hooks.TurnCorrelationRequestID(event.Turn))
+	}
+	defer func() {
+		_ = recover()
+	}()
+	hooks.ArchiveEvent(event)
 }
 
 func (s *OpenAIGatewayService) getOpenAIWSConnPool() *openAIWSConnPool {

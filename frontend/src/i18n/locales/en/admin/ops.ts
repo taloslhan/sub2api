@@ -300,6 +300,7 @@ export default {
           internal: 'Internal'
         },
         total: 'Total:',
+        correlationFilter: 'Correlation request ID',
         searchPlaceholder: 'Search request_id / client_request_id / message',
       },
       // Error Detail Modal
@@ -337,6 +338,7 @@ export default {
         },
         loading: 'Loading…',
         requestId: 'Request ID',
+        correlationRequestId: 'Correlation request ID',
         time: 'Time',
         phase: 'Phase',
         status: 'Status',
@@ -507,7 +509,11 @@ export default {
           accountErrorCount: 'Error Accounts (excluding temporarily unschedulable)',
           accountErrorRatio: 'Error Account Ratio (%)',
           accountTempUnscheduledCount: 'Temporarily Unschedulable Accounts',
-          overloadAccountCount: 'Overloaded Accounts'
+          overloadAccountCount: 'Overloaded Accounts',
+          sessionArchiveQueueDropped: 'Session Archive Queue Drops',
+          sessionArchiveStorageFailures: 'Session Archive Storage Failures',
+          sessionArchivePendingBacklog: 'Session Archive Pending Backlog',
+          sessionArchiveGcBacklog: 'Session Archive GC Backlog'
         },
         metricDescriptions: {
           successRate: 'Percentage of successful requests in the window (0-100).',
@@ -525,7 +531,11 @@ export default {
           accountErrorCount: 'Number of error accounts within the window (excluding temporarily unschedulable).',
           accountErrorRatio: 'Error account ratio within the window (0-100).',
           accountTempUnscheduledCount: 'Number of accounts currently temporarily unschedulable (e.g. proxy/credential failure auto-eviction).',
-          overloadAccountCount: 'Number of overloaded accounts within the window.'
+          overloadAccountCount: 'Number of overloaded accounts within the window.',
+          sessionArchiveQueueDropped: 'Archive capture events dropped by bounded queues within the window.',
+          sessionArchiveStorageFailures: 'Archive database, encryption, or private object storage failures within the window.',
+          sessionArchivePendingBacklog: 'Archive uploads that remain pending and require compensation.',
+          sessionArchiveGcBacklog: 'Archive CAS blobs awaiting garbage collection.'
         },
         hints: {
           recommended: 'Recommended: operator {operator}, threshold {threshold}{unit}',

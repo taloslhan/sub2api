@@ -96,6 +96,8 @@ export interface AdminUsageQueryParams extends UsageQueryParams {
   error_phase?: string | null
   error_category?: string | null
   status_code?: number | null
+  // CAPYBARA-PATCH: Exact cross-module lookup from session archive, Prompt Audit, and Ops.
+  correlation_request_id?: string
 }
 
 // ==================== API Functions ====================

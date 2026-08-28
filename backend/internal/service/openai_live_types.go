@@ -66,6 +66,8 @@ type LiveCallRecord struct {
 	UserAgent       string
 	IPAddress       string
 	InboundEndpoint string
+	// CorrelationRequestID 只用于跨归档、Usage 与 Ops 关联，不参与计费幂等。
+	CorrelationRequestID string
 	// AttestationCiphertext 仅用于让同一会话的 Sideband 复用创建时的证明。
 	AttestationCiphertext string
 }

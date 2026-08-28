@@ -578,8 +578,8 @@ func runUpstreamToClient(
 		case coderws.MessageBinary:
 			// binary frame 直接透传，不进入 JSON 观测路径（避免无效解析开销）。
 		}
-		emitTurnComplete(onTurnComplete, state, observedEvent)
 		if dropDownstreamWrites != nil && dropDownstreamWrites.Load() {
+			emitTurnComplete(onTurnComplete, state, observedEvent)
 			if droppedFrames != nil {
 				droppedFrames.Add(1)
 			}
@@ -604,6 +604,9 @@ func runUpstreamToClient(
 		if beforeClientWrite != nil {
 			beforeClientWrite(msgType, payload)
 		}
+		// terminal 生命周期回调放在下行帧被观测后、实际写入前：既不改变
+		// wire 行为，也保证归档顺序为 downstream → terminal。
+		emitTurnComplete(onTurnComplete, state, observedEvent)
 		writeErr := writeClient(msgType, payload)
 		if afterClientWrite != nil {
 			afterClientWrite(msgType, payload, writeErr)

@@ -20,6 +20,7 @@ const insertOpsErrorLogSQL = `
 INSERT INTO ops_error_logs (
   request_id,
   client_request_id,
+  correlation_request_id,
   user_id,
   api_key_id,
   account_id,
@@ -57,7 +58,7 @@ INSERT INTO ops_error_logs (
   created_at,
   api_key_prefix
 ) VALUES (
-  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38
+  $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37,$38,$39
 )`
 
 func NewOpsRepository(db *sql.DB) service.OpsRepository {
@@ -131,6 +132,7 @@ func opsInsertErrorLogArgs(input *service.OpsInsertErrorLogInput) []any {
 	return []any{
 		opsNullString(input.RequestID),
 		opsNullString(input.ClientRequestID),
+		opsNullString(input.CorrelationRequestID),
 		opsNullInt64(input.UserID),
 		opsNullInt64(input.APIKeyID),
 		opsNullInt64(input.AccountID),
@@ -249,6 +251,7 @@ SELECT
   COALESCE(u2.email, ''),
   COALESCE(e.client_request_id, ''),
   COALESCE(e.request_id, ''),
+  COALESCE(e.correlation_request_id, ''),
   COALESCE(e.error_message, ''),
   e.user_id,
   COALESCE(u.email, ''),
@@ -319,6 +322,7 @@ LIMIT $` + itoa(len(args)+1) + ` OFFSET $` + itoa(len(args)+2)
 			&resolvedByName,
 			&item.ClientRequestID,
 			&item.RequestID,
+			&item.CorrelationRequestID,
 			&item.Message,
 			&userID,
 			&userEmail,
@@ -419,6 +423,7 @@ SELECT
   e.resolved_by_user_id,
   COALESCE(e.client_request_id, ''),
   COALESCE(e.request_id, ''),
+  COALESCE(e.correlation_request_id, ''),
   COALESCE(e.error_message, ''),
   COALESCE(e.error_body, ''),
   e.upstream_status_code,
@@ -493,6 +498,7 @@ LIMIT 1`
 		&resolvedBy,
 		&out.ClientRequestID,
 		&out.RequestID,
+		&out.CorrelationRequestID,
 		&out.Message,
 		&out.ErrorBody,
 		&upstreamStatusCode,
@@ -654,6 +660,7 @@ func (r *opsRepository) BatchInsertSystemLogs(ctx context.Context, inputs []*ser
 		"message",
 		"request_id",
 		"client_request_id",
+		"correlation_request_id",
 		"user_id",
 		"api_key_id",
 		"account_id",
@@ -697,6 +704,7 @@ func (r *opsRepository) BatchInsertSystemLogs(ctx context.Context, inputs []*ser
 			message,
 			opsNullString(input.RequestID),
 			opsNullString(input.ClientRequestID),
+			opsNullString(input.CorrelationRequestID),
 			opsNullInt64(input.UserID),
 			opsNullInt64(input.APIKeyID),
 			opsNullInt64(input.AccountID),
@@ -765,6 +773,7 @@ SELECT
   COALESCE(l.message, ''),
   COALESCE(l.request_id, ''),
   COALESCE(l.client_request_id, ''),
+  COALESCE(l.correlation_request_id, ''),
   l.user_id,
   l.api_key_id,
   l.account_id,
@@ -798,6 +807,7 @@ LIMIT $` + itoa(len(args)+1) + ` OFFSET $` + itoa(len(args)+2)
 			&item.Message,
 			&item.RequestID,
 			&item.ClientRequestID,
+			&item.CorrelationRequestID,
 			&userID,
 			&apiKeyID,
 			&accountID,
@@ -994,6 +1004,10 @@ func buildOpsErrorLogsWhere(filter *service.OpsErrorLogFilter) (string, []any) {
 		args = append(args, crid)
 		clauses = append(clauses, "COALESCE(e.client_request_id,'') = $"+itoa(len(args)))
 	}
+	if correlationRequestID := strings.TrimSpace(filter.CorrelationRequestID); correlationRequestID != "" {
+		args = append(args, correlationRequestID)
+		clauses = append(clauses, "COALESCE(e.correlation_request_id,'') = $"+itoa(len(args)))
+	}
 
 	if q := strings.TrimSpace(filter.Query); q != "" {
 		like := "%" + q + "%"
@@ -1106,6 +1120,11 @@ func buildOpsSystemLogsWhere(filter *service.OpsSystemLogFilter) (string, []any,
 			clauses = append(clauses, "COALESCE(l.client_request_id,'') = $"+itoa(len(args)))
 			hasConstraint = true
 		}
+		if v := strings.TrimSpace(filter.CorrelationRequestID); v != "" {
+			args = append(args, v)
+			clauses = append(clauses, "COALESCE(l.correlation_request_id,'') = $"+itoa(len(args)))
+			hasConstraint = true
+		}
 		if filter.UserID != nil && *filter.UserID > 0 {
 			args = append(args, *filter.UserID)
 			clauses = append(clauses, "l.user_id = $"+itoa(len(args)))
@@ -1148,19 +1167,20 @@ func buildOpsSystemLogsCleanupWhere(filter *service.OpsSystemLogCleanupFilter) (
 		filter = &service.OpsSystemLogCleanupFilter{}
 	}
 	listFilter := &service.OpsSystemLogFilter{
-		StartTime:       filter.StartTime,
-		EndTime:         filter.EndTime,
-		Host:            filter.Host,
-		Level:           filter.Level,
-		Component:       filter.Component,
-		RequestID:       filter.RequestID,
-		ClientRequestID: filter.ClientRequestID,
-		UserID:          filter.UserID,
-		APIKeyID:        filter.APIKeyID,
-		AccountID:       filter.AccountID,
-		Platform:        filter.Platform,
-		Model:           filter.Model,
-		Query:           filter.Query,
+		StartTime:            filter.StartTime,
+		EndTime:              filter.EndTime,
+		Host:                 filter.Host,
+		Level:                filter.Level,
+		Component:            filter.Component,
+		RequestID:            filter.RequestID,
+		ClientRequestID:      filter.ClientRequestID,
+		CorrelationRequestID: filter.CorrelationRequestID,
+		UserID:               filter.UserID,
+		APIKeyID:             filter.APIKeyID,
+		AccountID:            filter.AccountID,
+		Platform:             filter.Platform,
+		Model:                filter.Model,
+		Query:                filter.Query,
 	}
 	return buildOpsSystemLogsWhere(listFilter)
 }

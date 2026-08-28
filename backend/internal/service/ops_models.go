@@ -6,20 +6,21 @@ import (
 )
 
 type OpsSystemLog struct {
-	ID              int64          `json:"id"`
-	CreatedAt       time.Time      `json:"created_at"`
-	Host            string         `json:"host"`
-	Level           string         `json:"level"`
-	Component       string         `json:"component"`
-	Message         string         `json:"message"`
-	RequestID       string         `json:"request_id"`
-	ClientRequestID string         `json:"client_request_id"`
-	UserID          *int64         `json:"user_id"`
-	APIKeyID        *int64         `json:"api_key_id"`
-	AccountID       *int64         `json:"account_id"`
-	Platform        string         `json:"platform"`
-	Model           string         `json:"model"`
-	Extra           map[string]any `json:"extra,omitempty"`
+	ID                   int64          `json:"id"`
+	CreatedAt            time.Time      `json:"created_at"`
+	Host                 string         `json:"host"`
+	Level                string         `json:"level"`
+	Component            string         `json:"component"`
+	Message              string         `json:"message"`
+	RequestID            string         `json:"request_id"`
+	ClientRequestID      string         `json:"client_request_id"`
+	CorrelationRequestID string         `json:"correlation_request_id,omitempty"`
+	UserID               *int64         `json:"user_id"`
+	APIKeyID             *int64         `json:"api_key_id"`
+	AccountID            *int64         `json:"account_id"`
+	Platform             string         `json:"platform"`
+	Model                string         `json:"model"`
+	Extra                map[string]any `json:"extra,omitempty"`
 }
 
 type OpsErrorLog struct {
@@ -48,9 +49,10 @@ type OpsErrorLog struct {
 	ResolvedByUserName string     `json:"resolved_by_user_name"`
 	ResolvedStatusRaw  string     `json:"-"`
 
-	ClientRequestID string `json:"client_request_id"`
-	RequestID       string `json:"request_id"`
-	Message         string `json:"message"`
+	ClientRequestID      string `json:"client_request_id"`
+	RequestID            string `json:"request_id"`
+	CorrelationRequestID string `json:"correlation_request_id,omitempty"`
+	Message              string `json:"message"`
 
 	UserID      *int64 `json:"user_id"`
 	UserEmail   string `json:"user_email"`
@@ -119,8 +121,9 @@ type OpsErrorLogFilter struct {
 	UserQuery        string // Search by user email
 
 	// Optional correlation keys for exact matching.
-	RequestID       string
-	ClientRequestID string
+	RequestID            string
+	ClientRequestID      string
+	CorrelationRequestID string
 
 	// User-scoped filters (used by the user-facing error requests endpoint and
 	// by admin drill-down from the usage page).

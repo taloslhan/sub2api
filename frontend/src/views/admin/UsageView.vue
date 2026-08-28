@@ -318,6 +318,8 @@ const applyRouteQueryFilters = () => {
   const queryStartDate = getSingleQueryValue(route.query.start_date)
   const queryEndDate = getSingleQueryValue(route.query.end_date)
   const queryUserId = getNumericQueryValue(route.query.user_id)
+  // CAPYBARA-PATCH: Hydrate exact archive association without changing billing request_id semantics.
+  const queryCorrelationRequestId = getSingleQueryValue(route.query.correlation_request_id)
 
   if (queryStartDate) {
     startDate.value = queryStartDate
@@ -329,6 +331,7 @@ const applyRouteQueryFilters = () => {
   filters.value = {
     ...filters.value,
     user_id: queryUserId,
+    correlation_request_id: queryCorrelationRequestId,
     start_date: startDate.value,
     end_date: endDate.value
   }
@@ -866,6 +869,7 @@ onMounted(() => {
     void loadChartData()
   }, 120)
   loadSavedColumns()
+  if (filters.value.correlation_request_id) hiddenColumns.delete('request_id')
   loadSavedErrColumns()
   document.addEventListener('click', handleColumnClickOutside)
 })
@@ -873,6 +877,16 @@ onUnmounted(() => { abortController?.abort(); exportAbortController?.abort(); do
 
 watch(modelDistributionSource, (source) => {
   void loadModelStats(source)
+})
+
+// CAPYBARA-PATCH: Support in-place navigation between correlated admin records.
+watch(() => route.query.correlation_request_id, (value) => {
+  const correlationRequestID = getSingleQueryValue(value)
+  if (correlationRequestID === filters.value.correlation_request_id) return
+  filters.value = { ...filters.value, correlation_request_id: correlationRequestID }
+  if (correlationRequestID) hiddenColumns.delete('request_id')
+  pagination.page = 1
+  loadLogs()
 })
 
 defineExpose({ requestedModelStats, refreshData })

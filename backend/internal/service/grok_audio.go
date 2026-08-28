@@ -139,6 +139,30 @@ func (s *OpenAIGatewayService) ProxyGrokRealtime(ctx context.Context, c *gin.Con
 
 type GrokRealtimeUpstream struct{ conn openAIWSClientConn }
 
+type GrokRealtimeCaptureEvent struct {
+	OccurredAt           time.Time
+	CorrelationRequestID string
+	Direction            string
+	SequenceNo           int64
+	EventType            string
+	Status               string
+	Error                string
+	Payload              []byte
+}
+
+type GrokRealtimeCaptureHook func(GrokRealtimeCaptureEvent)
+
+func emitGrokRealtimeCapture(hook GrokRealtimeCaptureHook, event GrokRealtimeCaptureEvent) {
+	if hook == nil {
+		return
+	}
+	if event.OccurredAt.IsZero() {
+		event.OccurredAt = time.Now().UTC()
+	}
+	defer func() { _ = recover() }()
+	hook(event)
+}
+
 // GrokRealtimeDialError preserves an HTTP status returned before WebSocket
 // upgrade so handlers can apply the normal Grok account policy.
 type GrokRealtimeDialError struct {
@@ -197,7 +221,7 @@ func (s *OpenAIGatewayService) HandleGrokRealtimeUpstreamError(ctx context.Conte
 	s.handleGrokAccountUpstreamError(ctx, account, statusCode, nil, body)
 }
 
-func (s *OpenAIGatewayService) ProxyGrokRealtimeConn(ctx context.Context, c *gin.Context, client *coderws.Conn, upstream *GrokRealtimeUpstream) (bool, error) {
+func (s *OpenAIGatewayService) ProxyGrokRealtimeConn(ctx context.Context, c *gin.Context, client *coderws.Conn, upstream *GrokRealtimeUpstream, captureHooks ...GrokRealtimeCaptureHook) (bool, error) {
 	if s == nil || client == nil || upstream == nil || upstream.conn == nil {
 		return false, fmt.Errorf("realtime connection is required")
 	}
@@ -207,6 +231,13 @@ func (s *OpenAIGatewayService) ProxyGrokRealtimeConn(ctx context.Context, c *gin
 	defer cancel()
 	errCh := make(chan error, 2)
 	var audioObserved atomic.Bool
+	var upstreamSequence atomic.Int64
+	var clientSequence atomic.Int64
+	var captureHook GrokRealtimeCaptureHook
+	if len(captureHooks) > 0 {
+		captureHook = captureHooks[0]
+	}
+	correlationRequestID := CorrelationRequestIDFromContext(ctx)
 
 	// Upstream → client
 	go func() {
@@ -219,6 +250,12 @@ func (s *OpenAIGatewayService) ProxyGrokRealtimeConn(ctx context.Context, c *gin
 			if grokRealtimeEventHasAudio(msg) {
 				audioObserved.Store(true)
 			}
+			// CAPYBARA-PATCH: Observe the exact upstream frame before the
+			// synchronous client write; archive rejection cannot affect relay.
+			emitGrokRealtimeCapture(captureHook, GrokRealtimeCaptureEvent{
+				CorrelationRequestID: correlationRequestID, Direction: "upstream_to_client",
+				SequenceNo: upstreamSequence.Add(1), EventType: strings.TrimSpace(gjson.GetBytes(msg, "type").String()), Payload: msg,
+			})
 			if writeErr := client.Write(ctx, coderws.MessageText, msg); writeErr != nil {
 				errCh <- writeErr
 				return
@@ -245,6 +282,12 @@ func (s *OpenAIGatewayService) ProxyGrokRealtimeConn(ctx context.Context, c *gin
 				errCh <- fmt.Errorf("invalid realtime event: %w", unmarshalErr)
 				return
 			}
+			// CAPYBARA-PATCH: Preserve client audio/control ordering immediately
+			// before the target write, with an independent direction sequence.
+			emitGrokRealtimeCapture(captureHook, GrokRealtimeCaptureEvent{
+				CorrelationRequestID: correlationRequestID, Direction: "client_to_upstream",
+				SequenceNo: clientSequence.Add(1), EventType: strings.TrimSpace(gjson.GetBytes(msg, "type").String()), Payload: msg,
+			})
 			if writeErr := conn.WriteJSON(ctx, raw); writeErr != nil {
 				errCh <- writeErr
 				return

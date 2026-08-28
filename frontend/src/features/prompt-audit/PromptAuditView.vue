@@ -140,14 +140,19 @@
       @criteria-change="clearDeletePreview"
     />
     <EventDetailDialog :show="showEventDetail" :event="activeEvent" :loading="loading.detail" @close="closeEventDetail" />
+    <!-- CAPYBARA-PATCH: Prompt full-text reads have their own always-step-up controller. -->
+    <TotpStepUpDialog :controller="promptDetailStepUp" />
   </AppLayout>
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, onMounted, reactive, ref } from 'vue'
+import { computed, defineComponent, h, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
+import { isStepUpBlocked, isStepUpCancelled, stepUpBlockReason, useStepUp } from '@/composables/useStepUp'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorCode, extractApiErrorMessage } from '@/utils/apiError'
 import RuntimeOverview from './components/RuntimeOverview.vue'
@@ -172,7 +177,9 @@ import type {
 import { buildUpdateRequest, cloneData, configToDraft, draftFingerprint, emptyEventFilters } from './viewModel'
 
 const { t, locale } = useI18n()
+const route = useRoute()
 const appStore = useAppStore()
+const promptDetailStepUp = useStepUp()
 type PromptAuditPageTab = 'config' | 'events'
 const activeTab = ref<PromptAuditPageTab>('events')
 const pageTabs = computed(() => [
@@ -184,8 +191,10 @@ const draft = ref<PromptAuditDraft | null>(null)
 const runtime = ref<PromptAuditRuntime | null>(null)
 const groups = ref<PromptAuditGroup[]>([])
 const events = reactive<PromptEventPage>({ items: [], total: 0, page: 1, page_size: 20, pages: 0 })
-const filters = ref<PromptEventFilters>(emptyEventFilters())
-const appliedFilters = ref<PromptEventFilters>(emptyEventFilters())
+const initialFilters = emptyEventFilters()
+initialFilters.correlation_request_id = queryString(route.query.correlation_request_id)
+const filters = ref<PromptEventFilters>(initialFilters)
+const appliedFilters = ref<PromptEventFilters>(cloneData(initialFilters))
 const selectedEventIds = ref<number[]>([])
 const activeEvent = ref<PromptAuditEvent | null>(null)
 const showEventDetail = ref(false)
@@ -358,8 +367,17 @@ async function openEvent(id: number) {
   showEventDetail.value = true
   loading.detail = true
   activeEvent.value = null
-  try { activeEvent.value = await promptAuditAPI.getEvent(id) }
-  catch (error) { appStore.showError(errorMessage(error, 'admin.promptAudit.errors.loadDetail')); showEventDetail.value = false }
+  try { activeEvent.value = await promptDetailStepUp.run(() => promptAuditAPI.getEvent(id)) }
+  catch (error) {
+    showEventDetail.value = false
+    activeEvent.value = null
+    if (isStepUpCancelled(error)) return
+    if (isStepUpBlocked(error)) {
+      appStore.showError(stepUpBlockReason(error) === 'STEP_UP_ADMIN_API_KEY_FORBIDDEN' ? t('stepUp.adminApiKeyForbidden') : t('stepUp.notEnabled'))
+      return
+    }
+    appStore.showError(errorMessage(error, 'admin.promptAudit.errors.loadDetail'))
+  }
   finally { loading.detail = false }
 }
 function closeEventDetail() { showEventDetail.value = false; activeEvent.value = null }
@@ -427,6 +445,22 @@ async function confirmFilterDelete(filters?: PromptEventFilters) {
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat(locale.value, { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(value))
 }
+
+function queryString(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (Array.isArray(value)) return value.find((item): item is string => typeof item === 'string') || ''
+  return ''
+}
+
+// CAPYBARA-PATCH: Route hydration keeps correlation deep links usable without preloading event bodies.
+watch(() => route.query.correlation_request_id, (value) => {
+  const correlation = queryString(value)
+  if (correlation === filters.value.correlation_request_id) return
+  filters.value = { ...filters.value, correlation_request_id: correlation }
+  appliedFilters.value = cloneData(filters.value)
+  events.page = 1
+  void loadEvents()
+})
 
 onMounted(loadInitial)
 </script>

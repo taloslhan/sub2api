@@ -21,6 +21,15 @@
           </div>
         </div>
 
+        <!-- CAPYBARA-PATCH: Ops details link back through correlation_request_id. -->
+        <div v-if="detail.correlation_request_id" class="rounded-xl bg-primary-50 p-4 dark:bg-primary-950/20">
+          <div class="text-xs font-bold uppercase tracking-wider text-primary-500">{{ t('admin.ops.errorDetail.correlationRequestId') }}</div>
+          <RouterLink
+            class="mt-1 block break-all font-mono text-sm font-medium text-primary-700 hover:underline dark:text-primary-300"
+            :to="{ path: '/admin/session-archive', query: { correlation_request_id: detail.correlation_request_id } }"
+          >{{ detail.correlation_request_id }}</RouterLink>
+        </div>
+
         <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-900">
           <div class="text-xs font-bold uppercase tracking-wider text-gray-400">{{ t('admin.ops.errorDetail.time') }}</div>
           <div class="mt-1 text-sm font-medium text-gray-900 dark:text-white">

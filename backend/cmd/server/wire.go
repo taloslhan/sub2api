@@ -12,6 +12,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/custom/sessionarchive"
 	"github.com/Wei-Shaw/sub2api/internal/handler"
 	"github.com/Wei-Shaw/sub2api/internal/payment"
 	"github.com/Wei-Shaw/sub2api/internal/repository"
@@ -25,10 +26,11 @@ import (
 )
 
 type Application struct {
-	Server        *http.Server
-	PromptAudit   *securityaudit.PromptService
-	PluginManager *service.PluginManager
-	Cleanup       func()
+	Server         *http.Server
+	PromptAudit    *securityaudit.PromptService
+	PluginManager  *service.PluginManager
+	SessionArchive *sessionarchive.Service
+	Cleanup        func()
 }
 
 func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
@@ -38,6 +40,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 
 		// Business layer ProviderSets
 		repository.ProviderSet,
+		sessionarchive.ProviderSet,
 		service.ProviderSet,
 		securityaudit.ProviderSet,
 		payment.ProviderSet,
@@ -58,7 +61,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 		provideCleanup,
 
 		// Application struct
-		wire.Struct(new(Application), "Server", "PromptAudit", "PluginManager", "Cleanup"),
+		wire.Struct(new(Application), "Server", "PromptAudit", "PluginManager", "SessionArchive", "Cleanup"),
 	)
 	return nil, nil
 }
@@ -128,6 +131,7 @@ func provideCleanup(
 	openAIAutoReset *service.OpenAIQuotaAutoResetService,
 	promptAudit *securityaudit.PromptService,
 	pluginManager *service.PluginManager,
+	archive *sessionarchive.Service,
 ) func() {
 	return func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -140,6 +144,12 @@ func provideCleanup(
 
 		// 应用层清理步骤可并行执行，基础设施资源（Redis/Ent）最后按顺序关闭。
 		parallelSteps := []cleanupStep{
+			{"SessionArchive", func() error {
+				if archive != nil {
+					return archive.Shutdown(ctx)
+				}
+				return nil
+			}},
 			{"PluginManager", func() error {
 				if pluginManager != nil {
 					pluginManager.Stop()

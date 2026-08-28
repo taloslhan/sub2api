@@ -111,6 +111,8 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		h.openAISecurityAuditError(c, decision)
 		return
 	}
+	finishArchive := beginSessionArchiveHTTP(h.sessionArchive, c, apiKey, subject.UserID, service.ContentModerationProtocolOpenAIChat, reqModel, body)
+	defer finishArchive()
 
 	// Error passthrough binding
 	if h.errorPassthroughService != nil {
@@ -288,6 +290,7 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		} else {
 			result, err = h.gatewayService.ForwardAsChatCompletions(c.Request.Context(), c, account, forwardBody, parsedReq)
 		}
+		service.FinalizeLatestHTTPUpstreamAttempt(c.Request.Context(), err)
 
 		if accountReleaseFunc != nil {
 			accountReleaseFunc()

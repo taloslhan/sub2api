@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/custom/sessionarchive"
 	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
@@ -51,12 +52,20 @@ type GatewayHandler struct {
 	errorPassthroughService   *service.ErrorPassthroughService
 	contentModerationService  *service.ContentModerationService
 	securityAuditCoordinator  *securityaudit.Coordinator
+	sessionArchive            *sessionarchive.Service
 	concurrencyHelper         *ConcurrencyHelper
 	userMsgQueueHelper        *UserMsgQueueHelper
 	maxAccountSwitches        int
 	maxAccountSwitchesGemini  int
 	cfg                       *config.Config
 	settingService            *service.SettingService
+}
+
+// SetSessionArchive 注入默认关闭、失败放行的会话归档 Collector。
+func (h *GatewayHandler) SetSessionArchive(archive *sessionarchive.Service) {
+	if h != nil {
+		h.sessionArchive = archive
+	}
 }
 
 // NewGatewayHandler creates a new GatewayHandler
@@ -213,6 +222,8 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 		h.anthropicSecurityAuditError(c, decision)
 		return
 	}
+	finishArchive := beginSessionArchiveHTTP(h.sessionArchive, c, apiKey, subject.UserID, service.ContentModerationProtocolAnthropicMessages, reqModel, body)
+	defer finishArchive()
 
 	// Track if we've started streaming (for error handling)
 	streamStarted := false
@@ -475,6 +486,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			} else {
 				result, err = h.geminiCompatService.Forward(requestCtx, c, account, body)
 			}
+			service.FinalizeLatestHTTPUpstreamAttempt(requestCtx, err)
 			if accountReleaseFunc != nil {
 				accountReleaseFunc()
 			}
@@ -859,6 +871,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			} else {
 				result, err = h.gatewayService.Forward(requestCtx, c, account, attemptParsedReq)
 			}
+			service.FinalizeLatestHTTPUpstreamAttempt(requestCtx, err)
 
 			// 兜底释放串行锁（正常情况已通过回调提前释放）
 			if queueRelease != nil {

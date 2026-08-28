@@ -17,6 +17,9 @@ const (
 	OpsUpstreamErrorDetailKey  = "ops_upstream_error_detail"
 	OpsUpstreamErrorsKey       = "ops_upstream_errors"
 	OpsUpstreamModelKey        = "ops_upstream_model"
+	// CAPYBARA-PATCH: WS connections share one request context, so the active
+	// logical turn correlation is snapshotted in Gin state for Ops attribution.
+	OpsCorrelationRequestIDKey = "ops_correlation_request_id"
 
 	// Optional stage latencies (milliseconds) for troubleshooting and alerting.
 	OpsAuthLatencyMsKey      = "ops_auth_latency_ms"
@@ -96,6 +99,30 @@ func ClearOpsUpstreamModel(c *gin.Context) {
 	c.Set(OpsUpstreamModelKey, "")
 }
 
+func SetOpsCorrelationRequestID(c *gin.Context, correlationRequestID string) {
+	if c == nil {
+		return
+	}
+	if correlationRequestID = strings.TrimSpace(correlationRequestID); correlationRequestID != "" {
+		c.Set(OpsCorrelationRequestIDKey, correlationRequestID)
+	}
+}
+
+func OpsCorrelationRequestID(c *gin.Context) string {
+	if c == nil {
+		return ""
+	}
+	if value, ok := c.Get(OpsCorrelationRequestIDKey); ok {
+		if correlationRequestID, ok := value.(string); ok && strings.TrimSpace(correlationRequestID) != "" {
+			return strings.TrimSpace(correlationRequestID)
+		}
+	}
+	if c.Request == nil {
+		return ""
+	}
+	return CorrelationRequestIDFromContext(c.Request.Context())
+}
+
 func MarkOpsClientBusinessLimited(c *gin.Context, reason string) {
 	if c == nil {
 		return
@@ -152,6 +179,9 @@ type OpsStreamError struct {
 	CountTowardsSLA bool
 	// Turn identifies a WebSocket turn. HTTP/SSE requests leave it at zero.
 	Turn int
+	// CorrelationRequestID freezes the logical WS turn before middleware runs
+	// after the long-lived connection has advanced to another turn.
+	CorrelationRequestID string
 	// SkipMonitoring snapshots the rule decision for this visible failure.
 	SkipMonitoring  bool
 	AccountID       int64
@@ -245,6 +275,7 @@ func snapshotOpsStreamErrorContext(c *gin.Context, streamErr *OpsStreamError) {
 			streamErr.AccountID = accountID
 		}
 	}
+	streamErr.CorrelationRequestID = OpsCorrelationRequestID(c)
 	if value, ok := c.Get(OpsUpstreamModelKey); ok {
 		streamErr.UpstreamModel, _ = value.(string)
 		streamErr.UpstreamModel = strings.TrimSpace(streamErr.UpstreamModel)

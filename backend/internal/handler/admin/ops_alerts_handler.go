@@ -33,6 +33,11 @@ var validOpsAlertMetricTypes = []string{
 	"overload_account_count",
 	"proxy_expired_count",
 	"proxy_expiring_soon_count",
+	// CAPYBARA-PATCH: expose session archive health counters to the existing Ops alert engine.
+	"session_archive_queue_dropped",
+	"session_archive_storage_failures",
+	"session_archive_pending_backlog",
+	"session_archive_gc_backlog",
 }
 
 var validOpsAlertMetricTypeSet = func() map[string]struct{} {

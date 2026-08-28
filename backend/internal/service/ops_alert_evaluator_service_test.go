@@ -18,6 +18,13 @@ type stubOpsRepo struct {
 	err      error
 }
 
+type stubSessionArchiveOpsMetrics map[string]float64
+
+func (s stubSessionArchiveOpsMetrics) OpsMetric(metricType string) (float64, bool) {
+	value, ok := s[metricType]
+	return value, ok
+}
+
 func (s *stubOpsRepo) GetDashboardOverview(ctx context.Context, filter *OpsDashboardFilter) (*OpsDashboardOverview, error) {
 	if s.err != nil {
 		return nil, s.err
@@ -251,4 +258,36 @@ func TestComputeRuleMetricNewIndicators(t *testing.T) {
 			require.InDelta(t, tt.wantValue, gotValue, 0.0001)
 		})
 	}
+}
+
+func TestComputeRuleMetricSessionArchiveHealth(t *testing.T) {
+	t.Parallel()
+
+	svc := &OpsAlertEvaluatorService{
+		sessionArchiveMetrics: stubSessionArchiveOpsMetrics{
+			"session_archive_queue_dropped": 7,
+		},
+	}
+	value, ok := svc.computeRuleMetric(
+		context.Background(),
+		&OpsAlertRule{MetricType: "session_archive_queue_dropped"},
+		nil,
+		time.Now().Add(-time.Minute),
+		time.Now(),
+		"",
+		nil,
+	)
+	require.True(t, ok)
+	require.Equal(t, float64(7), value)
+
+	_, ok = svc.computeRuleMetric(
+		context.Background(),
+		&OpsAlertRule{MetricType: "session_archive_storage_failures"},
+		nil,
+		time.Now().Add(-time.Minute),
+		time.Now(),
+		"",
+		nil,
+	)
+	require.False(t, ok)
 }

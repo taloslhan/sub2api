@@ -87,6 +87,27 @@ func (s *AuditLogService) Record(entry *AuditLog) {
 	}
 }
 
+// RecordRequired 同步持久化必要审计。调用方必须在返回敏感正文或执行敏感变更前调用；
+// 写入失败由调用方拒绝操作，不能退化为异步 best-effort。
+// CAPYBARA-PATCH: 会话归档与 Prompt Audit 正文访问需要可靠审计落库确认。
+func (s *AuditLogService) RecordRequired(ctx context.Context, entry *AuditLog) error {
+	if s == nil || s.repo == nil {
+		return fmt.Errorf("audit log service unavailable")
+	}
+	if entry == nil {
+		return fmt.Errorf("nil required audit log")
+	}
+	if entry.CreatedAt.IsZero() {
+		entry.CreatedAt = time.Now().UTC()
+	}
+	if err := s.repo.Insert(ctx, entry); err != nil {
+		atomic.AddUint64(&s.writeFailed, 1)
+		return fmt.Errorf("persist required audit log: %w", err)
+	}
+	atomic.AddUint64(&s.writtenCount, 1)
+	return nil
+}
+
 // List 分页查询审计日志。
 func (s *AuditLogService) List(ctx context.Context, filter *AuditLogFilter) (*AuditLogList, error) {
 	return s.repo.List(ctx, filter)

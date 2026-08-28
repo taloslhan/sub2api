@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -36,6 +37,29 @@ func (c *openAIWSLeaseLossAfterReadConn) ReadMessage(ctx context.Context) ([]byt
 
 type openAIWSSingleConnDialer struct {
 	conn openAIWSClientConn
+}
+
+func requireOpenAIWSArchiveLifecycleOrder(t *testing.T, events []OpenAIWSArchiveEvent, turn int) {
+	t.Helper()
+	positions := map[OpenAIWSArchiveEventKind]int{}
+	for index, event := range events {
+		if event.Turn != turn {
+			continue
+		}
+		if _, exists := positions[event.Kind]; !exists {
+			positions[event.Kind] = index
+		}
+	}
+	for _, kind := range []OpenAIWSArchiveEventKind{
+		OpenAIWSArchiveTurnAccepted, OpenAIWSArchiveRawFrame, OpenAIWSArchiveAttempt,
+		OpenAIWSArchiveDownstream, OpenAIWSArchiveTerminal,
+	} {
+		require.Contains(t, positions, kind, "turn %d 缺少 %s 归档生命周期事件", turn, kind)
+	}
+	require.Less(t, positions[OpenAIWSArchiveTurnAccepted], positions[OpenAIWSArchiveRawFrame])
+	require.Less(t, positions[OpenAIWSArchiveRawFrame], positions[OpenAIWSArchiveAttempt])
+	require.Less(t, positions[OpenAIWSArchiveAttempt], positions[OpenAIWSArchiveDownstream])
+	require.Less(t, positions[OpenAIWSArchiveDownstream], positions[OpenAIWSArchiveTerminal])
 }
 
 func (d *openAIWSSingleConnDialer) Dial(
@@ -151,7 +175,15 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_KeepLeaseAcrossT
 
 	serverErrCh := make(chan error, 1)
 	turnTerminalCh := make(chan string, 2)
+	var archiveMu sync.Mutex
+	archiveEvents := make([]OpenAIWSArchiveEvent, 0, 12)
 	hooks := &OpenAIWSIngressHooks{
+		TurnCorrelationRequestID: func(turn int) string { return fmt.Sprintf("corr-turn-%d", turn) },
+		ArchiveEvent: func(event OpenAIWSArchiveEvent) {
+			archiveMu.Lock()
+			archiveEvents = append(archiveEvents, event)
+			archiveMu.Unlock()
+		},
 		AfterTurn: func(_ int, result *OpenAIForwardResult, turnErr error) {
 			if turnErr == nil && result != nil {
 				turnTerminalCh <- result.UpstreamTerminalEvent
@@ -272,6 +304,23 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_KeepLeaseAcrossT
 	require.Equal(t, int64(1), metrics.AcquireTotal, "同一 ingress 会话多 turn 应只获取一次上游 lease")
 	require.Equal(t, 1, captureDialer.DialCount(), "同一 ingress 会话应保持同一上游连接")
 	require.Len(t, captureConn.writes, 2, "应向同一上游连接发送两轮 response.create")
+
+	archiveMu.Lock()
+	events := append([]OpenAIWSArchiveEvent(nil), archiveEvents...)
+	archiveMu.Unlock()
+	for turn := 1; turn <= 2; turn++ {
+		positions := map[OpenAIWSArchiveEventKind]int{}
+		for index, event := range events {
+			if event.Turn != turn {
+				continue
+			}
+			require.Equal(t, fmt.Sprintf("corr-turn-%d", turn), event.CorrelationRequestID)
+			if _, exists := positions[event.Kind]; !exists {
+				positions[event.Kind] = index
+			}
+		}
+		requireOpenAIWSArchiveLifecycleOrder(t, events, turn)
+	}
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_LeaseLossSendsRetryClose(t *testing.T) {
@@ -1054,7 +1103,15 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeR
 
 	serverErrCh := make(chan error, 1)
 	resultCh := make(chan *OpenAIForwardResult, 1)
+	var archiveMu sync.Mutex
+	archiveEvents := make([]OpenAIWSArchiveEvent, 0, 6)
 	hooks := &OpenAIWSIngressHooks{
+		TurnCorrelationRequestID: func(turn int) string { return fmt.Sprintf("passthrough-corr-%d", turn) },
+		ArchiveEvent: func(event OpenAIWSArchiveEvent) {
+			archiveMu.Lock()
+			archiveEvents = append(archiveEvents, event)
+			archiveMu.Unlock()
+		},
 		AfterTurn: func(_ int, result *OpenAIForwardResult, turnErr error) {
 			if turnErr == nil && result != nil {
 				resultCh <- result
@@ -1147,6 +1204,13 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeR
 
 	require.Equal(t, 1, captureDialer.DialCount(), "passthrough 模式应直接建立上游 websocket")
 	require.Len(t, upstreamConn.writes, 1, "passthrough 模式应透传首条 response.create")
+	archiveMu.Lock()
+	events := append([]OpenAIWSArchiveEvent(nil), archiveEvents...)
+	archiveMu.Unlock()
+	requireOpenAIWSArchiveLifecycleOrder(t, events, 1)
+	for _, event := range events {
+		require.Equal(t, "passthrough-corr-1", event.CorrelationRequestID)
+	}
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughHeadersUsePromptCacheAndTurnState(t *testing.T) {
@@ -1340,7 +1404,15 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_HTTPBridgeModeRe
 
 	serverErrCh := make(chan error, 1)
 	resultCh := make(chan *OpenAIForwardResult, 1)
+	var archiveMu sync.Mutex
+	archiveEvents := make([]OpenAIWSArchiveEvent, 0, 8)
 	hooks := &OpenAIWSIngressHooks{
+		TurnCorrelationRequestID: func(turn int) string { return fmt.Sprintf("bridge-corr-%d", turn) },
+		ArchiveEvent: func(event OpenAIWSArchiveEvent) {
+			archiveMu.Lock()
+			archiveEvents = append(archiveEvents, event)
+			archiveMu.Unlock()
+		},
 		AfterTurn: func(_ int, result *OpenAIForwardResult, turnErr error) {
 			if turnErr == nil && result != nil {
 				resultCh <- result
@@ -1440,6 +1512,13 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_HTTPBridgeModeRe
 	require.Equal(t, "true", upstream.lastReq.Header.Get(responsesLiteHeader))
 	require.True(t, gjson.GetBytes(upstream.lastBody, "parallel_tool_calls").Exists())
 	require.False(t, gjson.GetBytes(upstream.lastBody, "parallel_tool_calls").Bool())
+	archiveMu.Lock()
+	events := append([]OpenAIWSArchiveEvent(nil), archiveEvents...)
+	archiveMu.Unlock()
+	requireOpenAIWSArchiveLifecycleOrder(t, events, 1)
+	for _, event := range events {
+		require.Equal(t, "bridge-corr-1", event.CorrelationRequestID)
+	}
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ModeOffReturnsPolicyViolation(t *testing.T) {

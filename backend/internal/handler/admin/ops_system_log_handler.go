@@ -17,16 +17,17 @@ type opsSystemLogCleanupRequest struct {
 	EndTime   string `json:"end_time"`
 	Host      string `json:"host"`
 
-	Level           string `json:"level"`
-	Component       string `json:"component"`
-	RequestID       string `json:"request_id"`
-	ClientRequestID string `json:"client_request_id"`
-	UserID          *int64 `json:"user_id"`
-	APIKeyID        *int64 `json:"api_key_id"`
-	AccountID       *int64 `json:"account_id"`
-	Platform        string `json:"platform"`
-	Model           string `json:"model"`
-	Query           string `json:"q"`
+	Level                string `json:"level"`
+	Component            string `json:"component"`
+	RequestID            string `json:"request_id"`
+	ClientRequestID      string `json:"client_request_id"`
+	CorrelationRequestID string `json:"correlation_request_id"`
+	UserID               *int64 `json:"user_id"`
+	APIKeyID             *int64 `json:"api_key_id"`
+	AccountID            *int64 `json:"account_id"`
+	Platform             string `json:"platform"`
+	Model                string `json:"model"`
+	Query                string `json:"q"`
 }
 
 // ListSystemLogs returns indexed system logs.
@@ -53,18 +54,19 @@ func (h *OpsHandler) ListSystemLogs(c *gin.Context) {
 	}
 
 	filter := &service.OpsSystemLogFilter{
-		Page:            page,
-		PageSize:        pageSize,
-		StartTime:       &start,
-		EndTime:         &end,
-		Host:            strings.TrimSpace(c.Query("host")),
-		Level:           strings.TrimSpace(c.Query("level")),
-		Component:       strings.TrimSpace(c.Query("component")),
-		RequestID:       strings.TrimSpace(c.Query("request_id")),
-		ClientRequestID: strings.TrimSpace(c.Query("client_request_id")),
-		Platform:        strings.TrimSpace(c.Query("platform")),
-		Model:           strings.TrimSpace(c.Query("model")),
-		Query:           strings.TrimSpace(c.Query("q")),
+		Page:                 page,
+		PageSize:             pageSize,
+		StartTime:            &start,
+		EndTime:              &end,
+		Host:                 strings.TrimSpace(c.Query("host")),
+		Level:                strings.TrimSpace(c.Query("level")),
+		Component:            strings.TrimSpace(c.Query("component")),
+		RequestID:            strings.TrimSpace(c.Query("request_id")),
+		ClientRequestID:      strings.TrimSpace(c.Query("client_request_id")),
+		CorrelationRequestID: strings.TrimSpace(c.Query("correlation_request_id")),
+		Platform:             strings.TrimSpace(c.Query("platform")),
+		Model:                strings.TrimSpace(c.Query("model")),
+		Query:                strings.TrimSpace(c.Query("q")),
 	}
 	if v := strings.TrimSpace(c.Query("user_id")); v != "" {
 		id, parseErr := strconv.ParseInt(v, 10, 64)
@@ -153,19 +155,20 @@ func (h *OpsHandler) CleanupSystemLogs(c *gin.Context) {
 	}
 
 	filter := &service.OpsSystemLogCleanupFilter{
-		StartTime:       start,
-		EndTime:         end,
-		Host:            strings.TrimSpace(req.Host),
-		Level:           strings.TrimSpace(req.Level),
-		Component:       strings.TrimSpace(req.Component),
-		RequestID:       strings.TrimSpace(req.RequestID),
-		ClientRequestID: strings.TrimSpace(req.ClientRequestID),
-		UserID:          req.UserID,
-		APIKeyID:        req.APIKeyID,
-		AccountID:       req.AccountID,
-		Platform:        strings.TrimSpace(req.Platform),
-		Model:           strings.TrimSpace(req.Model),
-		Query:           strings.TrimSpace(req.Query),
+		StartTime:            start,
+		EndTime:              end,
+		Host:                 strings.TrimSpace(req.Host),
+		Level:                strings.TrimSpace(req.Level),
+		Component:            strings.TrimSpace(req.Component),
+		RequestID:            strings.TrimSpace(req.RequestID),
+		ClientRequestID:      strings.TrimSpace(req.ClientRequestID),
+		CorrelationRequestID: strings.TrimSpace(req.CorrelationRequestID),
+		UserID:               req.UserID,
+		APIKeyID:             req.APIKeyID,
+		AccountID:            req.AccountID,
+		Platform:             strings.TrimSpace(req.Platform),
+		Model:                strings.TrimSpace(req.Model),
+		Query:                strings.TrimSpace(req.Query),
 	}
 
 	deleted, err := h.opsService.CleanupSystemLogs(c.Request.Context(), filter, subject.UserID)

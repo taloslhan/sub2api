@@ -170,6 +170,39 @@ const metricDefinitions = computed(() => {
       recommendedOperator: '>',
       recommendedThreshold: 10
     },
+    // CAPYBARA-PATCH: Archive fail-open failures use the existing Ops alert rule surface.
+    {
+      type: 'session_archive_queue_dropped',
+      group: 'system',
+      label: t('admin.ops.alertRules.metrics.sessionArchiveQueueDropped'),
+      description: t('admin.ops.alertRules.metricDescriptions.sessionArchiveQueueDropped'),
+      recommendedOperator: '>',
+      recommendedThreshold: 0
+    },
+    {
+      type: 'session_archive_storage_failures',
+      group: 'system',
+      label: t('admin.ops.alertRules.metrics.sessionArchiveStorageFailures'),
+      description: t('admin.ops.alertRules.metricDescriptions.sessionArchiveStorageFailures'),
+      recommendedOperator: '>',
+      recommendedThreshold: 0
+    },
+    {
+      type: 'session_archive_pending_backlog',
+      group: 'system',
+      label: t('admin.ops.alertRules.metrics.sessionArchivePendingBacklog'),
+      description: t('admin.ops.alertRules.metricDescriptions.sessionArchivePendingBacklog'),
+      recommendedOperator: '>',
+      recommendedThreshold: 10
+    },
+    {
+      type: 'session_archive_gc_backlog',
+      group: 'system',
+      label: t('admin.ops.alertRules.metrics.sessionArchiveGcBacklog'),
+      description: t('admin.ops.alertRules.metricDescriptions.sessionArchiveGcBacklog'),
+      recommendedOperator: '>',
+      recommendedThreshold: 10
+    },
 
     // Group-level metrics (requires group_id filter)
     {

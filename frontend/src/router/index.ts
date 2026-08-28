@@ -622,6 +622,19 @@ const routes: RouteRecordRaw[] = [
       requiresRiskControl: true
     }
   },
+  // CAPYBARA-PATCH: Session archive remains routable while capture is disabled so admins can configure it.
+  {
+    path: '/admin/session-archive',
+    name: 'AdminSessionArchive',
+    component: () => import('@/features/session-archive/SessionArchiveView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: true,
+      title: 'Session Archive',
+      titleKey: 'admin.sessionArchive.title',
+      descriptionKey: 'admin.sessionArchive.description'
+    }
+  },
   {
     path: '/admin/usage',
     name: 'AdminUsage',

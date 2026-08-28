@@ -219,6 +219,16 @@ describe('admin UsageView route filters', () => {
     expect(wrapper.find('[data-test="user-filter-label"]').text()).toBe('route-user@test.com')
   })
 
+  it('hydrates correlation_request_id into usage list requests', async () => {
+    routeQuery.correlation_request_id = 'corr-usage-route'
+    mountRouteFilteredUsageView()
+    await flushPromises()
+    expect(list).toHaveBeenCalledWith(
+      expect.objectContaining({ correlation_request_id: 'corr-usage-route' }),
+      expect.anything(),
+    )
+  })
+
   it('does not apply a stale routed user label after user_id changes', async () => {
     routeQuery.user_id = '42'
     let resolveLookup!: (user: { id: number; email: string }) => void

@@ -273,7 +273,9 @@ type UsageLogFilters struct {
 	AccountID int64
 	GroupID   int64
 	RequestID string
-	Model     string
+	// CAPYBARA-PATCH: 与 billing request_id 分离的跨模块精确关联筛选。
+	CorrelationRequestID string
+	Model                string
 	// ModelFilterSource controls how Model is matched. Empty preserves raw usage_logs.model semantics.
 	ModelFilterSource     string
 	RequestType           *int16

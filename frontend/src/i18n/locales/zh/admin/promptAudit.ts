@@ -82,7 +82,7 @@ export default {
       evidence: '脱敏证据',
       score: '分数',
       categories: '分类', model: '模型', stage: '请求阶段', noRisks: '本事件没有派生风险摘要。',
-      requestId: 'Request ID', promptHash: 'Prompt SHA-256',
+      requestId: 'Request ID', correlationRequestId: '关联请求 ID', promptHash: 'Prompt SHA-256',
       technical: {
         scanner: '扫描器', policy: '策略', guardEndpoint: 'Guard 节点', config: '配置版本',
         chunks: '分片数', latency: '耗时', protocol: '协议',

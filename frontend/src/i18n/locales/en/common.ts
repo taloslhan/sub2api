@@ -205,6 +205,8 @@ export default {
     securityAudit: 'Security Audit',
     contentModeration: 'Content Moderation',
     promptAudit: 'Prompt Audit',
+    // CAPYBARA-PATCH: Fixed administrator entry for session archive configuration and review.
+    sessionArchive: 'Session Archive',
     auditLogs: 'Audit Logs',
   },
 

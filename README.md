@@ -681,6 +681,29 @@ takes effect without enabling `mode_router_v2_enabled`. Keep the setting in the
 deployment's persisted `.env` or `config.yaml`, rather than inside a running
 container, so it is read again after an image update or container recreation.
 
+#### Session archive
+
+<!-- CAPYBARA-PATCH: document the private, fail-open session archive boundary. -->
+The built-in session archive is disabled by default. Set `session_archive.enabled`
+only after configuring a private S3-compatible bucket and a persistent 32-byte
+application encryption key, then enable capture through the administrator policy
+page. Policy precedence is API key, user, group, then the global default; the
+default global state remains off.
+
+Each retained request, transformed request, or response is capped at 64 MiB and
+is explicitly marked as truncated when the observed content is larger. Active
+stream captures and queued events share a 256 MiB default process budget. Archive
+failures are fail-open for gateway traffic and are exposed through the admin
+runtime status and Ops alert metrics.
+
+Archive content is gzip-compressed, authenticated-encrypted with the configured
+key ID, and stored under the dedicated private prefix. Keep old key IDs until all
+referencing blobs have expired and completed garbage collection. Full-content
+views, exports, deletes, and policy changes require a human administrator JWT,
+TOTP step-up, and durable access audit. OpenAI Live records only the session,
+SDP, metadata, and visible sideband control frames because media bypasses the
+gateway. See `deploy/config.example.yaml` for all settings and defaults.
+
 #### ⚠️ Important: Creating the Admin Account
 
 The initial admin account is **only created via the setup wizard** (served at `http://<host>:8080` on first run). The `default.admin_email` / `default.admin_password` fields in `config.yaml` are **not used** to create it — they exist in the template for historical reasons.

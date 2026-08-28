@@ -1,9 +1,12 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 )
 
 const (
@@ -107,7 +110,10 @@ type UsageLog struct {
 	APIKeyID  int64
 	AccountID int64
 	RequestID string
-	Model     string
+	// CorrelationRequestID 跨归档、Prompt Audit 与 Ops 使用，不参与计费去重。
+	// CAPYBARA-PATCH: billing RequestID 与关联 ID 双写并保持原唯一约束语义。
+	CorrelationRequestID string
+	Model                string
 	// RequestedModel is the client-requested model name recorded for stable user/admin display.
 	// Empty should be treated as Model for backward compatibility with historical rows.
 	RequestedModel string
@@ -206,6 +212,15 @@ type UsageLog struct {
 	Account      *Account
 	Group        *Group
 	Subscription *UserSubscription
+}
+
+// CorrelationRequestIDFromContext 返回当前 HTTP 请求或 WS 逻辑 Turn 的关联 ID。
+func CorrelationRequestIDFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	value, _ := ctx.Value(ctxkey.CorrelationRequestID).(string)
+	return strings.TrimSpace(value)
 }
 
 func (u *UsageLog) TotalTokens() int {

@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"path"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
@@ -228,6 +229,7 @@ func (s *OpenAIGatewayService) CreateLiveCall(
 			UserAgent:             identity.UserAgent,
 			IPAddress:             identity.IPAddress,
 			InboundEndpoint:       identity.InboundEndpoint,
+			CorrelationRequestID:  CorrelationRequestIDFromContext(ctx),
 			AttestationCiphertext: attestationCiphertext,
 		}
 		mappingTTL := s.liveMaxSessionDuration() + 5*time.Minute
@@ -488,11 +490,36 @@ func (s *OpenAIGatewayService) GetLiveCallForIdentity(
 	return record, nil
 }
 
+type LiveSidebandCaptureEvent struct {
+	OccurredAt           time.Time
+	CorrelationRequestID string
+	Direction            string
+	SequenceNo           int64
+	EventType            string
+	Status               string
+	Error                string
+	Payload              []byte
+}
+
+type LiveSidebandCaptureHook func(LiveSidebandCaptureEvent)
+
+func emitLiveSidebandCapture(hook LiveSidebandCaptureHook, event LiveSidebandCaptureEvent) {
+	if hook == nil {
+		return
+	}
+	if event.OccurredAt.IsZero() {
+		event.OccurredAt = time.Now().UTC()
+	}
+	defer func() { _ = recover() }()
+	hook(event)
+}
+
 // ProxyLiveSideband 让认证后的客户端接管控制连接；媒体始终不经过这里。
 func (s *OpenAIGatewayService) ProxyLiveSideband(
 	ctx context.Context,
 	record *LiveCallRecord,
 	downstream *coderws.Conn,
+	captureHooks ...LiveSidebandCaptureHook,
 ) error {
 	if record == nil || downstream == nil {
 		return ErrLiveCallNotFound
@@ -524,6 +551,13 @@ func (s *OpenAIGatewayService) ProxyLiveSideband(
 	proxyCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	errCh := make(chan error, 2)
+	var clientSequence atomic.Int64
+	var upstreamSequence atomic.Int64
+	var captureHook LiveSidebandCaptureHook
+	if len(captureHooks) > 0 {
+		captureHook = captureHooks[0]
+	}
+	correlationRequestID := CorrelationRequestIDFromContext(ctx)
 	go func() {
 		for {
 			messageType, payload, readErr := downstream.Read(proxyCtx)
@@ -531,6 +565,13 @@ func (s *OpenAIGatewayService) ProxyLiveSideband(
 				errCh <- readErr
 				return
 			}
+			emitLiveSidebandCapture(captureHook, LiveSidebandCaptureEvent{
+				CorrelationRequestID: correlationRequestID,
+				Direction:            "client_to_upstream",
+				SequenceNo:           clientSequence.Add(1),
+				EventType:            strings.TrimSpace(gjson.GetBytes(payload, "type").String()),
+				Payload:              payload,
+			})
 			if writeErr := upstream.WriteFrame(proxyCtx, messageType, payload); writeErr != nil {
 				errCh <- writeErr
 				return
@@ -544,6 +585,13 @@ func (s *OpenAIGatewayService) ProxyLiveSideband(
 				errCh <- liveSidebandReadError(readErr)
 				return
 			}
+			emitLiveSidebandCapture(captureHook, LiveSidebandCaptureEvent{
+				CorrelationRequestID: correlationRequestID,
+				Direction:            "upstream_to_client",
+				SequenceNo:           upstreamSequence.Add(1),
+				EventType:            strings.TrimSpace(gjson.GetBytes(payload, "type").String()),
+				Payload:              payload,
+			})
 			if writeErr := downstream.Write(proxyCtx, messageType, payload); writeErr != nil {
 				errCh <- writeErr
 				return
@@ -833,22 +881,23 @@ func (s *OpenAIGatewayService) finalizeLiveCall(record *LiveCallRecord) {
 	// 这是该会话唯一一次落库机会（MarkLiveCallClosed 已标记 first），失败即永久
 	// 丢失，因此走带日志与同步兜底的 writeUsageLogBestEffort（issue #3656）。
 	writeUsageLogBestEffort(context.Background(), s.usageLogRepo, &UsageLog{
-		UserID:           record.UserID,
-		APIKeyID:         record.APIKeyID,
-		AccountID:        record.AccountID,
-		RequestID:        record.CallHash,
-		Model:            record.Model,
-		RequestedModel:   record.Model,
-		GroupID:          liveOptionalID(record.GroupID),
-		SubscriptionID:   liveOptionalID(record.SubscriptionID),
-		RateMultiplier:   1,
-		BillingType:      billingType,
-		RequestType:      RequestTypeLive,
-		DurationMs:       &duration,
-		UserAgent:        &userAgent,
-		IPAddress:        &ipAddress,
-		InboundEndpoint:  &inboundEndpoint,
-		UpstreamEndpoint: &upstreamEndpoint,
-		CreatedAt:        record.CreatedAt,
+		UserID:               record.UserID,
+		APIKeyID:             record.APIKeyID,
+		AccountID:            record.AccountID,
+		RequestID:            record.CallHash,
+		CorrelationRequestID: record.CorrelationRequestID,
+		Model:                record.Model,
+		RequestedModel:       record.Model,
+		GroupID:              liveOptionalID(record.GroupID),
+		SubscriptionID:       liveOptionalID(record.SubscriptionID),
+		RateMultiplier:       1,
+		BillingType:          billingType,
+		RequestType:          RequestTypeLive,
+		DurationMs:           &duration,
+		UserAgent:            &userAgent,
+		IPAddress:            &ipAddress,
+		InboundEndpoint:      &inboundEndpoint,
+		UpstreamEndpoint:     &upstreamEndpoint,
+		CreatedAt:            record.CreatedAt,
 	}, "service.openai_live")
 }

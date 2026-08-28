@@ -520,6 +520,9 @@ export default {
       group: 'Group',
       requestId: 'Request ID',
       requestIdCopied: 'Request ID copied',
+      // CAPYBARA-PATCH: Cross-module archive lookup.
+      correlationRequestId: 'Correlation request ID',
+      correlationRequestIdPlaceholder: 'Exact correlation request ID',
       allModels: 'All Models',
       allAccounts: 'All Accounts',
       allGroups: 'All Groups',

@@ -975,6 +975,10 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			}
 			eventType := strings.TrimSpace(gjson.GetBytes(payload, "type").String())
 			isResponseCreate := eventType == "response.create"
+			turnNo := int(completedTurns.Load()) + 1
+			if turnNo < 2 {
+				turnNo = 2
+			}
 			responseCreateAt := time.Time{}
 			acceptedTurn := false
 			if isResponseCreate {
@@ -983,6 +987,17 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 					err := errors.New("overlapping response.create is not supported")
 					return payload, nil, NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, err.Error(), err)
 				}
+				// CAPYBARA-PATCH: Observe the accepted turn and untouched client
+				// bytes before any passthrough compatibility/policy mutation.
+				emitOpenAIWSArchiveEvent(hooks, OpenAIWSArchiveEvent{
+					Kind: OpenAIWSArchiveTurnAccepted, Turn: turnNo, AccountID: account.ID,
+					Mode: OpenAIWSIngressModePassthrough, Transport: string(OpenAIUpstreamTransportResponsesWebsocketV2),
+				})
+				emitOpenAIWSArchiveEvent(hooks, OpenAIWSArchiveEvent{
+					Kind: OpenAIWSArchiveRawFrame, Turn: turnNo, AccountID: account.ID,
+					Mode: OpenAIWSIngressModePassthrough, Transport: string(OpenAIUpstreamTransportResponsesWebsocketV2),
+					Direction: "client_to_gateway", Payload: payload,
+				})
 				defer func() {
 					if !acceptedTurn {
 						turnLifecycle.cancelResponseCreate()
@@ -1029,10 +1044,6 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 						payload = capped
 					}
 				}
-			}
-			turnNo := int(completedTurns.Load()) + 1
-			if turnNo < 2 {
-				turnNo = 2
 			}
 			requestModelForThisFrame := ""
 			if isResponseCreate {
@@ -1103,6 +1114,11 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 				responseCreateAtCopy := responseCreateAt
 				acceptedTurnStartedAt.Store(&responseCreateAtCopy)
 				acceptedTurn = true
+				emitOpenAIWSArchiveEvent(hooks, OpenAIWSArchiveEvent{
+					Kind: OpenAIWSArchiveAttempt, Turn: turnNo, AttemptNo: 1, AccountID: account.ID,
+					Mode: OpenAIWSIngressModePassthrough, Transport: string(OpenAIUpstreamTransportResponsesWebsocketV2),
+					Direction: "gateway_to_upstream", Payload: out,
+				})
 			}
 			return out, blocked, policyErr
 		},
@@ -1121,6 +1137,11 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 		},
 	}
 	upstreamFirstMessageSent := false
+	emitOpenAIWSArchiveEvent(hooks, OpenAIWSArchiveEvent{
+		Kind: OpenAIWSArchiveAttempt, Turn: 1, AttemptNo: 1, AccountID: account.ID,
+		Mode: OpenAIWSIngressModePassthrough, Transport: string(OpenAIUpstreamTransportResponsesWebsocketV2),
+		Direction: "gateway_to_upstream", Payload: firstClientMessage,
+	})
 	firstWriteCtx, cancelFirstWrite := context.WithTimeout(ctx, s.openAIWSWriteTimeout())
 	firstWriteErr := relayUpstreamFrameConn.WriteFrame(firstWriteCtx, coderws.MessageText, firstClientMessage)
 	cancelFirstWrite()
@@ -1226,11 +1247,24 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 					turnResult.Usage.OutputTokens,
 					turnResult.Usage.CacheReadInputTokens,
 				)
+				emitOpenAIWSArchiveEvent(hooks, OpenAIWSArchiveEvent{
+					Kind: OpenAIWSArchiveTerminal, Turn: turnNo, AttemptNo: 1, AccountID: account.ID,
+					Mode: OpenAIWSIngressModePassthrough, Transport: string(OpenAIUpstreamTransportResponsesWebsocketV2),
+					Status: "completed", RequestID: strings.TrimSpace(turnResult.RequestID), EventType: strings.TrimSpace(turn.TerminalEventType),
+				})
 				if hooks != nil && hooks.AfterTurn != nil {
 					hooks.AfterTurn(turnNo, turnResult, nil)
 				}
 			},
 			BeforeClientWrite: func(msgType coderws.MessageType, payload []byte) {
+				if msgType == coderws.MessageText || msgType == coderws.MessageBinary {
+					turnNo := int(completedTurns.Load()) + 1
+					emitOpenAIWSArchiveEvent(hooks, OpenAIWSArchiveEvent{
+						Kind: OpenAIWSArchiveDownstream, Turn: turnNo, AccountID: account.ID,
+						Mode: OpenAIWSIngressModePassthrough, Transport: string(OpenAIUpstreamTransportResponsesWebsocketV2),
+						Direction: "gateway_to_client", EventType: strings.TrimSpace(gjson.GetBytes(payload, "type").String()), Payload: payload,
+					})
+				}
 				if msgType == coderws.MessageText && openAIWSPassthroughIsTerminalOutput(payload) {
 					turnLifecycle.beginTerminalWrite()
 				}
@@ -1357,6 +1391,11 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			if hooks.TurnStarted != nil {
 				hooks.TurnStarted(1, time.Now().Add(-result.Duration))
 			}
+			emitOpenAIWSArchiveEvent(hooks, OpenAIWSArchiveEvent{
+				Kind: OpenAIWSArchiveTerminal, Turn: 1, AttemptNo: 1, AccountID: account.ID,
+				Mode: OpenAIWSIngressModePassthrough, Transport: string(OpenAIUpstreamTransportResponsesWebsocketV2),
+				Status: "completed", RequestID: strings.TrimSpace(result.RequestID), EventType: strings.TrimSpace(relayResult.TerminalEventType),
+			})
 			hooks.AfterTurn(1, result, nil)
 		}
 		return nil
@@ -1422,6 +1461,20 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 		relayErr,
 		relayExit.WroteDownstream,
 	)
+	var retryableTurnErr *UpstreamFailoverError
+	if errors.As(turnErr, &retryableTurnErr) {
+		emitOpenAIWSArchiveEvent(hooks, OpenAIWSArchiveEvent{
+			Kind: OpenAIWSArchiveAttempt, Turn: turnCount + 1, AttemptNo: 1, AccountID: account.ID,
+			Mode: OpenAIWSIngressModePassthrough, Transport: string(OpenAIUpstreamTransportResponsesWebsocketV2),
+			Status: "failed", Error: turnErr.Error(),
+		})
+	} else {
+		emitOpenAIWSArchiveEvent(hooks, OpenAIWSArchiveEvent{
+			Kind: OpenAIWSArchiveTerminal, Turn: turnCount + 1, AttemptNo: 1, AccountID: account.ID,
+			Mode: OpenAIWSIngressModePassthrough, Transport: string(OpenAIUpstreamTransportResponsesWebsocketV2),
+			Status: "error", Error: turnErr.Error(),
+		})
+	}
 	if hooks != nil && hooks.AfterTurn != nil {
 		if hooks.TurnStarted != nil {
 			hooks.TurnStarted(turnCount+1, time.Now().Add(-result.Duration))

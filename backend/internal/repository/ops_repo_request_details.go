@@ -60,6 +60,9 @@ func (r *opsRepository) ListRequestDetails(ctx context.Context, filter *service.
 		if requestID := strings.TrimSpace(filter.RequestID); requestID != "" {
 			addCondition(fmt.Sprintf("request_id = $%d", len(args)+1), requestID)
 		}
+		if correlationRequestID := strings.TrimSpace(filter.CorrelationRequestID); correlationRequestID != "" {
+			addCondition(fmt.Sprintf("correlation_request_id = $%d", len(args)+1), correlationRequestID)
+		}
 		if q := strings.TrimSpace(filter.Query); q != "" {
 			like := "%" + strings.ToLower(q) + "%"
 			startIdx := len(args) + 1
@@ -90,6 +93,7 @@ WITH combined AS (
     'success'::TEXT AS kind,
     ul.created_at AS created_at,
     ul.request_id AS request_id,
+    COALESCE(ul.correlation_request_id, '') AS correlation_request_id,
     COALESCE(NULLIF(g.platform, ''), NULLIF(a.platform, ''), '') AS platform,
     ul.model AS model,
     ul.duration_ms AS duration_ms,
@@ -114,6 +118,7 @@ WITH combined AS (
     'error'::TEXT AS kind,
     o.created_at AS created_at,
     COALESCE(NULLIF(o.request_id,''), NULLIF(o.client_request_id,''), '') AS request_id,
+    COALESCE(o.correlation_request_id, '') AS correlation_request_id,
     COALESCE(NULLIF(o.platform, ''), NULLIF(g.platform, ''), NULLIF(a.platform, ''), '') AS platform,
     o.model AS model,
     o.duration_ms AS duration_ms,
@@ -163,6 +168,7 @@ SELECT
   kind,
   created_at,
   request_id,
+  correlation_request_id,
   platform,
   model,
   duration_ms,
@@ -207,11 +213,12 @@ LIMIT $%d OFFSET $%d
 	out := make([]*service.OpsRequestDetail, 0, pageSize)
 	for rows.Next() {
 		var (
-			kind      string
-			createdAt time.Time
-			requestID sql.NullString
-			platform  sql.NullString
-			model     sql.NullString
+			kind                 string
+			createdAt            time.Time
+			requestID            sql.NullString
+			correlationRequestID sql.NullString
+			platform             sql.NullString
+			model                sql.NullString
 
 			durationMs sql.NullInt64
 			statusCode sql.NullInt64
@@ -233,6 +240,7 @@ LIMIT $%d OFFSET $%d
 			&kind,
 			&createdAt,
 			&requestID,
+			&correlationRequestID,
 			&platform,
 			&model,
 			&durationMs,
@@ -251,11 +259,12 @@ LIMIT $%d OFFSET $%d
 		}
 
 		item := &service.OpsRequestDetail{
-			Kind:      service.OpsRequestKind(kind),
-			CreatedAt: createdAt,
-			RequestID: strings.TrimSpace(requestID.String),
-			Platform:  strings.TrimSpace(platform.String),
-			Model:     strings.TrimSpace(model.String),
+			Kind:                 service.OpsRequestKind(kind),
+			CreatedAt:            createdAt,
+			RequestID:            strings.TrimSpace(requestID.String),
+			CorrelationRequestID: strings.TrimSpace(correlationRequestID.String),
+			Platform:             strings.TrimSpace(platform.String),
+			Model:                strings.TrimSpace(model.String),
 
 			DurationMs: toIntPtr(durationMs),
 			StatusCode: toIntPtr(statusCode),

@@ -117,6 +117,8 @@ func (h *OpsHandler) GetErrorLogs(c *gin.Context) {
 	filter.Source = strings.TrimSpace(c.Query("error_source"))
 	filter.Query = strings.TrimSpace(c.Query("q"))
 	filter.UserQuery = strings.TrimSpace(c.Query("user_query"))
+	// CAPYBARA-PATCH: 归档关联跳转使用独立精确键，不复用 billing/upstream request_id。
+	filter.CorrelationRequestID = strings.TrimSpace(c.Query("correlation_request_id"))
 	// Model 过滤：admin 走精确匹配（ModelFuzzy 默认 false，保持管理端语义）。
 	// buildOpsErrorLogsWhere 以 COALESCE(requested_model, model) 比对。
 	filter.Model = strings.TrimSpace(c.Query("model"))
@@ -246,6 +248,7 @@ func (h *OpsHandler) ListRequestErrors(c *gin.Context) {
 	filter.Source = strings.TrimSpace(c.Query("error_source"))
 	filter.Query = strings.TrimSpace(c.Query("q"))
 	filter.UserQuery = strings.TrimSpace(c.Query("user_query"))
+	filter.CorrelationRequestID = strings.TrimSpace(c.Query("correlation_request_id"))
 	// Model 过滤：admin 走精确匹配（ModelFuzzy 默认 false，保持管理端语义）。
 	// buildOpsErrorLogsWhere 以 COALESCE(requested_model, model) 比对。
 	filter.Model = strings.TrimSpace(c.Query("model"))
@@ -357,10 +360,11 @@ func (h *OpsHandler) ListRequestErrorUpstreamErrors(c *gin.Context) {
 		return
 	}
 
-	// Correlate by request_id/client_request_id.
+	// Correlate by the dedicated key first, then legacy request_id/client_request_id.
+	correlationRequestID := strings.TrimSpace(detail.CorrelationRequestID)
 	requestID := strings.TrimSpace(detail.RequestID)
 	clientRequestID := strings.TrimSpace(detail.ClientRequestID)
-	if requestID == "" && clientRequestID == "" {
+	if correlationRequestID == "" && requestID == "" && clientRequestID == "" {
 		response.Paginated(c, []*service.OpsErrorLog{}, 0, 1, 10)
 		return
 	}
@@ -398,7 +402,9 @@ func (h *OpsHandler) ListRequestErrorUpstreamErrors(c *gin.Context) {
 	}
 
 	// Prefer exact match on request_id; if missing, fall back to client_request_id.
-	if requestID != "" {
+	if correlationRequestID != "" {
+		filter.CorrelationRequestID = correlationRequestID
+	} else if requestID != "" {
 		filter.RequestID = requestID
 	} else {
 		filter.ClientRequestID = clientRequestID
@@ -470,6 +476,7 @@ func (h *OpsHandler) ListUpstreamErrors(c *gin.Context) {
 	}
 
 	filter.View = parseOpsViewParam(c)
+	filter.CorrelationRequestID = strings.TrimSpace(c.Query("correlation_request_id"))
 	filter.ErrorPhasesAny = []string{"upstream", "account_auth"}
 	// Provider-health list includes recovered inference and credential rows.
 	filter.IncludeRecoveredUpstream = true
@@ -586,6 +593,7 @@ func (h *OpsHandler) ListRequestDetails(c *gin.Context) {
 	filter.Platform = strings.TrimSpace(c.Query("platform"))
 	filter.Model = strings.TrimSpace(c.Query("model"))
 	filter.RequestID = strings.TrimSpace(c.Query("request_id"))
+	filter.CorrelationRequestID = strings.TrimSpace(c.Query("correlation_request_id"))
 	filter.Query = strings.TrimSpace(c.Query("q"))
 	filter.Sort = strings.TrimSpace(c.Query("sort"))
 

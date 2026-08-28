@@ -63,6 +63,17 @@ const usageLogsEffectiveModelIndexesMigration = "226_add_usage_log_effective_mod
 const usageLogsEffectiveRequestedModelIndex = "idx_usage_logs_effective_requested_model_created"
 const usageLogsEffectiveUpstreamModelIndex = "idx_usage_logs_effective_upstream_model_created"
 
+// CAPYBARA-PATCH: 会话归档关联索引在高写入表上并发创建；启动重试前必须清理 invalid 索引。
+const sessionArchiveCorrelationIndexesMigration = "233_session_archive_correlation_indexes_notx.sql"
+
+var sessionArchiveCorrelationIndexes = []string{
+	"idx_usage_logs_correlation_request_id",
+	"idx_prompt_audit_jobs_correlation_request_id",
+	"idx_prompt_audit_events_correlation_request_id",
+	"idx_ops_error_logs_correlation_request_id",
+	"idx_ops_system_logs_correlation_request_id",
+}
+
 type migrationChecksumCompatibilityRule struct {
 	fileChecksum       string
 	acceptedDBChecksum map[string]struct{}
@@ -300,6 +311,13 @@ func prepareNonTransactionalMigration(ctx context.Context, db migrationConnectio
 		return dropInvalidIndexIfPresent(ctx, db, usageLogsUpstreamModelMismatchIndex)
 	case usageLogsEffectiveModelIndexesMigration:
 		for _, indexName := range []string{usageLogsEffectiveRequestedModelIndex, usageLogsEffectiveUpstreamModelIndex} {
+			if err := dropInvalidIndexIfPresent(ctx, db, indexName); err != nil {
+				return err
+			}
+		}
+		return nil
+	case sessionArchiveCorrelationIndexesMigration:
+		for _, indexName := range sessionArchiveCorrelationIndexes {
 			if err := dropInvalidIndexIfPresent(ctx, db, indexName); err != nil {
 				return err
 			}

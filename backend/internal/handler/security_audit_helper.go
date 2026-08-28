@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"crypto/sha256"
 	"net/http"
 	"strings"
@@ -65,9 +66,28 @@ func (h *OpenAIGatewayHandler) checkSecurityAuditStage(c *gin.Context, reqLog *z
 	return runSecurityAudit(c, reqLog, h.securityAuditCoordinator, h.contentModerationService, apiKey, subject, protocol, model, body, stage)
 }
 
+// checkSecurityAuditStageContext lets a long-lived WebSocket attach a logical
+// turn context without mutating gin.Request concurrently with relay goroutines.
+func (h *OpenAIGatewayHandler) checkSecurityAuditStageContext(ctx context.Context, c *gin.Context, reqLog *zap.Logger, apiKey *service.APIKey, subject middleware2.AuthSubject, protocol, model string, body []byte, stage string) *securityaudit.Decision {
+	if h == nil {
+		return nil
+	}
+	return runSecurityAuditContext(ctx, c, reqLog, h.securityAuditCoordinator, h.contentModerationService, apiKey, subject, protocol, model, body, stage)
+}
+
 func runSecurityAudit(c *gin.Context, reqLog *zap.Logger, coordinator *securityaudit.Coordinator, legacy *service.ContentModerationService, apiKey *service.APIKey, subject middleware2.AuthSubject, protocol, model string, body []byte, stage string) *securityaudit.Decision {
 	if c == nil || c.Request == nil {
 		return nil
+	}
+	return runSecurityAuditContext(c.Request.Context(), c, reqLog, coordinator, legacy, apiKey, subject, protocol, model, body, stage)
+}
+
+func runSecurityAuditContext(ctx context.Context, c *gin.Context, reqLog *zap.Logger, coordinator *securityaudit.Coordinator, legacy *service.ContentModerationService, apiKey *service.APIKey, subject middleware2.AuthSubject, protocol, model string, body []byte, stage string) *securityaudit.Decision {
+	if c == nil || c.Request == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = c.Request.Context()
 	}
 	cacheCompletion := cachesSecurityAuditCompletion(stage)
 	if cacheCompletion {
@@ -94,7 +114,7 @@ func runSecurityAudit(c *gin.Context, reqLog *zap.Logger, coordinator *securitya
 		}
 		return &decision
 	}
-	request := buildSecurityAuditRequest(c, apiKey, subject, protocol, model, body, stage)
+	request := buildSecurityAuditRequest(ctx, c, apiKey, subject, protocol, model, body, stage)
 	if isSecurityAuditWebSocketStage(request.Stage) {
 		if turnNo, ok := securityAuditWSTurn(c); ok {
 			bodyHash := sha256.Sum256(body)
@@ -107,7 +127,7 @@ func runSecurityAudit(c *gin.Context, reqLog *zap.Logger, coordinator *securitya
 				}
 			}
 			logSecurityAuditStart(reqLog, request, len(body), false)
-			decision := coordinator.Check(c.Request.Context(), request)
+			decision := coordinator.Check(ctx, request)
 			if decision.Kind == securityaudit.DecisionAllow {
 				c.Set(securityAuditWSDedupeContextKey, securityAuditWSDedupeEntry{
 					stage: request.Stage, turn: turnNo, bodyHash: bodyHash, decision: decision,
@@ -118,7 +138,7 @@ func runSecurityAudit(c *gin.Context, reqLog *zap.Logger, coordinator *securitya
 		}
 	}
 	logSecurityAuditStart(reqLog, request, len(body), false)
-	decision := coordinator.Check(c.Request.Context(), request)
+	decision := coordinator.Check(ctx, request)
 	if decision.AllowNextStage && cacheCompletion {
 		c.Set(securityAuditCompletedContextKey, true)
 	}
@@ -157,11 +177,13 @@ func securityAuditWSTurn(c *gin.Context) (int, bool) {
 	return turnNo, ok
 }
 
-func buildSecurityAuditRequest(c *gin.Context, apiKey *service.APIKey, subject middleware2.AuthSubject, protocol, model string, body []byte, stage string) securityaudit.Request {
+func buildSecurityAuditRequest(ctx context.Context, c *gin.Context, apiKey *service.APIKey, subject middleware2.AuthSubject, protocol, model string, body []byte, stage string) securityaudit.Request {
 	legacy := buildContentModerationInput(c, apiKey, subject, protocol, model, body)
 	request := securityaudit.Request{
 		RequestID: legacy.RequestID, UserID: legacy.UserID, UserEmail: legacy.UserEmail,
-		APIKeyID: legacy.APIKeyID, APIKeyName: legacy.APIKeyName, GroupID: cloneSecurityAuditGroupID(legacy.GroupID),
+		// CAPYBARA-PATCH: Prompt Audit 与计费 request_id 分离双写；WS Turn 可覆写 context 值。
+		CorrelationRequestID: service.CorrelationRequestIDFromContext(ctx),
+		APIKeyID:             legacy.APIKeyID, APIKeyName: legacy.APIKeyName, GroupID: cloneSecurityAuditGroupID(legacy.GroupID),
 		GroupName: legacy.GroupName, Provider: legacy.Provider, Endpoint: legacy.Endpoint,
 		Protocol: legacy.Protocol, Model: legacy.Model, Body: body, Stage: strings.TrimSpace(stage),
 	}

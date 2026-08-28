@@ -7,6 +7,7 @@ import (
 	"testing/fstest"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
+	"github.com/Wei-Shaw/sub2api/migrations"
 	"github.com/stretchr/testify/require"
 )
 
@@ -49,6 +50,32 @@ DROP INDEX CONCURRENTLY IF EXISTS idx_b;
 		require.True(t, nonTx)
 		require.NoError(t, err)
 	})
+}
+
+func TestPrepareNonTransactionalMigration_SessionArchiveDropsEveryInvalidIndex(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = db.Close() }()
+
+	for i, name := range sessionArchiveCorrelationIndexes {
+		mock.ExpectQuery("SELECT EXISTS \\(").WithArgs(name).
+			WillReturnRows(sqlmock.NewRows([]string{"exists"}).AddRow(i == 2))
+		if i == 2 {
+			mock.ExpectExec("DROP INDEX CONCURRENTLY IF EXISTS " + name).
+				WillReturnResult(sqlmock.NewResult(0, 0))
+		}
+	}
+
+	require.NoError(t, prepareNonTransactionalMigration(context.Background(), db, sessionArchiveCorrelationIndexesMigration))
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSessionArchiveCorrelationMigrationExecutionMode(t *testing.T) {
+	content, err := migrations.FS.ReadFile(sessionArchiveCorrelationIndexesMigration)
+	require.NoError(t, err)
+	nonTx, err := validateMigrationExecutionMode(sessionArchiveCorrelationIndexesMigration, string(content))
+	require.NoError(t, err)
+	require.True(t, nonTx)
 }
 
 func TestApplyMigrationsFS_NonTransactionalMigration(t *testing.T) {

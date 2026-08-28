@@ -15,6 +15,8 @@ interface Props {
   platform?: string
   groupId?: number | null
   errorType: 'request' | 'upstream'
+  /** CAPYBARA-PATCH: Exact cross-module association filter from route hydration. */
+  correlationRequestId?: string
   resumeState?: boolean
 }
 
@@ -129,6 +131,7 @@ async function fetchErrorLogs() {
     if (typeof props.groupId === 'number' && props.groupId > 0) params.group_id = props.groupId
 
     if (q.value.trim()) params.q = q.value.trim()
+    if (props.correlationRequestId?.trim()) params.correlation_request_id = props.correlationRequestId.trim()
     if (statusCode.value === 'other') params.status_codes_other = '1'
     else if (typeof statusCode.value === 'number') params.status_codes = String(statusCode.value)
 
@@ -176,7 +179,7 @@ watch(
 )
 
 watch(
-  () => [props.timeRange, props.customStartTime, props.customEndTime, props.platform, props.groupId] as const,
+  () => [props.timeRange, props.customStartTime, props.customEndTime, props.platform, props.groupId, props.correlationRequestId] as const,
   () => {
     if (!props.show) return
     page.value = 1
@@ -218,6 +221,9 @@ watch(
 <template>
   <BaseDialog :show="show" :title="modalTitle" width="full" @close="close">
     <div class="flex h-full min-h-0 flex-col">
+      <div v-if="correlationRequestId" class="mb-3 flex-shrink-0 rounded-lg bg-primary-50 px-3 py-2 font-mono text-xs text-primary-700 dark:bg-primary-950/30 dark:text-primary-300">
+        {{ t('admin.ops.errorDetails.correlationFilter') }}: {{ correlationRequestId }}
+      </div>
       <!-- Filters -->
       <div class="mb-4 flex-shrink-0 border-b border-gray-200 pb-4 dark:border-dark-700">
         <div class="grid grid-cols-2 gap-2 md:grid-cols-8">

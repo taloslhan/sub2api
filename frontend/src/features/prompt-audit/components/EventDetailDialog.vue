@@ -60,6 +60,16 @@
 
         <dl v-show="activeTab === 'technical'" class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2 text-sm" role="tabpanel">
           <dt class="text-gray-500">{{ t('admin.promptAudit.events.requestId') }}</dt><dd class="break-all font-mono">{{ event.snapshot.request_id || '—' }}</dd>
+          <!-- CAPYBARA-PATCH: Cross-module association does not reuse the billing request ID. -->
+          <dt class="text-gray-500">{{ t('admin.promptAudit.events.correlationRequestId') }}</dt>
+          <dd class="break-all font-mono">
+            <RouterLink
+              v-if="event.snapshot.correlation_request_id"
+              class="text-primary-600 hover:underline dark:text-primary-400"
+              :to="{ path: '/admin/session-archive', query: { correlation_request_id: event.snapshot.correlation_request_id } }"
+            >{{ event.snapshot.correlation_request_id }}</RouterLink>
+            <span v-else>—</span>
+          </dd>
           <dt class="text-gray-500">{{ t('admin.promptAudit.events.promptHash') }}</dt><dd class="break-all font-mono">{{ event.snapshot.prompt_hash }}</dd>
           <dt class="text-gray-500">{{ t('admin.promptAudit.events.technical.scanner') }}</dt><dd>{{ event.scanner_backend }} · {{ event.scanner_version }}</dd>
           <dt class="text-gray-500">{{ t('admin.promptAudit.events.technical.policy') }}</dt><dd>{{ event.policy_id }} · v{{ event.policy_version }}</dd>

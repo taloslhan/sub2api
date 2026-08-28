@@ -15,9 +15,10 @@ const (
 // OpsRequestDetail is a request-level view across success (usage_logs) and error (ops_error_logs).
 // It powers "request drilldown" UIs without exposing full request bodies for successful requests.
 type OpsRequestDetail struct {
-	Kind      OpsRequestKind `json:"kind"`
-	CreatedAt time.Time      `json:"created_at"`
-	RequestID string         `json:"request_id"`
+	Kind                 OpsRequestKind `json:"kind"`
+	CreatedAt            time.Time      `json:"created_at"`
+	RequestID            string         `json:"request_id"`
+	CorrelationRequestID string         `json:"correlation_request_id,omitempty"`
 
 	Platform string `json:"platform,omitempty"`
 	Model    string `json:"model,omitempty"`
@@ -54,9 +55,10 @@ type OpsRequestDetailFilter struct {
 	APIKeyID  *int64
 	AccountID *int64
 
-	Model     string
-	RequestID string
-	Query     string
+	Model                string
+	RequestID            string
+	CorrelationRequestID string
+	Query                string
 
 	MinDurationMs *int
 	MaxDurationMs *int

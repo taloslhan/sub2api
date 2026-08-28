@@ -120,6 +120,8 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 		h.responsesSecurityAuditError(c, decision)
 		return
 	}
+	finishArchive := beginSessionArchiveHTTP(h.sessionArchive, c, apiKey, subject.UserID, service.ContentModerationProtocolOpenAIResponses, reqModel, body)
+	defer finishArchive()
 
 	// Error passthrough binding
 	if h.errorPassthroughService != nil {
@@ -275,6 +277,7 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 		} else {
 			result, err = h.gatewayService.ForwardAsResponses(requestCtx, c, account, forwardBody, parsedReq)
 		}
+		service.FinalizeLatestHTTPUpstreamAttempt(requestCtx, err)
 
 		if accountReleaseFunc != nil {
 			accountReleaseFunc()

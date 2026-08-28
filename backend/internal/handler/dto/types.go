@@ -483,7 +483,9 @@ type UsageLog struct {
 	APIKeyID  int64  `json:"api_key_id"`
 	AccountID int64  `json:"account_id"`
 	RequestID string `json:"request_id"`
-	Model     string `json:"model"`
+	// CAPYBARA-PATCH: 不改变 request_id 计费语义的跨模块关联键。
+	CorrelationRequestID string `json:"correlation_request_id,omitempty"`
+	Model                string `json:"model"`
 	// ServiceTier records the OpenAI service tier used for billing, e.g. "priority" / "flex".
 	ServiceTier *string `json:"service_tier,omitempty"`
 	// ReasoningEffort is the request's reasoning effort level.

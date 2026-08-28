@@ -121,7 +121,12 @@ func TestPromptAuditAdminRoutesRejectUnauthenticatedAndNonAdminRequests(t *testi
 	})
 	auditLog := servermiddleware.AuditLogMiddleware(func(c *gin.Context) { c.Next() })
 	stepUp := servermiddleware.StepUpAuthMiddleware(func(c *gin.Context) { c.Next() })
-	RegisterAdminRoutes(router.Group("/api/v1"), handlers, adminAuth, auditLog, stepUp, nil, nil)
+	alwaysStepUp := servermiddleware.AlwaysStepUpAuthMiddleware(func(c *gin.Context) { c.Next() })
+	requiredAudit := servermiddleware.RequiredAuditMiddleware(func(string) gin.HandlerFunc {
+		return func(c *gin.Context) { c.Next() }
+	})
+	// CAPYBARA-PATCH: 管理路由测试显式装配强制 step-up 与必要审计类型。
+	RegisterAdminRoutes(router.Group("/api/v1"), handlers, adminAuth, auditLog, stepUp, alwaysStepUp, requiredAudit, nil, nil, func(c *gin.Context) { c.Next() })
 
 	for _, tc := range []struct {
 		name       string

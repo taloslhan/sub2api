@@ -3,6 +3,7 @@ package middleware
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -144,6 +145,84 @@ func TestPromptAuditMutationAuditRoutesHaveStableActionsAndOmitBodies(t *testing
 		_, omitted := auditBodyOmittedRoutes[route]
 		require.Truef(t, omitted, "%s must not persist its credential or confirmation-bearing body", route)
 	}
+}
+
+func TestSessionArchiveRequiredAuditRecordsActorWithoutSensitiveMaterial(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	repository := &auditCaptureRepository{}
+	auditService := service.NewAuditLogService(repository, nil)
+	requiredAudit := NewSessionArchiveRequiredAudit(auditService)
+
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set(string(ContextKeyUser), AuthSubject{UserID: 77})
+		c.Set(string(ContextKeyUserRole), service.RoleAdmin)
+		c.Set(ContextKeyAuthEmail, "admin@example.test")
+		c.Set("auth_method", service.AuditAuthMethodJWT)
+		c.Next()
+	})
+	router.Use(BindSessionArchiveRequiredAuditActor())
+	router.GET("/api/v1/admin/session-archive/requests/:id/content", func(c *gin.Context) {
+		err := requiredAudit(c.Request.Context(), "session_archive.content.read", "request:8:raw", map[string]any{
+			"request_id": int64(8), "kind": "raw", "stored_bytes": int64(16),
+			"ticket": "audit-canary-ticket", "body": "audit-canary-body", "authorization": "audit-canary-credential",
+		})
+		require.NoError(t, err)
+		c.Status(http.StatusNoContent)
+	})
+
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/admin/session-archive/requests/8/content?kind=raw", nil)
+	request.Header.Set("Authorization", "Bearer audit-canary-credential")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	require.Equal(t, http.StatusNoContent, response.Code)
+
+	repository.mu.Lock()
+	logs := append([]*service.AuditLog(nil), repository.logs...)
+	repository.mu.Unlock()
+	require.Len(t, logs, 1)
+	entry := logs[0]
+	require.NotNil(t, entry.ActorUserID)
+	require.EqualValues(t, 77, *entry.ActorUserID)
+	require.Equal(t, service.RoleAdmin, entry.ActorRole)
+	require.Equal(t, service.AuditAuthMethodJWT, entry.AuthMethod)
+	require.Equal(t, "/api/v1/admin/session-archive/requests/:id/content", entry.Path)
+	require.Equal(t, "request:8:raw", entry.Extra["target"])
+	require.NotContains(t, entry.Extra, "ticket")
+	require.NotContains(t, entry.Extra, "body")
+	require.NotContains(t, entry.Extra, "authorization")
+	require.Empty(t, entry.RequestBody)
+	require.Empty(t, entry.CredentialMasked)
+	encoded, err := json.Marshal(entry)
+	require.NoError(t, err)
+	require.NotContains(t, string(encoded), "audit-canary")
+}
+
+func TestSessionArchiveDownloadAuditUsesTicketIssuerWithoutRecordingTicket(t *testing.T) {
+	repository := &auditCaptureRepository{}
+	auditService := service.NewAuditLogService(repository, nil)
+	requiredAudit := NewSessionArchiveRequiredAudit(auditService)
+	ctx := service.WithSessionBinding(context.Background(), &service.SessionBinding{IP: "203.0.113.20", UserAgent: "archive-test"})
+
+	err := requiredAudit(ctx, "session_archive.export.consume", "admin:42", map[string]any{
+		"format": "archive", "matched_sessions": 3, "ticket": "audit-canary-ticket",
+	})
+	require.NoError(t, err)
+
+	repository.mu.Lock()
+	logs := append([]*service.AuditLog(nil), repository.logs...)
+	repository.mu.Unlock()
+	require.Len(t, logs, 1)
+	entry := logs[0]
+	require.NotNil(t, entry.ActorUserID)
+	require.EqualValues(t, 42, *entry.ActorUserID)
+	require.Equal(t, "export_ticket", entry.AuthMethod)
+	require.Equal(t, "/api/v1/session-archive/download/:ticket", entry.Path)
+	require.Equal(t, "admin:42", entry.Extra["target"])
+	require.NotContains(t, entry.Extra, "ticket")
+	encoded, err := json.Marshal(entry)
+	require.NoError(t, err)
+	require.NotContains(t, string(encoded), "audit-canary-ticket")
 }
 
 func TestPasskeyLoginAuditUsesCanonicalLoginActionAndOmitsCredentialBody(t *testing.T) {

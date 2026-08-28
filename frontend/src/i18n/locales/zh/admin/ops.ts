@@ -300,6 +300,7 @@ export default {
           internal: '内部'
         },
         total: '总计：',
+        correlationFilter: '关联请求 ID',
         searchPlaceholder: '搜索 request_id / client_request_id / message'
       },
       // Error Detail Modal
@@ -337,6 +338,7 @@ export default {
         },
         loading: '加载中…',
         requestId: '请求 ID',
+        correlationRequestId: '关联请求 ID',
         time: '时间',
         phase: '阶段',
         status: '状态码',
@@ -507,7 +509,11 @@ export default {
           accountErrorCount: '错误账号数（不含临时不可调度）',
           accountErrorRatio: '错误账号比例 (%)',
           accountTempUnscheduledCount: '临时不可调度账号数',
-          overloadAccountCount: '过载账号数'
+          overloadAccountCount: '过载账号数',
+          sessionArchiveQueueDropped: '会话归档队列丢弃数',
+          sessionArchiveStorageFailures: '会话归档存储失败数',
+          sessionArchivePendingBacklog: '会话归档 Pending 积压',
+          sessionArchiveGcBacklog: '会话归档 GC 积压'
         },
         metricDescriptions: {
           successRate: '统计窗口内成功请求占比（0~100）。',
@@ -525,7 +531,11 @@ export default {
           accountErrorCount: '统计窗口内产生错误的账号数量（不含临时不可调度）。',
           accountErrorRatio: '统计窗口内错误账号占比（0~100）。',
           accountTempUnscheduledCount: '当前处于临时不可调度状态的账号数量（如代理/凭据故障被自动摘除）。',
-          overloadAccountCount: '统计窗口内过载账号数量。'
+          overloadAccountCount: '统计窗口内过载账号数量。',
+          sessionArchiveQueueDropped: '统计窗口内因有界队列饱和而丢弃的归档采集事件数。',
+          sessionArchiveStorageFailures: '统计窗口内归档数据库、加密或私有对象存储失败数。',
+          sessionArchivePendingBacklog: '长期处于 Pending、等待补偿的归档上传数量。',
+          sessionArchiveGcBacklog: '等待垃圾回收的归档 CAS Blob 数量。'
         },
         hints: {
           recommended: '推荐：运算符 {operator}，阈值 {threshold}{unit}',

@@ -7,6 +7,8 @@ import settings from './settings'
 import audit from './audit'
 import promptAudit from './promptAudit'
 import plugins from './plugins'
+// CAPYBARA-PATCH: Session archive has an isolated locale namespace.
+import sessionArchive from './sessionArchive'
 
 export default {
   ...overview,
@@ -18,4 +20,5 @@ export default {
   ...audit,
   ...promptAudit,
   ...plugins,
+  ...sessionArchive,
 }

@@ -62,6 +62,20 @@ func initMiddlewareTestLoggerWithLevel(t *testing.T, level string) *testLogSink 
 	return sink
 }
 
+func TestRequestLogPathRedactsSessionArchiveTicket(t *testing.T) {
+	const ticket = "audit-canary-export-ticket"
+	requirePath := requestLogPath("/api/v1/session-archive/download/" + ticket)
+	if requirePath != "/api/v1/session-archive/download/:ticket" {
+		t.Fatalf("path=%q", requirePath)
+	}
+	if strings.Contains(requirePath, ticket) {
+		t.Fatalf("ticket leaked into request log path: %q", requirePath)
+	}
+	if got := requestLogPath("/api/v1/admin/session-archive/runtime"); got != "/api/v1/admin/session-archive/runtime" {
+		t.Fatalf("unrelated path changed: %q", got)
+	}
+}
+
 func TestRequestLogger_GenerateAndPropagateRequestID(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()

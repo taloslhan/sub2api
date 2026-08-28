@@ -168,6 +168,18 @@
           <Select v-model="filters.group_id" :options="groupOptions" searchable @change="emitChange" />
         </div>
 
+        <!-- CAPYBARA-PATCH: Exact correlation lookup is distinct from billing request_id. -->
+        <div v-if="mode === 'usage'" class="w-full sm:w-auto sm:min-w-[260px]">
+          <label class="input-label">{{ t('admin.usage.correlationRequestId') }}</label>
+          <input
+            v-model.trim="filters.correlation_request_id"
+            type="text"
+            class="input font-mono text-xs"
+            :placeholder="t('admin.usage.correlationRequestIdPlaceholder')"
+            @change="emitChange"
+          />
+        </div>
+
       </div>
 
       <!-- Right: actions -->

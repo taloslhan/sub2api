@@ -688,6 +688,11 @@ export type MetricType =
   | 'account_error_ratio'
   | 'account_temp_unscheduled_count'
   | 'overload_account_count'
+  // CAPYBARA-PATCH: Session archive health participates in the existing Ops alert evaluator.
+  | 'session_archive_queue_dropped'
+  | 'session_archive_storage_failures'
+  | 'session_archive_pending_backlog'
+  | 'session_archive_gc_backlog'
 export type Operator = '>' | '>=' | '<' | '<=' | '==' | '!='
 
 export interface AlertRule {
@@ -910,6 +915,8 @@ export interface OpsErrorLog {
 
   client_request_id: string
   request_id: string
+  // CAPYBARA-PATCH: Stable association with archive, usage, and Prompt Audit.
+  correlation_request_id?: string
   message: string
 
   user_id?: number | null
@@ -1092,6 +1099,7 @@ export type OpsErrorListQueryParams = {
   account_id?: number | null
   user_id?: number
   api_key_id?: number
+  correlation_request_id?: string
   // 模型过滤：后端以 COALESCE(requested_model, model) 精确匹配（admin 路径）。
   model?: string
 

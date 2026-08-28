@@ -40,6 +40,8 @@
       <FilterInput v-model="localFilters.user_id" :label="t('admin.promptAudit.events.userId')" type="number" @change="filtersChanged" />
       <FilterInput v-model="localFilters.api_key_id" :label="t('admin.promptAudit.events.apiKeyId')" type="number" @change="filtersChanged" />
       <FilterInput v-model="localFilters.request_id" :label="t('admin.promptAudit.events.requestId')" @change="filtersChanged" />
+      <!-- CAPYBARA-PATCH: Correlation ID hydrates deep links from session archive and other admin views. -->
+      <FilterInput v-model="localFilters.correlation_request_id" :label="t('admin.promptAudit.events.correlationRequestId')" @change="filtersChanged" />
       <FilterInput v-model="localFilters.prompt_hash" :label="t('admin.promptAudit.events.promptHash')" @change="filtersChanged" />
       <FilterInput v-model="localFilters.keyword" :label="t('admin.promptAudit.events.keyword')" @change="filtersChanged" />
       <label class="text-xs text-gray-600 dark:text-dark-200">
@@ -93,6 +95,11 @@
             <td class="max-w-xs px-3 py-3"><p class="line-clamp-2 break-words text-gray-600 dark:text-dark-300">{{ event.snapshot.redacted_preview || '—' }}</p></td>
             <td class="whitespace-nowrap px-3 py-3 text-right">
               <button type="button" class="btn btn-ghost btn-sm" @click="$emit('view', event.id)">{{ t('common.view') }}</button>
+              <RouterLink
+                v-if="event.snapshot.correlation_request_id"
+                class="btn btn-ghost btn-sm"
+                :to="{ path: '/admin/session-archive', query: { correlation_request_id: event.snapshot.correlation_request_id } }"
+              >{{ t('admin.sessionArchive.actions.viewArchive') }}</RouterLink>
               <button type="button" class="btn btn-ghost btn-sm text-red-600" @click="$emit('delete', event.id)">{{ t('common.delete') }}</button>
             </td>
           </tr>

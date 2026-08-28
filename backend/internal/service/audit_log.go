@@ -60,6 +60,38 @@ type AuditLog struct {
 	Extra            map[string]any `json:"extra,omitempty"`
 }
 
+// RequiredAuditActor 是同步必要审计所需的最小真人身份与请求元数据快照。
+// 它只进入 request context，不包含 Authorization、Cookie 或其他凭据。
+type RequiredAuditActor struct {
+	UserID     int64
+	Email      string
+	Role       string
+	AuthMethod string
+	Method     string
+	Path       string
+	ClientIP   string
+	UserAgent  string
+}
+
+type requiredAuditActorContextKey struct{}
+
+// WithRequiredAuditActor 将认证后的管理员快照传给只接收 context.Context 的必要审计端口。
+func WithRequiredAuditActor(ctx context.Context, actor RequiredAuditActor) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, requiredAuditActorContextKey{}, actor)
+}
+
+// RequiredAuditActorFromContext 读取必要审计管理员快照。
+func RequiredAuditActorFromContext(ctx context.Context) (RequiredAuditActor, bool) {
+	if ctx == nil {
+		return RequiredAuditActor{}, false
+	}
+	actor, ok := ctx.Value(requiredAuditActorContextKey{}).(RequiredAuditActor)
+	return actor, ok && actor.UserID > 0
+}
+
 // AuditLogFilter 审计日志列表查询条件。
 type AuditLogFilter struct {
 	Page     int

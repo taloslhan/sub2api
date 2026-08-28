@@ -321,10 +321,12 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	}
 
 	usageLog := &UsageLog{
-		UserID:                user.ID,
-		APIKeyID:              apiKey.ID,
-		AccountID:             account.ID,
-		RequestID:             requestID,
+		UserID:    user.ID,
+		APIKeyID:  apiKey.ID,
+		AccountID: account.ID,
+		RequestID: requestID,
+		// CAPYBARA-PATCH: WS 可由 Turn context 覆写；billing request_id 保持既有选择逻辑。
+		CorrelationRequestID:  CorrelationRequestIDFromContext(ctx),
 		Model:                 result.Model,
 		RequestedModel:        requestedModel,
 		UpstreamModel:         optionalTrimmedStringPtr(result.UpstreamModel),

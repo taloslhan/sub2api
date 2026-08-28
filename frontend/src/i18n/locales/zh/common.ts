@@ -205,6 +205,8 @@ export default {
     securityAudit: '安全审计',
     contentModeration: '内容审核',
     promptAudit: '提示词审计',
+    // CAPYBARA-PATCH: 会话归档菜单固定可见，默认关闭时仍能进入配置。
+    sessionArchive: '会话归档',
     auditLogs: '操作日志',
   },
 

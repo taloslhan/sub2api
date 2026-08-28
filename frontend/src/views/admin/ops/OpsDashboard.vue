@@ -119,6 +119,7 @@
           :platform="platform"
           :group-id="groupId"
           :error-type="errorDetailsType"
+          :correlation-request-id="correlationRequestId"
           :resume-state="resumeListState"
           @update:show="showErrorDetails = $event"
           @openErrorDetail="openError"
@@ -199,6 +200,8 @@ const groupId = ref<number | null>(null)
 const queryMode = ref<QueryMode>('auto')
 const customStartTime = ref<string | null>(null)
 const customEndTime = ref<string | null>(null)
+// CAPYBARA-PATCH: Exact association filter is hydrated independently of request_id.
+const correlationRequestId = ref('')
 const switchTrendWindowHours = 5
 const switchTrendTimeRange = `${switchTrendWindowHours}h`
 const switchTrendWindowMs = switchTrendWindowHours * 60 * 60 * 1000
@@ -214,7 +217,8 @@ const QUERY_KEYS = {
   openErrorDetails: 'open_error_details',
   errorType: 'error_type',
   alertRuleId: 'alert_rule_id',
-  openAlertRules: 'open_alert_rules'
+  openAlertRules: 'open_alert_rules',
+  correlationRequestId: 'correlation_request_id'
 } as const
 
 const isApplyingRouteQuery = ref(false)
@@ -295,6 +299,8 @@ const applyRouteQueryToState = () => {
     queryMode.value = allowedQueryModes.has(fallback as QueryMode) ? (fallback as QueryMode) : 'auto'
   }
 
+  correlationRequestId.value = readQueryString(QUERY_KEYS.correlationRequestId)
+
   // Deep links
   const openRules = readQueryString(QUERY_KEYS.openAlertRules)
   if (openRules === '1' || openRules === 'true') {
@@ -312,6 +318,10 @@ const applyRouteQueryToState = () => {
     errorDetailsType.value = typ === 'upstream' ? 'upstream' : 'request'
     showErrorDetails.value = true
   }
+  if (correlationRequestId.value) {
+    errorDetailsType.value = 'request'
+    showErrorDetails.value = true
+  }
 }
 
 const buildQueryFromState = () => {
@@ -325,6 +335,7 @@ const buildQueryFromState = () => {
   if (platform.value) next[QUERY_KEYS.platform] = platform.value
   if (typeof groupId.value === 'number' && groupId.value > 0) next[QUERY_KEYS.groupId] = String(groupId.value)
   if (queryMode.value !== 'auto') next[QUERY_KEYS.queryMode] = queryMode.value
+  if (correlationRequestId.value) next[QUERY_KEYS.correlationRequestId] = correlationRequestId.value
 
   return next
 }
