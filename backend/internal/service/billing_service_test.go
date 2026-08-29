@@ -269,12 +269,14 @@ func TestCalculateCost_OpenAIGPT54LongContextAppliesWholeSessionMultipliers(t *t
 func TestCalculateCost_OpenAIGPT54LongContextMarkerRequiresActualCostIncrease(t *testing.T) {
 	svc := newTestBillingService()
 
+	// CAPYBARA-PATCH: 零值 profile 保持 GPT-5.4 的既有 API 计费口径。
 	cost, err := svc.calculateCostWithServiceTierPolicy(
 		"gpt-5.4-2026-03-05",
 		UsageTokens{InputTokens: 300000},
 		0,
 		"",
 		true,
+		OpenAIBillingProfileUnknown,
 	)
 
 	require.NoError(t, err)

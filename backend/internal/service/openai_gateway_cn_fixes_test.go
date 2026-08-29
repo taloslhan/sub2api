@@ -2,6 +2,8 @@
 
 package service
 
+// CAPYBARA-PATCH: 私有计费入口显式传入零值 profile，保持国产供应商回归口径。
+
 // 国产供应商功能修复回归测试：
 //  1. CN 分组不适用 /v1/messages 调度级模型映射（openai 的 gpt-5.x 默认值发给
 //     CN 上游必错）；
@@ -65,7 +67,7 @@ func TestCalculateOpenAIRecordUsageCost_EmptyCandidatesIsPricingUnavailable(t *t
 
 	_, err := svc.calculateOpenAIRecordUsageCost(
 		context.Background(), nil, apiKey, nil,
-		1.0, 1.0, 1.0, 1.0, UsageTokens{InputTokens: 100}, "", nil, time.Time{},
+		1.0, 1.0, 1.0, 1.0, UsageTokens{InputTokens: 100}, "", nil, OpenAIBillingProfileUnknown, time.Time{},
 	)
 	require.Error(t, err)
 	require.True(t, isUsagePricingUnavailableError(err),

@@ -2,6 +2,8 @@
 
 package service
 
+// CAPYBARA-PATCH: 私有计费入口显式传入零值 profile，保持搜索附加费回归口径。
+
 import (
 	"context"
 	"testing"
@@ -38,6 +40,7 @@ func TestCalculateOpenAIRecordUsageCost_SearchIsAdditiveToTokens(t *testing.T) {
 		UsageTokens{InputTokens: 1000, OutputTokens: 500},
 		"",
 		boolPtr(false),
+		OpenAIBillingProfileUnknown,
 		time.Time{},
 	)
 	require.NoError(t, err)
@@ -69,6 +72,7 @@ func TestCalculateOpenAIRecordUsageCost_SearchOnlyWhenNoTokenPricing(t *testing.
 		UsageTokens{},
 		"",
 		boolPtr(false),
+		OpenAIBillingProfileUnknown,
 		time.Time{},
 	)
 	require.NoError(t, err)
@@ -115,6 +119,7 @@ func TestCalculateOpenAIRecordUsageCost_TokenPricingErrorNotSwallowedBySearch(t 
 		UsageTokens{InputTokens: 1000, OutputTokens: 500},
 		"",
 		boolPtr(false),
+		OpenAIBillingProfileUnknown,
 		time.Time{},
 	)
 	require.Error(t, err)

@@ -2,6 +2,8 @@
 
 package service
 
+// CAPYBARA-PATCH: 私有计费入口显式传入零值 profile，保持搜索计费回归口径。
+
 import (
 	"context"
 	"testing"
@@ -51,7 +53,7 @@ func TestCalculateOpenAIRecordUsageCostWebSearchPerCall(t *testing.T) {
 	// 即使 token 倍率（含高峰，3.0）更高也不采用。
 	apiKey := &APIKey{ID: 1, GroupID: &groupID, Group: &Group{ID: groupID, Platform: PlatformOpenAI}}
 	result := &OpenAIForwardResult{Model: "gpt-5.6-sol", UpstreamModel: "gpt-5.6-sol", WebSearchCalls: 1}
-	cost, err := svc.calculateOpenAIRecordUsageCost(context.Background(), result, apiKey, []string{"gpt-5.6-sol"}, 3.0, 1.0, 1.0, 2.0, UsageTokens{}, "", boolPtr(false), time.Time{})
+	cost, err := svc.calculateOpenAIRecordUsageCost(context.Background(), result, apiKey, []string{"gpt-5.6-sol"}, 3.0, 1.0, 1.0, 2.0, UsageTokens{}, "", boolPtr(false), OpenAIBillingProfileUnknown, time.Time{})
 	require.NoError(t, err)
 	require.Equal(t, string(BillingModePerRequest), cost.BillingMode)
 	require.InDelta(t, 0.01, cost.TotalCost, 1e-12)
@@ -59,7 +61,7 @@ func TestCalculateOpenAIRecordUsageCostWebSearchPerCall(t *testing.T) {
 
 	// 分组配置单价 0.005
 	apiKey.Group.WebSearchPricePerCall = float64Ptr(0.005)
-	cost, err = svc.calculateOpenAIRecordUsageCost(context.Background(), result, apiKey, []string{"gpt-5.6-sol"}, 1.0, 1.0, 1.0, 1.0, UsageTokens{}, "", boolPtr(false), time.Time{})
+	cost, err = svc.calculateOpenAIRecordUsageCost(context.Background(), result, apiKey, []string{"gpt-5.6-sol"}, 1.0, 1.0, 1.0, 1.0, UsageTokens{}, "", boolPtr(false), OpenAIBillingProfileUnknown, time.Time{})
 	require.NoError(t, err)
 	require.InDelta(t, 0.005, cost.TotalCost, 1e-12)
 	require.InDelta(t, 0.005, cost.ActualCost, 1e-12)
@@ -67,7 +69,7 @@ func TestCalculateOpenAIRecordUsageCostWebSearchPerCall(t *testing.T) {
 	// WebSearchCalls = 0 时不得走按次分支（无定价数据会返回 pricing 错误，
 	// 证明回落到了 token 路径而不是被按次分支吞掉）。
 	result.WebSearchCalls = 0
-	_, err = svc.calculateOpenAIRecordUsageCost(context.Background(), result, apiKey, []string{"gpt-5.6-sol"}, 1.0, 1.0, 1.0, 1.0, UsageTokens{InputTokens: 10}, "", boolPtr(false), time.Time{})
+	_, err = svc.calculateOpenAIRecordUsageCost(context.Background(), result, apiKey, []string{"gpt-5.6-sol"}, 1.0, 1.0, 1.0, 1.0, UsageTokens{InputTokens: 10}, "", boolPtr(false), OpenAIBillingProfileUnknown, time.Time{})
 	require.Error(t, err)
 }
 

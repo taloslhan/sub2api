@@ -28,6 +28,8 @@ func resolveAccountStatsCost(
 	requestCount int,
 	totalCost float64,
 	serviceTier string,
+	profile OpenAIBillingProfile,
+	longContextEnabled bool,
 ) *float64 {
 	if channelService == nil || upstreamModel == "" {
 		return nil
@@ -55,23 +57,32 @@ func resolveAccountStatsCost(
 
 	// 优先级 3：模型定价文件（LiteLLM）默认价格
 	if billingService != nil {
-		return tryModelFilePricing(billingService, upstreamModel, tokens, serviceTier)
+		return tryModelFilePricing(billingService, upstreamModel, tokens, serviceTier, profile, longContextEnabled)
 	}
 
 	return nil
 }
 
 // tryModelFilePricing 使用模型定价文件（LiteLLM/fallback）中的价格计算费用。
-func tryModelFilePricing(billingService *BillingService, model string, tokens UsageTokens, serviceTier string) *float64 {
+func tryModelFilePricing(
+	billingService *BillingService,
+	model string,
+	tokens UsageTokens,
+	serviceTier string,
+	profile OpenAIBillingProfile,
+	longContextEnabled bool,
+) *float64 {
 	pricing, err := billingService.GetModelPricing(model)
 	if err != nil || pricing == nil {
 		return nil
 	}
+	// CAPYBARA-PATCH: 账号统计复用用户计费的 GPT-5.6 profile 与长上下文开关。
+	pricing = applyOpenAIBillingProfilePolicy(profile, model, pricing)
 	normalizedTier := normalizeBillingServiceTier(serviceTier)
 	if normalizedTier == "priority" || normalizedTier == "fast" || normalizedTier == "flex" ||
 		billingService.shouldApplySessionLongContextPricing(tokens, pricing) {
-		breakdown, err := billingService.CalculateCostWithServiceTier(model, tokens, 1, normalizedTier)
-		if err != nil || breakdown == nil || breakdown.TotalCost <= 0 {
+		breakdown := billingService.computeTokenBreakdown(pricing, tokens, 1, normalizedTier, longContextEnabled)
+		if breakdown == nil || breakdown.TotalCost <= 0 {
 			return nil
 		}
 		return &breakdown.TotalCost
@@ -236,6 +247,8 @@ func applyAccountStatsCost(
 	upstreamModel, requestedModel string,
 	tokens UsageTokens,
 	totalCost float64,
+	profile OpenAIBillingProfile,
+	longContextEnabled bool,
 ) {
 	model := upstreamModel
 	if model == "" {
@@ -251,5 +264,6 @@ func applyAccountStatsCost(
 	}
 	usageLog.AccountStatsCost = resolveAccountStatsCost(
 		ctx, cs, bs, accountID, groupID, model, tokens, requestCount, totalCost, serviceTier,
+		profile, longContextEnabled,
 	)
 }

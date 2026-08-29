@@ -1172,6 +1172,7 @@ type CostInput struct {
 	Resolver                  *ModelPricingResolver // 定价解析器
 	Resolved                  *ResolvedPricing      // 可选：预解析的定价结果（避免重复 Resolve 调用）
 	LongContextBillingEnabled *bool
+	OpenAIBillingProfile      OpenAIBillingProfile
 }
 
 // CalculateCostUnified 统一计费入口，支持三种计费模式。
@@ -1190,6 +1191,7 @@ func (s *BillingService) CalculateCostUnified(input CostInput) (*CostBreakdown, 
 			input.ServiceTier,
 			nil,
 			applyLongContextBilling,
+			input.OpenAIBillingProfile,
 		)
 	}
 
@@ -1229,11 +1231,12 @@ func (s *BillingService) CalculateCostUnified(input CostInput) (*CostBreakdown, 
 func (s *BillingService) calculateTokenCost(resolved *ResolvedPricing, input CostInput) (*CostBreakdown, error) {
 	totalContext := input.Tokens.InputTokens + input.Tokens.CacheCreationTokens + input.Tokens.CacheReadTokens
 
+	// CAPYBARA-PATCH: 统一账号闸门语义，并在模型策略后应用 GPT-5.6 账号计费口径。
 	// 分组开关是统一入口；账号 API 开关保留为额外开启能力，但 false 不否决分组配置。
-	contextTierPricingEnabled := resolved.longContextPricingEnabled
-	if input.LongContextBillingEnabled != nil && *input.LongContextBillingEnabled {
-		contextTierPricingEnabled = true
-	}
+	contextTierPricingEnabled := longContextPricingEnabledWithAccountGate(
+		resolved.longContextPricingEnabled,
+		input.LongContextBillingEnabled,
+	)
 
 	pricingContext := totalContext
 	if !contextTierPricingEnabled {
@@ -1247,6 +1250,7 @@ func (s *BillingService) calculateTokenCost(resolved *ResolvedPricing, input Cos
 	}
 
 	pricing = s.applyModelSpecificPricingPolicy(input.Model, pricing)
+	pricing = applyOpenAIBillingProfilePolicy(input.OpenAIBillingProfile, input.Model, pricing)
 
 	// 官方长上下文阶梯仅在无区间定价时应用（区间定价已包含上下文分层）。
 	applyLongCtx := len(resolved.Intervals) == 0 && contextTierPricingEnabled
@@ -1254,6 +1258,17 @@ func (s *BillingService) calculateTokenCost(resolved *ResolvedPricing, input Cos
 	breakdown := s.computeTokenBreakdown(pricing, input.Tokens, input.RateMultiplier, input.ServiceTier, applyLongCtx)
 	applyCostBreakdownMultiplier(breakdown, resolvedChannelTimeMultiplier(resolved, input.PricingAt))
 	return breakdown, nil
+}
+
+func longContextPricingEnabledWithAccountGate(groupEnabled bool, accountGate *bool) bool {
+	return groupEnabled || (accountGate != nil && *accountGate)
+}
+
+func openAIEffectiveLongContextEnabled(hasResolver bool, group *Group, accountGate *bool) bool {
+	if hasResolver && group != nil {
+		return longContextPricingEnabledWithAccountGate(group.LongContextPricingEnabled, accountGate)
+	}
+	return accountGate == nil || *accountGate
 }
 
 // computeTokenBreakdown 是 token 计费的核心逻辑，由 calculateTokenCost 和 calculateCostInternal 共用。
@@ -1459,12 +1474,17 @@ func (s *BillingService) calculateCostWithServiceTierPolicy(
 	rateMultiplier float64,
 	serviceTier string,
 	longContextBillingEnabled bool,
+	profile OpenAIBillingProfile,
 ) (*CostBreakdown, error) {
-	return s.calculateCostInternalWithPolicy(model, tokens, rateMultiplier, serviceTier, nil, longContextBillingEnabled)
+	return s.calculateCostInternalWithPolicy(
+		model, tokens, rateMultiplier, serviceTier, nil, longContextBillingEnabled, profile,
+	)
 }
 
 func (s *BillingService) calculateCostInternal(model string, tokens UsageTokens, rateMultiplier float64, serviceTier string, channelPricing *ChannelModelPricing) (*CostBreakdown, error) {
-	return s.calculateCostInternalWithPolicy(model, tokens, rateMultiplier, serviceTier, channelPricing, true)
+	return s.calculateCostInternalWithPolicy(
+		model, tokens, rateMultiplier, serviceTier, channelPricing, true, OpenAIBillingProfileUnknown,
+	)
 }
 
 func (s *BillingService) calculateCostInternalWithPolicy(
@@ -1474,6 +1494,7 @@ func (s *BillingService) calculateCostInternalWithPolicy(
 	serviceTier string,
 	channelPricing *ChannelModelPricing,
 	longContextBillingEnabled bool,
+	profile OpenAIBillingProfile,
 ) (*CostBreakdown, error) {
 	var pricing *ModelPricing
 	var err error
@@ -1485,6 +1506,7 @@ func (s *BillingService) calculateCostInternalWithPolicy(
 	if err != nil {
 		return nil, err
 	}
+	pricing = applyOpenAIBillingProfilePolicy(profile, model, pricing)
 
 	return s.computeTokenBreakdown(pricing, tokens, rateMultiplier, serviceTier, longContextBillingEnabled), nil
 }
