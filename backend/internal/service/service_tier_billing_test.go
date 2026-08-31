@@ -34,83 +34,98 @@ func TestResolveBillingServiceTier(t *testing.T) {
 	}
 }
 
-// CAPYBARA-PATCH: client-requested fast wins over the upstream echo — the
-// OpenAI entry point exempts fast/priority from the only-lowers rule, while the
-// Anthropic entry point keeps downgrading. The two are asserted separately so
-// the divergence stays explicit.
-func TestApplyServiceTierBillingResolution(t *testing.T) {
-	t.Run("openai", func(t *testing.T) {
-		// CAPYBARA-PATCH: client-requested fast wins over the upstream echo.
-		t.Run("fast is exempt from the upstream default echo", func(t *testing.T) {
-			requested := "priority"
-			result := &OpenAIForwardResult{ServiceTier: &requested, UpstreamResponseServiceTier: "default"}
-			resolution := ApplyOpenAIServiceTierBillingResolution(result)
-			require.False(t, resolution.Downgraded)
-			require.Equal(t, "priority", resolution.Requested)
-			require.Equal(t, "default", resolution.Observed, "the echo is still reported for the audit log")
-			require.Equal(t, "priority", resolution.Billing)
-			require.Same(t, &requested, result.ServiceTier, "an exempt tier must not be rewritten")
-		})
-
-		// CAPYBARA-PATCH: client-requested fast wins over the upstream echo.
-		t.Run("fast alias is exempt too", func(t *testing.T) {
-			requested := "fast"
-			result := &OpenAIForwardResult{ServiceTier: &requested, UpstreamResponseServiceTier: "default"}
-			resolution := ApplyOpenAIServiceTierBillingResolution(result)
-			require.False(t, resolution.Downgraded)
-			require.True(t, isPriorityBillingServiceTier(resolution.Billing),
-				"both fast and priority settle on a fast-priced tier")
-			require.Same(t, &requested, result.ServiceTier)
-		})
-
-		t.Run("honoured tier keeps pointer", func(t *testing.T) {
-			requested := "priority"
-			result := &OpenAIForwardResult{ServiceTier: &requested, UpstreamResponseServiceTier: "priority"}
-			require.False(t, ApplyOpenAIServiceTierBillingResolution(result).Downgraded)
-			require.Same(t, &requested, result.ServiceTier)
-		})
-
-		t.Run("untiered request stays nil", func(t *testing.T) {
-			result := &OpenAIForwardResult{UpstreamResponseServiceTier: "priority"}
-			require.False(t, ApplyOpenAIServiceTierBillingResolution(result).Downgraded)
-			require.Nil(t, result.ServiceTier)
-		})
-
-		// CAPYBARA-PATCH: the exemption is scoped to fast/priority; flex keeps the
-		// original only-lowers behaviour.
-		t.Run("flex is not exempt", func(t *testing.T) {
-			requested := "flex"
-			result := &OpenAIForwardResult{ServiceTier: &requested, UpstreamResponseServiceTier: "default"}
-			resolution := ApplyOpenAIServiceTierBillingResolution(result)
-			require.False(t, resolution.Downgraded, "default never lowers flex")
-			require.Equal(t, "flex", resolution.Billing)
-			require.Same(t, &requested, result.ServiceTier)
-		})
-
-		t.Run("nil result is ignored", func(t *testing.T) {
-			require.False(t, ApplyOpenAIServiceTierBillingResolution(nil).Downgraded)
-		})
+func TestApplyServiceTierBillingResolutionOnlyRewritesDowngrades(t *testing.T) {
+	t.Run("codex exception only covers OpenAI default", func(t *testing.T) {
+		require.True(t, codexOAuthResponseTierIsNonAuthoritative("default"))
+		require.False(t, codexOAuthResponseTierIsNonAuthoritative("standard"))
+		require.False(t, codexOAuthResponseTierIsNonAuthoritative("flex"))
 	})
 
-	t.Run("anthropic", func(t *testing.T) {
-		t.Run("standard speed rewrites fast", func(t *testing.T) {
-			requested := "fast"
-			result := &ForwardResult{ServiceTier: &requested, UpstreamResponseServiceTier: "standard"}
-			resolution := ApplyForwardServiceTierBillingResolution(result)
-			require.True(t, resolution.Downgraded, "the Anthropic side keeps the only-lowers rule")
-			require.Equal(t, "standard", resolution.Billing)
-			require.Equal(t, "standard", *result.ServiceTier)
-		})
+	// CAPYBARA-PATCH: OpenAI final outbound Fast is authoritative even when the
+	// response echoes a cheaper tier.
+	t.Run("openai api fast survives default echo", func(t *testing.T) {
+		requested := "priority"
+		result := &OpenAIForwardResult{ServiceTier: &requested, UpstreamResponseServiceTier: "default"}
+		resolution := ApplyOpenAIServiceTierBillingResolution(&Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}, result)
+		require.False(t, resolution.Downgraded)
+		require.Equal(t, "priority", resolution.Billing)
+		require.Equal(t, "default", resolution.Observed)
+		require.Same(t, &requested, result.ServiceTier)
+	})
 
-		t.Run("honoured fast keeps pointer", func(t *testing.T) {
-			requested := "fast"
-			result := &ForwardResult{ServiceTier: &requested, UpstreamResponseServiceTier: "fast"}
-			require.False(t, ApplyForwardServiceTierBillingResolution(result).Downgraded)
+	t.Run("openai honoured tier keeps pointer", func(t *testing.T) {
+		requested := "priority"
+		result := &OpenAIForwardResult{ServiceTier: &requested, UpstreamResponseServiceTier: "priority"}
+		require.False(t, ApplyOpenAIServiceTierBillingResolution(&Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}, result).Downgraded)
+		require.Same(t, &requested, result.ServiceTier)
+	})
+
+	t.Run("openai untiered request stays nil", func(t *testing.T) {
+		result := &OpenAIForwardResult{UpstreamResponseServiceTier: "priority"}
+		require.False(t, ApplyOpenAIServiceTierBillingResolution(&Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}, result).Downgraded)
+		require.Nil(t, result.ServiceTier)
+	})
+
+	for _, accountType := range []string{AccountTypeOAuth, AccountTypeSetupToken} {
+		t.Run("codex "+accountType+" keeps outbound priority despite default echo", func(t *testing.T) {
+			requested := "priority"
+			result := &OpenAIForwardResult{ServiceTier: &requested, UpstreamResponseServiceTier: "default"}
+			resolution := ApplyOpenAIServiceTierBillingResolution(
+				&Account{Platform: PlatformOpenAI, Type: accountType},
+				result,
+			)
+			require.False(t, resolution.Downgraded)
+			require.Equal(t, "priority", resolution.Requested)
+			require.Equal(t, "default", resolution.Observed)
+			require.Equal(t, "priority", resolution.Billing)
 			require.Same(t, &requested, result.ServiceTier)
 		})
 
-		t.Run("nil result is ignored", func(t *testing.T) {
-			require.False(t, ApplyForwardServiceTierBillingResolution(nil).Downgraded)
+		t.Run("codex "+accountType+" keeps outbound fast despite flex echo", func(t *testing.T) {
+			requested := "priority"
+			result := &OpenAIForwardResult{ServiceTier: &requested, UpstreamResponseServiceTier: "flex"}
+			resolution := ApplyOpenAIServiceTierBillingResolution(
+				&Account{Platform: PlatformOpenAI, Type: accountType},
+				result,
+			)
+			require.False(t, resolution.Downgraded)
+			require.Equal(t, "priority", resolution.Billing)
+			require.Same(t, &requested, result.ServiceTier)
 		})
+
+		t.Run("codex "+accountType+" response never promotes an untiered request", func(t *testing.T) {
+			result := &OpenAIForwardResult{UpstreamResponseServiceTier: "priority"}
+			resolution := ApplyOpenAIServiceTierBillingResolution(
+				&Account{Platform: PlatformOpenAI, Type: accountType},
+				result,
+			)
+			require.False(t, resolution.Downgraded)
+			require.Empty(t, resolution.Billing)
+			require.Nil(t, result.ServiceTier)
+		})
+	}
+
+	t.Run("non-openai oauth still uses the generic response contract", func(t *testing.T) {
+		requested := "priority"
+		result := &OpenAIForwardResult{ServiceTier: &requested, UpstreamResponseServiceTier: "default"}
+		resolution := ApplyOpenAIServiceTierBillingResolution(
+			&Account{Platform: PlatformGrok, Type: AccountTypeOAuth},
+			result,
+		)
+		require.True(t, resolution.Downgraded)
+		require.Equal(t, "default", resolution.Billing)
+		require.Equal(t, "default", *result.ServiceTier)
+	})
+
+	t.Run("anthropic standard speed rewrites fast", func(t *testing.T) {
+		requested := "fast"
+		result := &ForwardResult{ServiceTier: &requested, UpstreamResponseServiceTier: "standard"}
+		require.True(t, ApplyForwardServiceTierBillingResolution(result).Downgraded)
+		require.Equal(t, "standard", *result.ServiceTier)
+	})
+
+	t.Run("nil results are ignored", func(t *testing.T) {
+		require.False(t, ApplyOpenAIServiceTierBillingResolution(nil, nil).Downgraded)
+		require.False(t, ApplyForwardServiceTierBillingResolution(nil).Downgraded)
 	})
 }

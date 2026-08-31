@@ -12,11 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// CAPYBARA-PATCH: client-requested fast wins over the upstream echo.
-// HTTP POST /v1/responses → forwardOpenAIWSV2 共用 stream/non-stream 的
-// OpenAIForwardResult：请求侧 fast/priority 优先于上游
-// response.completed.service_tier 回显，上游回显 default 不再拉低计费档位。
-func TestForwardOpenAIWSV2_RequestFastWinsOverUpstreamDefaultServiceTier(t *testing.T) {
+// HTTP POST /v1/responses -> forwardOpenAIWSV2 keeps the canonical outbound
+// tier separate from response.completed.service_tier for usage-time billing.
+func TestForwardOpenAIWSV2_KeepsOutboundAndObservedServiceTiersSeparate(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	cases := []struct {
@@ -89,10 +87,8 @@ func TestForwardOpenAIWSV2_RequestFastWinsOverUpstreamDefaultServiceTier(t *test
 			require.Equal(t, tc.stream, result.Stream)
 			require.Equal(t, "resp_tier_v2", result.RequestID)
 			require.NotNil(t, result.ServiceTier)
-			require.Equal(t, "priority", *result.ServiceTier,
-				"the requested Fast tier must survive the upstream-echoed default")
-			require.Equal(t, "default", result.UpstreamResponseServiceTier,
-				"the upstream echo is still observed for the audit trail")
+			require.Equal(t, "priority", *result.ServiceTier)
+			require.Equal(t, "default", result.UpstreamResponseServiceTier)
 			require.Equal(t, "priority", captureConn.lastWrite["service_tier"],
 				"outbound WS payload still carries the requested Fast tier")
 		})

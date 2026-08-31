@@ -549,13 +549,10 @@ func TestForwardStreaming_ServiceTierPropagatedToResult(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// CAPYBARA-PATCH: client-requested fast wins over the upstream echo.
-// 请求 fast/priority 时即便上游回显 default 也按 fast 计费；flex 等其余档位仍以
-// 上游回显为准。
+// 转发阶段分别保留最终出站 tier 与上游回显 tier
 // ---------------------------------------------------------------------------
 
-// CAPYBARA-PATCH: client-requested fast wins over the upstream echo.
-func TestForward_ResponsesRequestFastWinsOverUpstreamDefaultEcho(t *testing.T) {
+func TestForward_ResponsesKeepsOutboundAndObservedServiceTiersSeparate(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
@@ -594,17 +591,14 @@ func TestForward_ResponsesRequestFastWinsOverUpstreamDefaultEcho(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NotNil(t, result.ServiceTier)
-	require.Equal(t, "priority", *result.ServiceTier,
-		"the client-requested fast tier must win over the upstream-echoed default for billing")
-	require.Equal(t, "default", result.UpstreamResponseServiceTier,
-		"the upstream echo is still observed and audited, it just no longer settles the bill")
-	// 非流式响应原样透传：客户端仍看到上游原文 default，计费改动不改写下行 body。
+	require.Equal(t, "priority", *result.ServiceTier)
+	require.Equal(t, "default", result.UpstreamResponseServiceTier)
+	// 非流式响应原样透传：客户端同样看到 default。
 	require.Contains(t, rec.Body.String(), `"service_tier":"default"`)
 	require.NotContains(t, rec.Body.String(), `"service_tier":"priority"`)
 }
 
-// CAPYBARA-PATCH: client-requested fast wins over the upstream echo.
-func TestForwardStreaming_RequestFastWinsOverUpstreamDefaultEcho(t *testing.T) {
+func TestForwardStreaming_KeepsOutboundAndObservedServiceTiersSeparate(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
@@ -644,15 +638,13 @@ func TestForwardStreaming_RequestFastWinsOverUpstreamDefaultEcho(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NotNil(t, result.ServiceTier)
-	require.Equal(t, "priority", *result.ServiceTier,
-		"the requested fast tier must win over the terminal SSE event's upstream-echoed default")
+	require.Equal(t, "priority", *result.ServiceTier)
 	require.Equal(t, "default", result.UpstreamResponseServiceTier)
-	// 流式原样透传：客户端在终止事件里仍看到上游原文 default。
+	// 流式原样透传：客户端在终止事件里看到 default。
 	require.Contains(t, rec.Body.String(), `"service_tier":"default"`)
 }
 
-// CAPYBARA-PATCH: client-requested fast wins over the upstream echo.
-func TestForwardAsChatCompletions_RequestFastWinsOverUpstreamDefaultEcho(t *testing.T) {
+func TestForwardAsChatCompletions_KeepsOutboundAndObservedServiceTiersSeparate(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
@@ -693,17 +685,16 @@ func TestForwardAsChatCompletions_RequestFastWinsOverUpstreamDefaultEcho(t *test
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.NotNil(t, result.ServiceTier)
-	require.Equal(t, "priority", *result.ServiceTier,
-		"CC bridge must bill on the requested fast tier, not the upstream-echoed default")
+	require.Equal(t, "priority", *result.ServiceTier)
 	require.Equal(t, "default", result.UpstreamResponseServiceTier)
-	// 缓冲转回 Chat Completions：客户端响应里仍如实回显上游的 default。
+	// 缓冲转回 Chat Completions：客户端响应里如实回显 default。
 	require.Contains(t, rec.Body.String(), `"service_tier":"default"`)
 	require.NotContains(t, rec.Body.String(), `"service_tier":"priority"`)
 }
 
-// CAPYBARA-PATCH: client-requested fast wins over the upstream echo — the
-// exemption is scoped to fast/priority, flex keeps trusting the upstream echo.
-func TestForward_ResponsesFlexUnaffectedByFastBillingExemption(t *testing.T) {
+// CAPYBARA-PATCH: client-requested fast wins over the upstream echo, while flex
+// continues through the normal only-lowers resolver.
+func TestForward_ResponsesFlexRemainsOutsideFastBillingExemption(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	rec := httptest.NewRecorder()
@@ -743,8 +734,11 @@ func TestForward_ResponsesFlexUnaffectedByFastBillingExemption(t *testing.T) {
 	require.Equal(t, "flex", gjson.GetBytes(upstream.lastBody, "service_tier").String(),
 		"flex must reach the upstream unchanged")
 	require.NotNil(t, result.ServiceTier)
-	require.Equal(t, "default", *result.ServiceTier,
-		"flex is outside the fast exemption: the upstream echo still settles the tier")
+	require.Equal(t, "flex", *result.ServiceTier)
+	require.Equal(t, "default", result.UpstreamResponseServiceTier)
+	resolution := ApplyOpenAIServiceTierBillingResolution(account, result)
+	require.False(t, resolution.Downgraded, "default is not cheaper than flex")
+	require.Equal(t, "flex", resolution.Billing)
 }
 
 // ---------------------------------------------------------------------------
@@ -837,8 +831,7 @@ func TestResolvedOpenAIUpstreamServiceTier(t *testing.T) {
 
 	priority := func() *string { v := "priority"; return &v }()
 
-	// CAPYBARA-PATCH: client-requested fast wins over the upstream echo.
-	t.Run("outbound fast wins over upstream default echo", func(t *testing.T) {
+	t.Run("upstream echo stays separate from outbound tier", func(t *testing.T) {
 		gin.SetMode(gin.TestMode)
 		c, _ := gin.CreateTestContext(nil)
 		observer := beginUpstreamResponseModelObservation(c)
@@ -847,6 +840,7 @@ func TestResolvedOpenAIUpstreamServiceTier(t *testing.T) {
 		got := resolvedOpenAIUpstreamServiceTier(c, priority)
 		require.NotNil(t, got)
 		require.Equal(t, "priority", *got)
+		require.Equal(t, "default", observedUpstreamResponseServiceTier(c))
 	})
 
 	t.Run("no upstream echo falls back to outbound tier", func(t *testing.T) {
@@ -859,15 +853,15 @@ func TestResolvedOpenAIUpstreamServiceTier(t *testing.T) {
 		require.Equal(t, "priority", *got)
 	})
 
-	t.Run("upstream alias fast normalizes to priority", func(t *testing.T) {
+	t.Run("observed tier never promotes an untiered request", func(t *testing.T) {
 		gin.SetMode(gin.TestMode)
 		c, _ := gin.CreateTestContext(nil)
 		observer := beginUpstreamResponseModelObservation(c)
 		observer.ObserveOpenAI([]byte(`{"type":"response.completed","response":{"model":"gpt-5.5","service_tier":"fast"}}`), "response.completed")
 
 		got := resolvedOpenAIUpstreamServiceTier(c, nil)
-		require.NotNil(t, got)
-		require.Equal(t, "priority", *got)
+		require.Nil(t, got)
+		require.Equal(t, "priority", observedUpstreamResponseServiceTier(c))
 	})
 
 	t.Run("no observer keeps outbound tier", func(t *testing.T) {
@@ -880,8 +874,7 @@ func TestResolvedOpenAIUpstreamServiceTier(t *testing.T) {
 		require.Nil(t, resolvedOpenAIUpstreamServiceTier(nil, nil))
 	})
 
-	// CAPYBARA-PATCH: client-requested fast wins over the upstream echo.
-	t.Run("outbound fast wins over local observer default echo", func(t *testing.T) {
+	t.Run("local observer stays separate from outbound tier", func(t *testing.T) {
 		observer := &upstreamResponseModelObserver{}
 		observer.ObserveOpenAI([]byte(`{"type":"response.completed","response":{"model":"gpt-5.5","service_tier":"default"}}`), "response.completed")
 

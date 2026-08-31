@@ -126,6 +126,16 @@ func (h *UsageHandler) parseUserUsageFilters(c *gin.Context, requireRange bool) 
 		stream = &val
 	}
 
+	var nativeCompactionV2 *bool
+	if raw := strings.TrimSpace(c.Query("native_compaction_v2")); raw != "" {
+		value, err := strconv.ParseBool(raw)
+		if err != nil {
+			response.BadRequest(c, "Invalid native_compaction_v2 value, use true or false")
+			return nil, false
+		}
+		nativeCompactionV2 = &value
+	}
+
 	var billingType *int8
 	if billingTypeStr := strings.TrimSpace(c.Query("billing_type")); billingTypeStr != "" {
 		val, err := strconv.ParseInt(billingTypeStr, 10, 8)
@@ -204,6 +214,7 @@ func (h *UsageHandler) parseUserUsageFilters(c *gin.Context, requireRange bool) 
 			ModelFilterSource:    usagestats.ModelSourceRequested,
 			RequestType:          requestType,
 			Stream:               stream,
+			NativeCompactionV2:   nativeCompactionV2,
 			BillingType:          billingType,
 			BillingMode:          billingMode,
 			StartTime:            startPtr,
