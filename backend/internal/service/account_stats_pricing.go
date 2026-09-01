@@ -64,6 +64,9 @@ func resolveAccountStatsCost(
 }
 
 // tryModelFilePricing 使用模型定价文件（LiteLLM/fallback）中的价格计算费用。
+// 与用户计费共用同一条定价管线，避免这里维护第二份"单价 × token 数"实现后，
+// 每加一个定价特性都要手工镜像一次。channelPricing 为 nil，保持优先级 3 的
+// 语义：只取模型定价文件，不引入渠道自定义定价。
 func tryModelFilePricing(
 	billingService *BillingService,
 	model string,
@@ -72,30 +75,14 @@ func tryModelFilePricing(
 	profile OpenAIBillingProfile,
 	longContextEnabled bool,
 ) *float64 {
-	pricing, err := billingService.GetModelPricing(model)
-	if err != nil || pricing == nil {
-		return nil
-	}
 	// CAPYBARA-PATCH: 账号统计复用用户计费的 GPT-5.6 profile 与长上下文开关。
-	pricing = applyOpenAIBillingProfilePolicy(profile, model, pricing)
-	normalizedTier := normalizeBillingServiceTier(serviceTier)
-	if normalizedTier == "priority" || normalizedTier == "fast" || normalizedTier == "flex" ||
-		billingService.shouldApplySessionLongContextPricing(tokens, pricing) {
-		breakdown := billingService.computeTokenBreakdown(pricing, tokens, 1, normalizedTier, longContextEnabled)
-		if breakdown == nil || breakdown.TotalCost <= 0 {
-			return nil
-		}
-		return &breakdown.TotalCost
-	}
-	cost := float64(tokens.InputTokens)*pricing.InputPricePerToken +
-		float64(tokens.OutputTokens)*pricing.OutputPricePerToken +
-		float64(tokens.CacheCreationTokens)*pricing.CacheCreationPricePerToken +
-		float64(tokens.CacheReadTokens)*pricing.CacheReadPricePerToken +
-		float64(tokens.ImageOutputTokens)*pricing.ImageOutputPricePerToken
-	if cost <= 0 {
+	breakdown, err := billingService.calculateCostWithServiceTierPolicy(
+		model, tokens, 1, normalizeBillingServiceTier(serviceTier), longContextEnabled, profile,
+	)
+	if err != nil || breakdown == nil || breakdown.TotalCost <= 0 {
 		return nil
 	}
-	return &cost
+	return &breakdown.TotalCost
 }
 
 // tryCustomRules 遍历自定义规则，按数组顺序先命中为准。
