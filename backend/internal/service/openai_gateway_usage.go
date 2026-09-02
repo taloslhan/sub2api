@@ -314,6 +314,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 			tokens,
 			"",
 			longContextBillingGate,
+			billingProfile,
 			pricingAt,
 		)
 		if standardErr != nil {
