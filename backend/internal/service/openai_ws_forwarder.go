@@ -258,6 +258,9 @@ type OpenAIWSIngressHooks struct {
 	InitialRawClientMessage []byte
 	// MaxReasoningEffort limits explicit reasoning effort values for this WS session.
 	MaxReasoningEffort string
+	// MaxReasoningEffortOverLimit is the access control when an explicit effort
+	// exceeds the ceiling: downgrade (default) or deny.
+	MaxReasoningEffortOverLimit string
 	// ReasoningEffortMappings rewrites explicit effort values for this WS session.
 	ReasoningEffortMappings []ReasoningEffortMapping
 	// TurnCorrelationRequestID returns the immutable correlation key for one
