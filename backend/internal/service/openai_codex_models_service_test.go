@@ -345,6 +345,20 @@ func TestNewConfiguredCodexModelDescriptorUsesProviderMetadataAndSafeFallback(t 
 	require.True(t, gpt56.SupportsReasoningSummaryParameter)
 	require.Equal(t, "none", gpt56.DefaultReasoningSummary)
 
+	daybreak := newConfiguredCodexModelDescriptor(openai.DaybreakBlueModelID)
+	require.Equal(t, "GPT Daybreak Blue", daybreak.DisplayName)
+	require.Equal(t, "OpenAI Daybreak Blue access alias for GPT-5.6 Sol.", daybreak.Description)
+	require.NotNil(t, daybreak.DefaultReasoningLevel)
+	require.Equal(t, "low", *daybreak.DefaultReasoningLevel)
+	require.Equal(t, gpt56.SupportedReasoningLevels, daybreak.SupportedReasoningLevels)
+	require.Equal(t, gpt56.ServiceTiers, daybreak.ServiceTiers)
+	require.Equal(t, []string{"fast"}, daybreak.AdditionalSpeedTiers)
+	require.Equal(t, []string{"text", "image"}, daybreak.InputModalities)
+	require.True(t, daybreak.SupportsImageDetailOriginal)
+	require.True(t, daybreak.SupportVerbosity)
+	require.Equal(t, gpt56.MaxContextWindow, daybreak.MaxContextWindow)
+	require.Equal(t, gpt56.TruncationPolicy, daybreak.TruncationPolicy)
+
 	gpt56Luna := newConfiguredCodexModelDescriptor("gpt-5.6-luna")
 	require.Equal(t, []string{"low", "medium", "high", "xhigh", "max"}, effortsFromConfiguredCodexLevels(gpt56Luna.SupportedReasoningLevels))
 	require.Equal(t, "medium", *gpt56Luna.DefaultReasoningLevel)
@@ -1261,6 +1275,110 @@ func TestBuildGroupConfiguredCodexModelsManifestFallsThroughWithoutConfiguration
 	require.NoError(t, err)
 	require.False(t, configured)
 	require.Nil(t, manifest)
+}
+
+// Scenario: Daybreak is entitlement-gated and absent from the upstream picker.
+// An explicit group selection must keep the live OAuth manifest path so the
+// alias can be injected only after a matching account has been selected.
+func TestBuildGroupConfiguredCodexModelsManifestFallsThroughForSelectedDaybreakPassthrough(t *testing.T) {
+	t.Parallel()
+
+	const groupID int64 = 781
+	svc := &OpenAIGatewayService{accountRepo: codexModelsVisibilityAccountRepo{
+		byGroup: map[int64][]Account{
+			groupID: {
+				{Platform: PlatformOpenAI, Type: AccountTypeOAuth},
+				{
+					Platform: PlatformOpenAI,
+					Type:     AccountTypeAPIKey,
+					Credentials: map[string]any{
+						"model_mapping": map[string]any{"my-coder": "provider-model"},
+					},
+				},
+			},
+		},
+	}}
+	group := &Group{
+		ID:       groupID,
+		Platform: PlatformOpenAI,
+		ModelsListConfig: GroupModelsListConfig{
+			Enabled: true,
+			Models:  []string{openai.DaybreakBlueModelID, "my-coder"},
+		},
+	}
+
+	manifest, configured, err := svc.BuildGroupConfiguredCodexModelsManifest(context.Background(), group, "")
+	require.NoError(t, err)
+	require.False(t, configured)
+	require.Nil(t, manifest)
+}
+
+func TestMergeGroupConfiguredCodexModelsInjectsSelectedDaybreakForOAuthOnly(t *testing.T) {
+	t.Parallel()
+
+	const groupID int64 = 782
+	upstreamBody := []byte(`{"models":[{"slug":"gpt-daybreak-blue-latest","display_name":"Upstream Daybreak","description":"Preserved upstream metadata","service_tiers":[],"additional_speed_tiers":[]},{"slug":"gpt-5.6-sol","display_name":"GPT-5.6 Sol"}]}`)
+	selectedGroup := func() *Group {
+		return &Group{
+			ID:       groupID,
+			Platform: PlatformOpenAI,
+			ModelsListConfig: GroupModelsListConfig{
+				Enabled: true,
+				Models:  []string{openai.DaybreakBlueModelID},
+			},
+		}
+	}
+
+	t.Run("oauth selected", func(t *testing.T) {
+		svc := &OpenAIGatewayService{accountRepo: codexModelsVisibilityAccountRepo{
+			byGroup: map[int64][]Account{
+				groupID: {{Platform: PlatformOpenAI, Type: AccountTypeOAuth}},
+			},
+		}}
+		manifest := &CodexModelsManifest{Body: upstreamBody}
+
+		require.NoError(t, svc.MergeGroupConfiguredCodexModels(
+			context.Background(), selectedGroup(), manifest, "",
+		))
+		models := decodeCodexManifestModels(t, manifest.Body)
+		require.Len(t, models, 1)
+		require.Equal(t, openai.DaybreakBlueModelID, models[0]["slug"])
+		require.Equal(t, "Upstream Daybreak", models[0]["display_name"])
+		require.Equal(t, "Preserved upstream metadata", models[0]["description"])
+		require.Len(t, models[0]["service_tiers"], 1)
+		require.Equal(t, []any{"fast"}, models[0]["additional_speed_tiers"])
+	})
+
+	t.Run("oauth not selected", func(t *testing.T) {
+		svc := &OpenAIGatewayService{accountRepo: codexModelsVisibilityAccountRepo{
+			byGroup: map[int64][]Account{
+				groupID: {{Platform: PlatformOpenAI, Type: AccountTypeOAuth}},
+			},
+		}}
+		manifest := &CodexModelsManifest{Body: upstreamBody}
+
+		require.NoError(t, svc.MergeGroupConfiguredCodexModels(
+			context.Background(),
+			&Group{ID: groupID, Platform: PlatformOpenAI},
+			manifest,
+			"",
+		))
+		require.Equal(t, []string{"gpt-5.6-sol"}, codexManifestModelSlugs(t, manifest.Body))
+	})
+
+	t.Run("api key selected", func(t *testing.T) {
+		svc := &OpenAIGatewayService{accountRepo: codexModelsVisibilityAccountRepo{
+			byGroup: map[int64][]Account{
+				groupID: {{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}},
+			},
+		}}
+		manifest := &CodexModelsManifest{Body: upstreamBody}
+
+		require.NoError(t, svc.MergeGroupConfiguredCodexModels(
+			context.Background(), selectedGroup(), manifest, "",
+		))
+		require.Empty(t, codexManifestModelSlugs(t, manifest.Body))
+	})
 }
 
 func TestMergeGroupConfiguredCodexModelsFiltersAutoReviewByDefault(t *testing.T) {

@@ -1,6 +1,10 @@
 package service
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
+)
 
 func lastOpenAIModelSegment(model string) string {
 	model = strings.TrimSpace(model)
@@ -47,6 +51,22 @@ func canonicalizeOpenAIModelAliasSpelling(model string) string {
 		normalized = strings.ReplaceAll(normalized, replacement.from, replacement.to)
 	}
 	return normalized
+}
+
+// openAIModelCapabilityID resolves entitlement aliases only for local
+// capability and billing checks. Request normalization deliberately does not
+// call this helper, so the upstream still receives the Daybreak model ID.
+// CAPYBARA-PATCH: preserve the gated Daybreak alias while inheriting Sol metadata.
+func openAIModelCapabilityID(model string) string {
+	normalized := canonicalizeOpenAIModelAliasSpelling(model)
+	if normalized == openai.DaybreakBlueModelID {
+		return openai.DaybreakBlueUnderlyingModelID
+	}
+	return normalized
+}
+
+func isOpenAIDaybreakBlueModel(model string) bool {
+	return canonicalizeOpenAIModelAliasSpelling(model) == openai.DaybreakBlueModelID
 }
 
 func normalizeKnownOpenAICodexModel(model string) string {
@@ -109,7 +129,7 @@ func normalizeKnownOpenAICodexModel(model string) string {
 // isOpenAIGPT56Model 判断是否 GPT-5.6 系列模型；入参可为原始模型名
 // （含大小写/路径/后缀变体）或已归一化的基名，两者均能正确识别。
 func isOpenAIGPT56Model(model string) bool {
-	normalized := canonicalizeOpenAIModelAliasSpelling(model)
+	normalized := openAIModelCapabilityID(model)
 	if normalized == "gpt-5.6" {
 		return true
 	}
@@ -145,6 +165,9 @@ func appendUsageBillingModelCandidate(candidates []string, seen map[string]struc
 	add(trimmed)
 	if canonical := canonicalizeOpenAIModelAliasSpelling(trimmed); canonical != "" {
 		add(canonical)
+		if capabilityModel := openAIModelCapabilityID(canonical); capabilityModel != canonical {
+			add(capabilityModel)
+		}
 	}
 	if normalized := normalizeKnownOpenAICodexModel(trimmed); normalized != "" {
 		add(normalized)

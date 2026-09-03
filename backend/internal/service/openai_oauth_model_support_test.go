@@ -23,6 +23,7 @@ func TestIsModelSupported_OpenAIOAuthEmptyMapping_ServableModels(t *testing.T) {
 		"", // 空模型交由上层必填校验
 		"gpt-5.4",
 		"gpt-5.4-high", // 推理后缀变体
+		"gpt-daybreak-blue-latest",
 		"gpt-5.3-codex",
 		"gpt-5.1-codex-mini",
 		"gpt-5",

@@ -16,9 +16,17 @@ type Model struct {
 	DisplayName string `json:"display_name"`
 }
 
+// CAPYBARA-PATCH: Daybreak Blue is an entitlement-gated OpenAI alias whose
+// current underlying capability and billing profile are GPT-5.6 Sol.
+const (
+	DaybreakBlueModelID           = "gpt-daybreak-blue-latest"
+	DaybreakBlueUnderlyingModelID = "gpt-5.6-sol"
+)
+
 // DefaultModels OpenAI models list
 var DefaultModels = []Model{
-	{ID: "gpt-5.6-sol", Object: "model", Created: 1780876800, OwnedBy: "openai", Type: "model", DisplayName: "GPT-5.6 Sol"},
+	{ID: DaybreakBlueUnderlyingModelID, Object: "model", Created: 1780876800, OwnedBy: "openai", Type: "model", DisplayName: "GPT-5.6 Sol"},
+	{ID: DaybreakBlueModelID, Object: "model", Created: 1780876800, OwnedBy: "openai", Type: "model", DisplayName: "GPT Daybreak Blue"},
 	{ID: "gpt-5.6", Object: "model", Created: 1780876800, OwnedBy: "openai", Type: "model", DisplayName: "GPT-5.6 (Sol)"},
 	{ID: "gpt-5.6-terra", Object: "model", Created: 1780876800, OwnedBy: "openai", Type: "model", DisplayName: "GPT-5.6 Terra"},
 	{ID: "gpt-5.6-luna", Object: "model", Created: 1780876800, OwnedBy: "openai", Type: "model", DisplayName: "GPT-5.6 Luna"},

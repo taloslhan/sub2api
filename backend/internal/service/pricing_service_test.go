@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/stretchr/testify/require"
 )
 
@@ -233,6 +234,38 @@ func TestPricingService_BareGPT56AliasDeterministicallyUsesSol(t *testing.T) {
 		require.InDelta(t, 5e-6, pricing.InputPricePerToken, 1e-12)
 		require.InDelta(t, 6.25e-6, pricing.CacheCreationPricePerToken, 1e-12)
 	}
+}
+
+func TestDaybreakBlueAliasUsesSolPricing(t *testing.T) {
+	solPricing := &LiteLLMModelPricing{
+		InputCostPerToken:               5e-6,
+		InputCostPerTokenPriority:       10e-6,
+		OutputCostPerToken:              30e-6,
+		OutputCostPerTokenPriority:      60e-6,
+		CacheReadInputTokenCost:         0.5e-6,
+		CacheReadInputTokenCostPriority: 1e-6,
+	}
+	pricingSvc := &PricingService{pricingData: map[string]*LiteLLMModelPricing{
+		openai.DaybreakBlueUnderlyingModelID: solPricing,
+	}}
+
+	require.Equal(t, openai.DaybreakBlueUnderlyingModelID, normalizeModelNameForPricing(openai.DaybreakBlueModelID))
+	require.Same(t, solPricing, pricingSvc.GetModelPricing(openai.DaybreakBlueModelID))
+
+	billingWithCatalog := NewBillingService(&config.Config{}, pricingSvc)
+	catalogPricing, err := billingWithCatalog.GetModelPricing(openai.DaybreakBlueModelID)
+	require.NoError(t, err)
+	require.InDelta(t, 5e-6, catalogPricing.InputPricePerToken, 1e-12)
+	require.InDelta(t, 10e-6, catalogPricing.InputPricePerTokenPriority, 1e-12)
+
+	billingFallback := NewBillingService(&config.Config{}, nil)
+	fallbackPricing, err := billingFallback.GetModelPricing(openai.DaybreakBlueModelID)
+	require.NoError(t, err)
+	require.InDelta(t, 5e-6, fallbackPricing.InputPricePerToken, 1e-12)
+	require.InDelta(t, 30e-6, fallbackPricing.OutputPricePerToken, 1e-12)
+	require.InDelta(t, 6.25e-6, fallbackPricing.CacheCreationPricePerToken, 1e-12)
+	require.InDelta(t, 0.5e-6, fallbackPricing.CacheReadPricePerToken, 1e-12)
+	require.True(t, billingFallback.HasIdentifiedTokenPricing(openai.DaybreakBlueModelID))
 }
 
 func TestDefaultPricingIncludesOfficialGPT56Rates(t *testing.T) {

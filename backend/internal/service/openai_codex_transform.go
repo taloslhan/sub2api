@@ -1224,6 +1224,10 @@ func normalizeOpenAIModelForUpstream(account *Account, model string) string {
 }
 
 func SupportsVerbosity(model string) bool {
+	// CAPYBARA-PATCH: Daybreak exposes the same verbosity contract as GPT-5.6 Sol.
+	if isOpenAIDaybreakBlueModel(model) {
+		model = openAIModelCapabilityID(model)
+	}
 	if !strings.HasPrefix(model, "gpt-") {
 		return true
 	}

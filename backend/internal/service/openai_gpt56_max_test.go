@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -21,6 +22,7 @@ func TestNormalizeOpenAIReasoningEffortForGPT56(t *testing.T) {
 		model string
 		want  string
 	}{
+		{name: "Daybreak 保留 max", raw: "max", model: openai.DaybreakBlueModelID, want: "max"},
 		{name: "Sol 保留 max", raw: "max", model: "gpt-5.6-sol", want: "max"},
 		{name: "Terra 保留 max", raw: "max", model: "openai/gpt-5.6-terra", want: "max"},
 		{name: "Luna 后缀保留 max", raw: "max", model: "gpt-5.6-luna-2026-07-09", want: "max"},
@@ -33,6 +35,17 @@ func TestNormalizeOpenAIReasoningEffortForGPT56(t *testing.T) {
 			require.Equal(t, tt.want, normalizeOpenAIReasoningEffortForModel(tt.raw, tt.model))
 		})
 	}
+}
+
+func TestNormalizeOpenAICodexCompactReasoningEffortPreservesDaybreakModelID(t *testing.T) {
+	body := []byte(`{"model":"gpt-daybreak-blue-latest","input":"compact me","reasoning":{"effort":"max"}}`)
+
+	normalized, changed, err := normalizeOpenAICodexCompactReasoningEffort(body, openai.DaybreakBlueModelID)
+
+	require.NoError(t, err)
+	require.True(t, changed)
+	require.Equal(t, openai.DaybreakBlueModelID, gjson.GetBytes(normalized, "model").String())
+	require.Equal(t, "xhigh", gjson.GetBytes(normalized, "reasoning.effort").String())
 }
 
 func TestNormalizeOpenAICodexCompactReasoningEffortDowngradesMax(t *testing.T) {

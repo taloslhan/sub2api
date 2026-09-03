@@ -30,7 +30,7 @@ func openAIBillingProfileForAccount(account *Account) OpenAIBillingProfile {
 
 func applyOpenAIBillingProfilePolicy(profile OpenAIBillingProfile, model string, pricing *ModelPricing) *ModelPricing {
 	if profile != OpenAIBillingProfileChatGPTSubscription || pricing == nil ||
-		!isOpenAIGPT56Model(normalizeKnownOpenAICodexModel(model)) {
+		!isOpenAIGPT56Model(model) {
 		return pricing
 	}
 

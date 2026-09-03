@@ -148,22 +148,33 @@ func matchGroupModelPricing(group *Group, model string) *ChannelModelPricing {
 		return nil
 	}
 	model = normalizeChannelPricingModelName(model)
-	var wildcard *ChannelModelPricing
-	for i := range group.ModelPricing {
-		entry := &group.ModelPricing[i]
-		for _, pattern := range entry.Models {
-			normalized := normalizeChannelPricingModelName(pattern)
-			if normalized == model {
-				cp := entry.Clone()
-				return &cp
-			}
-			if strings.HasSuffix(normalized, "*") && strings.HasPrefix(model, strings.TrimSuffix(normalized, "*")) && wildcard == nil {
-				cp := entry.Clone()
-				wildcard = &cp
+	models := []string{model}
+	// CAPYBARA-PATCH: keep an exact Daybreak group override first, then fall back
+	// to the current Sol capability price card.
+	if capabilityModel := openAIModelCapabilityID(model); capabilityModel != "" && capabilityModel != model {
+		models = append(models, capabilityModel)
+	}
+	for _, candidate := range models {
+		var wildcard *ChannelModelPricing
+		for i := range group.ModelPricing {
+			entry := &group.ModelPricing[i]
+			for _, pattern := range entry.Models {
+				normalized := normalizeChannelPricingModelName(pattern)
+				if normalized == candidate {
+					cp := entry.Clone()
+					return &cp
+				}
+				if strings.HasSuffix(normalized, "*") && strings.HasPrefix(candidate, strings.TrimSuffix(normalized, "*")) && wildcard == nil {
+					cp := entry.Clone()
+					wildcard = &cp
+				}
 			}
 		}
+		if wildcard != nil {
+			return wildcard
+		}
 	}
-	return wildcard
+	return nil
 }
 
 // resolveBasePricing 从 LiteLLM 或 Fallback 获取基础定价
@@ -194,7 +205,9 @@ func (r *ModelPricingResolver) lookupChannelPricingNormalized(ctx context.Contex
 	if pricing := r.channelService.GetChannelModelPricing(ctx, groupID, model); pricing != nil {
 		return pricing
 	}
-	normalized := normalizeKnownOpenAICodexModel(model)
+	// CAPYBARA-PATCH: allow a Sol channel price card to cover Daybreak after an
+	// exact Daybreak override has had the first chance to match.
+	normalized := normalizeKnownOpenAICodexModel(openAIModelCapabilityID(model))
 	if normalized == "" || strings.EqualFold(normalized, strings.TrimSpace(model)) {
 		return nil
 	}

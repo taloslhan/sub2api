@@ -120,6 +120,12 @@ func (s *OpenAIGatewayService) BuildGroupConfiguredCodexModelsManifest(
 		return nil, false, fmt.Errorf("load group configured Codex models: %w", err)
 	}
 	configuredModels := openAIConfiguredCodexModelIDsForGroup(visible, group)
+	// CAPYBARA-PATCH: a selected Daybreak passthrough needs the live upstream
+	// manifest as its base; MergeGroupConfiguredCodexModels injects the gated
+	// alias after account selection instead of turning it into a global model.
+	if groupExplicitlySelectsDaybreakBluePassthrough(visible, group) {
+		return nil, false, nil
+	}
 	if len(configuredModels) == 0 {
 		return nil, false, nil
 	}
@@ -139,6 +145,7 @@ func (s *OpenAIGatewayService) BuildGroupConfiguredCodexModelsManifest(
 		nil,
 		group.ModelsListConfig.Models,
 		group.CustomModelsListEnabled(),
+		false,
 	)
 	if err != nil {
 		return nil, false, fmt.Errorf("build group configured Codex models: %w", err)
@@ -171,7 +178,7 @@ func (s *OpenAIGatewayService) MergeGroupConfiguredCodexModels(
 		return nil
 	}
 
-	configuredModels, err := s.groupConfiguredCodexModelIDs(ctx, group)
+	configuredModels, allowDaybreakBlue, err := s.groupConfiguredCodexModelIDs(ctx, group)
 	if err != nil {
 		return fmt.Errorf("load group configured Codex models: %w", err)
 	}
@@ -180,6 +187,7 @@ func (s *OpenAIGatewayService) MergeGroupConfiguredCodexModels(
 		configuredModels,
 		group.ModelsListConfig.Models,
 		group.CustomModelsListEnabled(),
+		allowDaybreakBlue,
 	)
 	if err != nil {
 		return fmt.Errorf("merge group configured Codex models: %w", err)
@@ -195,15 +203,58 @@ func (s *OpenAIGatewayService) MergeGroupConfiguredCodexModels(
 	return nil
 }
 
-func (s *OpenAIGatewayService) groupConfiguredCodexModelIDs(ctx context.Context, group *Group) ([]string, error) {
+func (s *OpenAIGatewayService) groupConfiguredCodexModelIDs(ctx context.Context, group *Group) ([]string, bool, error) {
 	if group == nil {
-		return nil, nil
+		return nil, false, nil
 	}
 	accounts, err := s.accountRepo.ListSchedulableByGroupID(ctx, group.ID)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return openAIConfiguredCodexModelIDsForGroup(accounts, group), nil
+	models := openAIConfiguredCodexModelIDsForGroup(accounts, group)
+	allowDaybreakBlue := groupExplicitlySelectsDaybreakBluePassthrough(accounts, group)
+	if allowDaybreakBlue {
+		for _, modelID := range models {
+			if modelID == openai.DaybreakBlueModelID {
+				return models, true, nil
+			}
+		}
+		models = append(models, openai.DaybreakBlueModelID)
+		sort.Strings(models)
+	}
+	return models, allowDaybreakBlue, nil
+}
+
+// groupExplicitlySelectsDaybreakBluePassthrough prevents an entitlement-gated
+// alias from being advertised to unrelated groups. The model is synthesized
+// only when the group explicitly selects it and a schedulable OAuth-like
+// account can pass the exact alias through unchanged.
+func groupExplicitlySelectsDaybreakBluePassthrough(accounts []Account, group *Group) bool {
+	if group == nil || !group.CustomModelsListEnabled() {
+		return false
+	}
+	selected := false
+	for _, modelID := range group.ModelsListConfig.Models {
+		if strings.TrimSpace(modelID) == openai.DaybreakBlueModelID {
+			selected = true
+			break
+		}
+	}
+	if !selected {
+		return false
+	}
+
+	for i := range accounts {
+		account := &accounts[i]
+		if !account.IsOpenAIOAuthLike() || !account.IsModelSupported(openai.DaybreakBlueModelID) {
+			continue
+		}
+		mappedModel, matched := account.ResolveMappedModel(openai.DaybreakBlueModelID)
+		if !matched || strings.TrimSpace(mappedModel) == openai.DaybreakBlueModelID {
+			return true
+		}
+	}
+	return false
 }
 
 // loadCodexGroupCatalogAccounts separates picker membership from capability
@@ -468,6 +519,12 @@ func newConfiguredCodexModelDescriptor(modelID string) configuredCodexModelDescr
 	if isOpenAICodexGPTModel(modelID) {
 		descriptor.DisplayName = openaiCodexDisplayName(modelID)
 		descriptor.Description = "OpenAI GPT coding model routed through Sub2API."
+		if isOpenAIDaybreakBlueModel(modelID) {
+			descriptor.Description = "OpenAI Daybreak Blue access alias for GPT-5.6 Sol."
+			descriptor.AdditionalSpeedTiers = []string{"fast"}
+			descriptor.InputModalities = []string{"text", "image"}
+			descriptor.SupportsImageDetailOriginal = true
+		}
 		descriptor.SupportsParallelToolCalls = true
 		if configuredCodexSupportsPriorityServiceTier(modelID) {
 			descriptor.ServiceTiers = []configuredCodexServiceTier{
@@ -480,7 +537,7 @@ func newConfiguredCodexModelDescriptor(modelID string) configuredCodexModelDescr
 		}
 		if isOpenAICodexReasoningGPTModel(modelID) {
 			defaultReasoningLevel := "medium"
-			if getNormalizedCodexModel(modelID) == "gpt-5.6-sol" {
+			if openAIModelCapabilityID(modelID) == openai.DaybreakBlueUnderlyingModelID {
 				defaultReasoningLevel = "low"
 			}
 			descriptor.DefaultReasoningLevel = &defaultReasoningLevel
@@ -502,7 +559,7 @@ func newConfiguredCodexModelDescriptor(modelID string) configuredCodexModelDescr
 }
 
 func configuredCodexSupportsPriorityServiceTier(modelID string) bool {
-	normalized := canonicalizeOpenAIModelAliasSpelling(modelID)
+	normalized := openAIModelCapabilityID(modelID)
 	for _, family := range []string{"gpt-5.4", "gpt-5.5", "gpt-5.6"} {
 		if normalized == family || strings.HasPrefix(normalized, family+"-") {
 			return true
@@ -566,7 +623,7 @@ func configuredCodexGPTReasoningLevels(modelID string) []configuredCodexReasonin
 		{Effort: "high", Description: "Greater reasoning depth for coding and agent tasks"},
 		{Effort: "xhigh", Description: "Extra-high reasoning depth for difficult tasks"},
 	}
-	normalized := getNormalizedCodexModel(modelID)
+	normalized := openAIModelCapabilityID(modelID)
 	if isOpenAIGPT56Model(modelID) {
 		levels = append(levels, configuredCodexReasoningLevel{
 			Effort:      "max",
@@ -583,7 +640,7 @@ func configuredCodexGPTReasoningLevels(modelID string) []configuredCodexReasonin
 }
 
 func isOpenAICodexGPTModel(modelID string) bool {
-	normalized := canonicalizeOpenAIModelAliasSpelling(modelID)
+	normalized := openAIModelCapabilityID(modelID)
 	if normalized == "" || strings.HasPrefix(normalized, "gpt-image") {
 		return false
 	}
@@ -591,12 +648,12 @@ func isOpenAICodexGPTModel(modelID string) bool {
 }
 
 func isOpenAICodexReasoningGPTModel(modelID string) bool {
-	normalized := canonicalizeOpenAIModelAliasSpelling(modelID)
+	normalized := openAIModelCapabilityID(modelID)
 	return strings.HasPrefix(normalized, "gpt-5")
 }
 
 func isOpenAICodexImageInputModel(modelID string) bool {
-	normalized := canonicalizeOpenAIModelAliasSpelling(modelID)
+	normalized := openAIModelCapabilityID(modelID)
 	return strings.HasPrefix(normalized, "gpt-5") ||
 		strings.HasPrefix(normalized, "gpt-4o") ||
 		strings.HasPrefix(normalized, "gpt-4.1") ||
@@ -1143,6 +1200,7 @@ func mergeConfiguredCodexModelsManifest(
 	configuredModels []string,
 	selectedModels []string,
 	filterBySelection bool,
+	allowDaybreakBlue bool,
 ) ([]byte, bool, error) {
 	var envelope map[string]json.RawMessage
 	if err := json.Unmarshal(body, &envelope); err != nil {
@@ -1180,6 +1238,21 @@ func mergeConfiguredCodexModelsManifest(
 			changed = true
 			continue
 		}
+		// CAPYBARA-PATCH: upstream may advertise Daybreak directly after an
+		// entitlement change. Keep the group/account gate authoritative, and
+		// add the Fast/priority fields that the local Sol profile supports.
+		if descriptor.Slug == openai.DaybreakBlueModelID {
+			if !allowDaybreakBlue {
+				changed = true
+				continue
+			}
+			completedModel, err := codexDaybreakBlueWithFastCapabilities(rawModel)
+			if err != nil {
+				return nil, false, err
+			}
+			rawModel = completedModel
+			changed = true
+		}
 		if filterBySelection {
 			if _, allowed := selected[descriptor.Slug]; !allowed {
 				changed = true
@@ -1206,6 +1279,9 @@ func mergeConfiguredCodexModelsManifest(
 
 	for _, modelID := range configuredModels {
 		if isCodexDedicatedMediaModel(modelID) {
+			continue
+		}
+		if modelID == openai.DaybreakBlueModelID && !allowDaybreakBlue {
 			continue
 		}
 		if filterBySelection {
@@ -1243,6 +1319,25 @@ func mergeConfiguredCodexModelsManifest(
 		return nil, false, err
 	}
 	return mergedBody, true, nil
+}
+
+func codexDaybreakBlueWithFastCapabilities(rawModel json.RawMessage) (json.RawMessage, error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(rawModel, &fields); err != nil {
+		return nil, err
+	}
+	configured := newConfiguredCodexModelDescriptor(openai.DaybreakBlueModelID)
+	serviceTiers, err := json.Marshal(configured.ServiceTiers)
+	if err != nil {
+		return nil, err
+	}
+	additionalSpeedTiers, err := json.Marshal(configured.AdditionalSpeedTiers)
+	if err != nil {
+		return nil, err
+	}
+	fields["service_tiers"] = serviceTiers
+	fields["additional_speed_tiers"] = additionalSpeedTiers
+	return json.Marshal(fields)
 }
 
 func codexModelWithVisibility(rawModel json.RawMessage, visibility string) (json.RawMessage, bool, error) {
@@ -1834,9 +1929,10 @@ func CodexModelsManifestETag(body []byte) string {
 }
 
 var apiKeyCodexModelsWithoutResponsesLite = map[string]struct{}{
-	"gpt-5.6-sol":   {},
-	"gpt-5.6-terra": {},
-	"gpt-5.6-luna":  {},
+	openai.DaybreakBlueModelID:           {},
+	openai.DaybreakBlueUnderlyingModelID: {},
+	"gpt-5.6-terra":                      {},
+	"gpt-5.6-luna":                       {},
 }
 
 // adjustAPIKeyCodexModelsManifest prevents Codex from selecting Responses

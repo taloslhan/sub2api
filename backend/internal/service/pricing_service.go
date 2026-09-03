@@ -1100,6 +1100,8 @@ func normalizeModelNameForPricing(model string) string {
 
 	model = strings.TrimLeft(model, "/")
 	if canonical := canonicalizeOpenAIModelAliasSpelling(model); canonical != "" {
+		// CAPYBARA-PATCH: Daybreak keeps its request ID but uses Sol's price card.
+		canonical = openAIModelCapabilityID(canonical)
 		if canonical == "gpt-5.6" {
 			return "gpt-5.6-sol"
 		}

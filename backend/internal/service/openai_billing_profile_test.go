@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/stretchr/testify/require"
 )
 
@@ -31,7 +33,9 @@ func calculateGPT56ProfileCost(
 	accountGate *bool,
 ) *CostBreakdown {
 	t.Helper()
-	billing := newTestBillingService()
+	// Long-context ladders are catalog-driven; the fallback price card contains
+	// only the base tier.
+	billing := NewBillingService(&config.Config{}, newStubPricingServiceFromJSON(t, gpt56LadderCatalogJSON))
 	group := &Group{ID: 1, LongContextPricingEnabled: groupEnabled}
 	cost, err := billing.CalculateCostUnified(CostInput{
 		Ctx:                       context.Background(),
@@ -159,8 +163,8 @@ func TestGPT56SubscriptionProfileIgnoresLongContextGates(t *testing.T) {
 	}
 }
 
-func TestGPT56SubscriptionProfileAppliesToSolTerraAndLuna(t *testing.T) {
-	for _, model := range []string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"} {
+func TestGPT56SubscriptionProfileAppliesToDaybreakSolTerraAndLuna(t *testing.T) {
+	for _, model := range []string{openai.DaybreakBlueModelID, "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"} {
 		t.Run(model, func(t *testing.T) {
 			billing := newTestBillingService()
 			resolver := NewModelPricingResolver(nil, billing)

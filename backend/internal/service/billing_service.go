@@ -974,7 +974,7 @@ func (s *BillingService) getFallbackPricing(model string) *ModelPricing {
 	}
 
 	// OpenAI（GPT-5 / Codex 族）：仅匹配已知型号，避免未知 OpenAI 型号误计价。
-	if normalized := normalizeKnownOpenAICodexModel(modelLower); normalized != "" {
+	if normalized := normalizeKnownOpenAICodexModel(openAIModelCapabilityID(modelLower)); normalized != "" {
 		switch normalized {
 		case "gpt-5.6-sol":
 			return s.fallbackPrices["gpt-5.6-sol"]
@@ -1082,6 +1082,10 @@ func (s *BillingService) HasIdentifiedTokenPricing(model string) bool {
 	model = strings.ToLower(strings.TrimSpace(model))
 	if model == "" {
 		return false
+	}
+	// CAPYBARA-PATCH: Daybreak is a known Sol-backed token-billed alias.
+	if isOpenAIDaybreakBlueModel(model) {
+		model = openAIModelCapabilityID(model)
 	}
 	if s.pricingService != nil {
 		// 仅有图片价的条目不能用于 token 计费，口径与 GetModelPricing 保持一致。
@@ -1648,7 +1652,7 @@ func (s *BillingService) applyModelSpecificPricingPolicyEx(model string, pricing
 		}
 		return &cloned
 	}
-	normalized := normalizeKnownOpenAICodexModel(model)
+	normalized := normalizeKnownOpenAICodexModel(openAIModelCapabilityID(model))
 	isGPT56 := isOpenAIGPT56Model(normalized)
 	needsCacheCreationPolicy := isGPT56 && !pricing.CacheCreationPriceExplicit && (pricing.CacheCreationPricePerToken <= 0 ||
 		(pricing.InputPricePerTokenPriority > 0 && pricing.CacheCreationPricePerTokenPriority <= 0))

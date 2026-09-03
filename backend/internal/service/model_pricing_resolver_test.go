@@ -7,6 +7,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/stretchr/testify/require"
 )
 
@@ -55,6 +56,57 @@ func TestResolve_UnknownModel(t *testing.T) {
 	require.Nil(t, resolved.BasePricing)
 	// Unknown model: GetModelPricing returns error, source is "fallback"
 	require.Equal(t, "fallback", resolved.Source)
+}
+
+func TestDaybreakBluePricingOverridesFallBackToSol(t *testing.T) {
+	t.Parallel()
+
+	solInput := 7e-6
+	daybreakInput := 8e-6
+	group := &Group{ModelPricing: []ChannelModelPricing{
+		{Models: []string{openai.DaybreakBlueUnderlyingModelID}, InputPrice: &solInput},
+	}}
+	matched := matchGroupModelPricing(group, openai.DaybreakBlueModelID)
+	require.NotNil(t, matched)
+	require.Equal(t, &solInput, matched.InputPrice)
+
+	group.ModelPricing = append(group.ModelPricing, ChannelModelPricing{
+		Models:     []string{openai.DaybreakBlueModelID},
+		InputPrice: &daybreakInput,
+	})
+	matched = matchGroupModelPricing(group, openai.DaybreakBlueModelID)
+	require.NotNil(t, matched)
+	require.Equal(t, &daybreakInput, matched.InputPrice, "exact Daybreak override must win over Sol fallback")
+}
+
+func TestDaybreakBlueChannelPricingFallsBackToSol(t *testing.T) {
+	t.Parallel()
+
+	const groupID int64 = 101
+	inputPrice := 9e-6
+	repo := &mockChannelRepository{
+		listAllFn: func(_ context.Context) ([]Channel, error) {
+			return []Channel{{
+				ID:       1,
+				Name:     "openai-channel",
+				Status:   StatusActive,
+				GroupIDs: []int64{groupID},
+				ModelPricing: []ChannelModelPricing{{
+					Platform:   PlatformOpenAI,
+					Models:     []string{openai.DaybreakBlueUnderlyingModelID},
+					InputPrice: &inputPrice,
+				}},
+			}}, nil
+		},
+		getGroupPlatformsFn: func(_ context.Context, _ []int64) (map[int64]string, error) {
+			return map[int64]string{groupID: PlatformOpenAI}, nil
+		},
+	}
+	resolver := NewModelPricingResolver(NewChannelService(repo, nil, nil, nil), nil)
+
+	matched := resolver.lookupChannelPricingNormalized(context.Background(), groupID, openai.DaybreakBlueModelID)
+	require.NotNil(t, matched)
+	require.Equal(t, &inputPrice, matched.InputPrice)
 }
 
 func TestGetIntervalPricing_NoIntervals(t *testing.T) {

@@ -3,6 +3,7 @@ package service
 import (
 	"testing"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,5 +33,23 @@ func TestUsageBillingModelCandidates_BareGPT56IncludesSol(t *testing.T) {
 	require.Equal(t,
 		[]string{"openai/gpt-5.6", "gpt-5.6", "gpt-5.6-sol"},
 		usageBillingModelCandidates("openai/gpt-5.6"),
+	)
+}
+
+func TestDaybreakBlueUsesSolCapabilitiesWithoutRewritingUpstreamModel(t *testing.T) {
+	model := openai.DaybreakBlueModelID
+
+	require.True(t, isOpenAIDaybreakBlueModel(model))
+	require.True(t, isOpenAIGPT56Model(model))
+	require.Equal(t, openai.DaybreakBlueUnderlyingModelID, openAIModelCapabilityID(model))
+	require.Empty(t, normalizeKnownOpenAICodexModel(model))
+	require.Equal(t, model, normalizeCodexModel(model))
+	require.Equal(t, model, normalizeOpenAIModelForUpstream(
+		&Account{Platform: PlatformOpenAI, Type: AccountTypeOAuth},
+		model,
+	))
+	require.Equal(t,
+		[]string{model, openai.DaybreakBlueUnderlyingModelID},
+		usageBillingModelCandidates(model),
 	)
 }

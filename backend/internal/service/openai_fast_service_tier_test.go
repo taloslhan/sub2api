@@ -168,7 +168,7 @@ func TestApplyModelSpecificPricingPolicy_EnforcesOpenAIFastRatios(t *testing.T) 
 	})
 
 	t.Run("gpt-5.6 family keeps 2x", func(t *testing.T) {
-		for _, model := range []string{"gpt-5.6", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.6-max", "gpt-5.6-sol-preview"} {
+		for _, model := range []string{"gpt-daybreak-blue-latest", "gpt-5.6", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.6-max", "gpt-5.6-sol-preview"} {
 			got := svc.applyModelSpecificPricingPolicy(model, &ModelPricing{
 				InputPricePerToken:             5e-6,
 				InputPricePerTokenPriority:     10e-6,
@@ -261,6 +261,7 @@ func TestOpenAIFastBillingMultiplier_2xAnd25x(t *testing.T) {
 	}{
 		{model: "gpt-5.4", ratio: 2.0},
 		{model: "gpt-5.5", ratio: 2.5},
+		{model: "gpt-daybreak-blue-latest", ratio: 2.0},
 		{model: "gpt-5.6-sol", ratio: 2.0},
 		{model: "gpt-5.6-terra", ratio: 2.0},
 		{model: "gpt-5.6-luna", ratio: 2.0},
