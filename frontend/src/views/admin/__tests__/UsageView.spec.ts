@@ -33,6 +33,7 @@ const messages: Record<string, string> = {
   'admin.dashboard.hour': 'Hour',
   'admin.usage.failedToLoadUser': 'Failed to load user',
 	'admin.usage.requestId': 'Request ID',
+	'admin.usage.upstreamRequestId': 'Upstream ID',
 	'usage.requestedModel': 'Requested model',
 	'usage.sentUpstreamModel': 'Sent upstream model',
 	'usage.upstreamResponseModel': 'Upstream response model',
@@ -537,7 +538,48 @@ describe('admin UsageView request ID column visibility', () => {
     )
     expect(localStorage.setItem).toHaveBeenCalledWith(
       'usage-hidden-columns-version',
-      'request-id-hidden-by-default',
+      'upstream-request-id-hidden-by-default',
+    )
+  })
+
+  it('keeps upstream ID hidden by default and allows enabling it from column settings', async () => {
+    const wrapper = mount(UsageView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+          UsageStatsCards: true,
+          UsageFilters: UsageFiltersStub,
+          UsageTable: UsageTableStub,
+          UsageExportProgress: true,
+          UsageCleanupDialog: true,
+          UserBalanceHistoryModal: true,
+          AuditLogModal: true,
+          Pagination: true,
+          Select: true,
+          DateRangePicker: true,
+          Icon: true,
+          TokenUsageTrend: true,
+          ModelDistributionChart: true,
+          GroupDistributionChart: true,
+          EndpointDistributionChart: true,
+          UserTokenRanking: true,
+        },
+      },
+    })
+    await wrapper.vm.$nextTick()
+
+    const usageTable = wrapper.findComponent(UsageTableStub)
+    expect(usageTable.props('columns')).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ key: 'upstream_request_id' })]),
+    )
+
+    await wrapper.get('button[title="admin.users.columnSettings"]').trigger('click')
+    const upstreamToggle = wrapper.findAll('button').find((button) => button.text() === 'Upstream ID')
+    expect(upstreamToggle).toBeDefined()
+    await upstreamToggle!.trigger('click')
+
+    expect(usageTable.props('columns')).toEqual(
+      expect.arrayContaining([expect.objectContaining({ key: 'upstream_request_id', label: 'Upstream ID' })]),
     )
   })
 })
@@ -808,14 +850,14 @@ describe('admin UsageView model audit export', () => {
 		await flushPromises()
 
 		const headers = aoaToSheet.mock.calls[0][0][0]
-		expect(headers).toHaveLength(32)
-		expect(headers.slice(26, 29)).toEqual(['First token', 'Duration', 'Decoding Speed (tok/s)'])
+		expect(headers).toHaveLength(34)
+		expect(headers.slice(27, 30)).toEqual(['First token', 'Duration', 'Decoding Speed (tok/s)'])
 
 		const rows = sheetAddAoa.mock.calls[0][1]
-		expect(rows[0]).toHaveLength(32)
-		expect(rows[0][28]).toBe('12.35')
-		expect(rows[1][28]).toBe('')
-		expect(rows[2][28]).toBe('')
+		expect(rows[0]).toHaveLength(34)
+		expect(rows[0][29]).toBe('12.35')
+		expect(rows[1][29]).toBe('')
+		expect(rows[2][29]).toBe('')
 		// 导出的取消与进度逻辑不受影响
 		expect(saveAs).toHaveBeenCalledTimes(1)
 	})

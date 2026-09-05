@@ -518,10 +518,12 @@ export default {
       account: '账户',
       group: '分组',
       requestId: '请求ID',
+      upstreamRequestId: '上游ID',
       requestIdCopied: '请求ID已复制',
       // CAPYBARA-PATCH: 跨模块归档关联查询。
       correlationRequestId: '关联请求 ID',
       correlationRequestIdPlaceholder: '精确关联请求 ID',
+      upstreamRequestIdCopied: '上游ID已复制',
       allModels: '全部模型',
       allAccounts: '全部账户',
       allGroups: '全部分组',

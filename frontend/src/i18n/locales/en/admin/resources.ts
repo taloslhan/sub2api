@@ -521,10 +521,12 @@ export default {
       account: 'Account',
       group: 'Group',
       requestId: 'Request ID',
+      upstreamRequestId: 'Upstream ID',
       requestIdCopied: 'Request ID copied',
       // CAPYBARA-PATCH: Cross-module archive lookup.
       correlationRequestId: 'Correlation request ID',
       correlationRequestIdPlaceholder: 'Exact correlation request ID',
+      upstreamRequestIdCopied: 'Upstream ID copied',
       allModels: 'All Models',
       allAccounts: 'All Accounts',
       allGroups: 'All Groups',

@@ -18,6 +18,12 @@ func shouldAutoInjectPromptCacheKeyForCompat(model string) bool {
 	if isOpenAIDaybreakBlueModel(trimmed) {
 		return true
 	}
+	canonical := canonicalizeOpenAIModelAliasSpelling(trimmed)
+	// GPT-6 is the public alias for Astra. Keep this deliberately scoped to
+	// Astra so other GPT-6 families do not inherit Messages compatibility state.
+	if canonical == "gpt-6" || canonical == "gpt-6-astra" {
+		return true
+	}
 	// 仅对 Responses 兼容路径支持的 GPT-5 族开启自动注入，避免 normalizeCodexModel
 	// 的默认兜底把任意模型（如 gpt-4o、claude-*）误判为 gpt-5.4。
 	if !strings.Contains(trimmed, "gpt-5") && !strings.Contains(trimmed, "codex") {
@@ -26,7 +32,6 @@ func shouldAutoInjectPromptCacheKeyForCompat(model string) bool {
 	normalized := strings.TrimSpace(strings.ToLower(normalizeCodexModel(trimmed)))
 	return strings.HasPrefix(normalized, "gpt-5") || strings.Contains(normalized, "codex")
 }
-
 func deriveCompatPromptCacheKey(req *apicompat.ChatCompletionsRequest, mappedModel string) string {
 	if req == nil {
 		return ""
