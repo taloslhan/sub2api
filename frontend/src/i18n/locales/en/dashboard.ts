@@ -308,6 +308,7 @@ export default {
     accountCost: 'Cost',
     userBilled: 'User billed',
     accountBilled: 'Account billed',
+    estimatedQuota: 'Estimated quota (account billed ÷ used %)',
     resetNow: 'Now',
     resetPending: 'Pending refresh',
     accountMultiplier: 'Account rate',

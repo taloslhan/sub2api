@@ -135,6 +135,7 @@
           :resets-at="usageInfo.seven_day.resets_at"
           :window-stats="usageInfo.seven_day.window_stats"
           :show-now-when-idle="true"
+          :estimate-quota="true"
           color="emerald"
         />
         <!--

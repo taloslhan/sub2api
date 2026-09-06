@@ -166,6 +166,43 @@ describe('UsageProgressBar', () => {
     expect(mountAt(90).get('.h-1\\.5 + span').classes()).toContain('text-red-600')
   })
 
+  describe('estimateQuota 预估额度徽章', () => {
+    const windowStats = {
+      requests: 10300,
+      tokens: 1_400_000_000,
+      cost: 2390.02,
+      standard_cost: 2390.02,
+      user_cost: 2390.02
+    }
+
+    it('开启后按 账号计费 ÷ 已用比例 显示预估额度', () => {
+      const wrapper = mount(UsageProgressBar, {
+        props: { label: '7d', utilization: 90, color: 'emerald', windowStats, estimateQuota: true }
+      })
+
+      expect(wrapper.text()).toContain('≈ $2655.58')
+      expect(wrapper.get('[title="usage.estimatedQuota"]').classes()).toContain('bg-emerald-100')
+    })
+
+    it('已用比例低于 5% 时不做预估', () => {
+      const wrapper = mount(UsageProgressBar, {
+        props: { label: '7d', utilization: 3, color: 'emerald', windowStats, estimateQuota: true }
+      })
+
+      expect(wrapper.text()).not.toContain('≈ $')
+      expect(wrapper.text()).toContain('A $2390.02')
+    })
+
+    it('未开启时旧调用方不受影响', () => {
+      const wrapper = mount(UsageProgressBar, {
+        props: { label: '7d', utilization: 90, color: 'emerald', windowStats }
+      })
+
+      expect(wrapper.text()).not.toContain('≈ $')
+      expect(wrapper.text()).toContain('A $2390.02')
+    })
+  })
+
   it('labelWidth 默认 fixed：标签保持定宽居中，百分比列不变', () => {
     const wrapper = mount(UsageProgressBar, {
       props: { label: '5h', utilization: 30, color: 'indigo' }

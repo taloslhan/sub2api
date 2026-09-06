@@ -22,6 +22,13 @@
         >
           U ${{ formatUserCost }}
         </span>
+        <span
+          v-if="estimatedQuota != null"
+          class="rounded bg-emerald-100 px-1.5 py-0.5 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+          :title="t('usage.estimatedQuota')"
+        >
+          ≈ ${{ estimatedQuota }}
+        </span>
       </div>
     </div>
 
@@ -71,6 +78,8 @@ const props = withDefaults(
     remainingCapacity?: boolean
     /** fixed: 定宽居中徽章（账号页纵向对齐）；auto: 限宽截断左对齐（监控页组合标签） */
     labelWidth?: 'fixed' | 'auto'
+    /** 按 cost ÷ (utilization/100) 反推窗口总额度并追加徽章；仅费用与百分比同窗口时启用 */
+    estimateQuota?: boolean
   }>(),
   { labelWidth: 'fixed' }
 )
@@ -227,6 +236,17 @@ const formatAccountCost = computed(() => {
 const formatUserCost = computed(() => {
   if (!props.windowStats || props.windowStats.user_cost == null) return '0.00'
   return props.windowStats.user_cost.toFixed(2)
+})
+
+// 低于此已用比例时不做预估：上游百分比为整数，1~4% 时相除误差过大
+const MIN_ESTIMATE_UTILIZATION = 5
+
+// 预估窗口总额度：账号计费 ÷ 已用比例
+const estimatedQuota = computed<string | null>(() => {
+  if (!props.estimateQuota || !props.windowStats) return null
+  const { cost } = props.windowStats
+  if (cost <= 0 || props.utilization < MIN_ESTIMATE_UTILIZATION) return null
+  return (cost / (props.utilization / 100)).toFixed(2)
 })
 
 </script>
