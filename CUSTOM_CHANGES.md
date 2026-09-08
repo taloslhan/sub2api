@@ -46,3 +46,7 @@
 
 | 2026-09-08 | `backend/internal/custom/openaiprice/card.go`<br>`backend/internal/service/openai_credits_billing_test.go`<br>`backend/cmd/repair-gpt56-subscription-billing/{credits.go,credits_test.go}` | 撤销 Astra 缓存读取 credits 额外 2 倍：Standard 25、Fast 62.5 credits/百万 tokens，价卡 2026-09-08.v1；其他分项、模型和账号开关不变。历史修数入口绑定旧 v2 价卡，防止新价误用于旧日期；本次不追溯修数。 |
 | 2026-09-08 | `backend/cmd/repair-gpt56-subscription-billing/{main.go,credits.go,credits_test.go}` | 新增 --astra-cache-restore：固定 2026-09-08 UTC+8、凭据账号及 shadow 范围，按当前价卡复现旧缓存 2 倍后反向修正；保留 Free Fast/业务倍率、快照身份与原值校验、事务幂等和聚合重建；不写资金配额。旧修数模式仍绑定旧价卡及旧日期。 |
+
+| 2026-09-08 | `backend/internal/service/{account_stats_pricing.go,gateway_usage_billing.go,openai_gateway_usage.go}`<br>`backend/internal/service/{account_stats_pricing_test.go,openai_astra_billing_profile_test.go,openai_billing_profile_test.go}` | 同步 0.2.3：账号统计统一传递 pricingAt、订阅/credits profile 与长上下文开关，保留 DeepSeek 峰谷时间和 Fable 推理倍率，避免另建计费路径。 |
+| 2026-09-08 | `backend/internal/service/{openai_codex_models_service.go,openai_codex_models_service_test.go}` | 适配 ModelAllowlist 与固定 Codex 目录；保留 Daybreak 分组显式选择及 OAuth 账号双闸门、Fast 元数据，固定目录不注入额外账号别名。 |
+| 2026-09-08 | `backend/internal/handler/openai_gateway_handler.go`<br>`backend/internal/service/openai_ws_forwarder_ingress.go` | 合并上游 WebSocket 后续 turn 白名单/准入和 HTTP bridge 路由修复，同时保留逐 turn 审计关联与原始首帧归档。 |

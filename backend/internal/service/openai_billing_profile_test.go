@@ -233,7 +233,7 @@ func TestGPT56APIProfileWithoutResolverKeepsUserAndAccountStatsAligned(t *testin
 	})
 	require.NoError(t, err)
 	accountStatsCost := tryModelFilePricing(
-		billing, "gpt-5.6-sol", tokens, "", OpenAIBillingProfileAPI, false,
+		billing, "gpt-5.6-sol", tokens, "", time.Time{}, OpenAIBillingProfileAPI, false,
 	)
 	require.NotNil(t, accountStatsCost)
 	requireGPT56CostMultipliers(t, userCost, tokens, 1, 1)
@@ -248,7 +248,7 @@ func TestGPT56SubscriptionProfileAlignsUserAccountStatsAndAggregateCost(t *testi
 	)
 	billing := newTestBillingService()
 	accountStatsCost := tryModelFilePricing(
-		billing, "gpt-5.6-sol", tokens, "priority", OpenAIBillingProfileChatGPTSubscription, true,
+		billing, "gpt-5.6-sol", tokens, "priority", time.Time{}, OpenAIBillingProfileChatGPTSubscription, true,
 	)
 	require.NotNil(t, accountStatsCost)
 	accountRateMultiplier := 1.0

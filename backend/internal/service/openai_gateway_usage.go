@@ -480,14 +480,14 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 
 	// CAPYBARA-PATCH: 无分组的 credits 账号也记录实际档费用。
 	if apiKey.GroupID == nil && billingProfile == OpenAIBillingProfileChatGPTCredits {
-		usageLog.AccountStatsCost = tryModelFilePricing(s.billingService, firstUsageBillingModel(billingModels), tokens, serviceTier, billingProfile, true)
+		usageLog.AccountStatsCost = tryModelFilePricing(s.billingService, firstUsageBillingModel(billingModels), tokens, serviceTier, pricingAt, billingProfile, true)
 	}
 	// 计算账号统计定价费用（使用最终上游模型匹配自定义规则）
 	if apiKey.GroupID != nil {
 		longContextEnabled := openAIEffectiveLongContextEnabled(s.resolver != nil, apiKey.Group, longContextBillingGate)
 		applyAccountStatsCost(ctx, usageLog, s.channelService, s.billingService,
 			account.ID, *apiKey.GroupID, result.UpstreamModel, result.Model,
-			tokens, cost.TotalCost, billingProfile, longContextEnabled,
+			tokens, cost.TotalCost, pricingAt, billingProfile, longContextEnabled,
 		)
 	}
 

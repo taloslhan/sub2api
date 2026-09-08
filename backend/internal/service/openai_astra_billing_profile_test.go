@@ -80,7 +80,7 @@ func TestAstraSubscriptionBillingAcrossBoundaryAndAccountStats(t *testing.T) {
 						} else {
 							require.InDelta(t, float64(tokens.CacheCreationTokens)*12.5e-6*inputMultiplier, cost.CacheCreationCost, 1e-10)
 						}
-						stats := tryModelFilePricing(billing, input.Model, tokens, tier, profile, true)
+						stats := tryModelFilePricing(billing, input.Model, tokens, tier, time.Time{}, profile, true)
 						require.NotNil(t, stats)
 						require.InDelta(t, cost.TotalCost, *stats, 1e-10)
 					})

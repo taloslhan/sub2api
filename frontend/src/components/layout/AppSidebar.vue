@@ -766,7 +766,7 @@ const adminNavItems = computed((): NavItem[] => {
     // CAPYBARA-PATCH: Keep archive configuration reachable even when collection is globally disabled.
     { path: '/admin/session-archive', label: t('nav.sessionArchive'), icon: ShieldIcon },
     { path: '/admin/users', label: t('nav.users'), icon: UsersIcon, hideInSimpleMode: true },
-    { path: '/admin/groups', label: t('nav.groups'), icon: FolderIcon, hideInSimpleMode: true },
+    { path: '/admin/groups', label: t('nav.groups'), icon: FolderIcon },
     {
       path: '/admin/channels',
       label: t('nav.channelManagement'),
