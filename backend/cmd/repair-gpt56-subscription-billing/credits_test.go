@@ -63,7 +63,9 @@ func TestCreditsRepairConvergesAndComparesAllFields(t *testing.T) {
 func TestCreditsRepairVerifiesDiscountAndRejectsDrift(t *testing.T) {
 	r := &creditsRepair{repairer: newRepairerForTest(t), profile: service.OpenAIBillingProfileChatGPTSubscription, accountID: 4}
 	row := creditRowForTest(t, r, "gpt-6-astra", "priority")
-	row["actual_cost"] = row["actual_cost"].(float64) / 2
+	actualCost, ok := row["actual_cost"].(float64)
+	require.True(t, ok)
+	row["actual_cost"] = actualCost / 2
 	raw, err := json.Marshal(row)
 	require.NoError(t, err)
 	plan, _, err := r.planCredits(context.Background(), raw)
@@ -91,7 +93,7 @@ func TestCreditsSnapshotTransactionResumeAndDrift(t *testing.T) {
 	r := &creditsRepair{repairer: newRepairerForTest(t), profile: service.OpenAIBillingProfileChatGPTSubscription, accountID: 4}
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	r.db = db
 	row := creditRowForTest(t, r, "gpt-6-astra", "priority")
 	raw, err := json.Marshal(row)
@@ -129,13 +131,17 @@ func TestAstraCacheDoubleRepairScopeDiscountAndConvergence(t *testing.T) {
 				continue
 			}
 			row := creditRowForTest(t, r, "gpt-6-astra", tier)
-			oldCache := row["cache_read_cost"].(float64) / 2
+			cacheCost, ok := row["cache_read_cost"].(float64)
+			require.True(t, ok)
+			oldCache := cacheCost / 2
 			row["cache_read_cost"] = oldCache
-			row["total_cost"] = row["total_cost"].(float64) - oldCache
+			totalCost, ok := row["total_cost"].(float64)
+			require.True(t, ok)
+			row["total_cost"] = totalCost - oldCache
 			row["account_stats_cost"] = row["total_cost"]
 			row["actual_cost"] = row["total_cost"]
 			if free {
-				row["actual_cost"] = row["actual_cost"].(float64) / 2.5
+				row["actual_cost"] = (totalCost - oldCache) / 2.5
 			}
 			raw, err := json.Marshal(row)
 			require.NoError(t, err)

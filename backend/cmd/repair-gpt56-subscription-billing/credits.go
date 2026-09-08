@@ -62,7 +62,7 @@ type creditsRepair struct {
 
 func runCreditsRepair(accountID int64, path, legacyPath string, batchSize int, execute, astraCacheDouble, astraCacheRestore bool) error {
 	if astraCacheDouble && astraCacheRestore {
-		return fmt.Errorf("Astra cache double and restore modes are mutually exclusive")
+		return fmt.Errorf("astra cache double and restore modes are mutually exclusive")
 	}
 	expectedVersion := "2026-09-07.v2"
 	if astraCacheRestore {
@@ -92,12 +92,12 @@ func runCreditsRepair(accountID int64, path, legacyPath string, batchSize int, e
 		return err
 	}
 	client := ent.NewClient(ent.Driver(drv))
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 	tmp, err := os.MkdirTemp("", "credits-legacy-pricing-")
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(tmp)
+	defer func() { _ = os.RemoveAll(tmp) }()
 	cfg.Pricing = config.PricingConfig{DataDir: tmp, FallbackFile: legacyPath}
 	pricing := service.NewPricingService(cfg, nil)
 	if err = pricing.Initialize(); err != nil {
@@ -166,13 +166,15 @@ func runCreditsRepair(accountID int64, path, legacyPath string, batchSize int, e
 		for rows.Next() {
 			var raw []byte
 			if err = rows.Scan(&cursor, &raw); err != nil {
-				rows.Close()
+				_ = rows.Close()
 				return err
 			}
 			batch = append(batch, raw)
 		}
 		err = rows.Err()
-		rows.Close()
+		if closeErr := rows.Close(); err == nil {
+			err = closeErr
+		}
 		if err != nil {
 			return err
 		}
@@ -439,7 +441,7 @@ func (r *creditsRepair) applyCreditsBatch(ctx context.Context, changes []credits
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	for _, change := range changes {
 		var before map[string]any
 		if err := json.Unmarshal(change.Before, &before); err != nil {
