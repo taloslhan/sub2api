@@ -2047,6 +2047,12 @@
         />
       </div>
 
+      <!-- CAPYBARA-PATCH: 仅订阅凭据可开启，shadow 继承父账号。 -->
+      <OpenAICreditsBillingSettings
+        v-if="account?.platform === 'openai' && (account.type === 'oauth' || account.type === 'setup-token')"
+        v-model="openAICreditsBillingEnabled" :shadow="isSparkShadow"
+      />
+
       <!-- OpenAI API 长上下文计费开关 -->
       <div
         v-if="account?.platform === 'openai' && !isSparkShadow && !hideAccountLongContextBilling && (account?.type === 'oauth' || account?.type === 'setup-token' || account?.type === 'apikey')"
@@ -2904,6 +2910,8 @@
 </template>
 
 <script setup lang="ts">
+// CAPYBARA-PATCH: 账号可选 credits 计费，默认关闭。
+import OpenAICreditsBillingSettings from './OpenAICreditsBillingSettings.vue'
 import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -3308,6 +3316,7 @@ const customBaseUrl = ref('')
 const openaiPassthroughEnabled = ref(false)
 // OpenAI Codex namespace 工具摊平兼容开关（仅 OAuth），缺省关闭即原样保留
 const openaiFlattenNamespacesEnabled = ref(false)
+const openAICreditsBillingEnabled = ref(false)
 const openAILongContextBillingEnabled = ref(false)
 // OpenAI 订阅档位（Plus/Pro/Free）手动覆盖值,存于 credentials.plan_type;'' 表示清空/自动识别
 const editPlanType = ref<string>('')
@@ -3792,6 +3801,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   // Load OpenAI passthrough toggle (OpenAI OAuth/SetupToken/API Key)
   openaiPassthroughEnabled.value = false
   openaiFlattenNamespacesEnabled.value = false
+  openAICreditsBillingEnabled.value = false
   openAILongContextBillingEnabled.value = false
   editPlanType.value = ''
   openAICompactMode.value = 'auto'
@@ -3811,6 +3821,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     openaiPassthroughEnabled.value = extra?.openai_passthrough === true || extra?.openai_oauth_passthrough === true
     openaiFlattenNamespacesEnabled.value =
       newAccount.type === 'oauth' && extra?.openai_responses_flatten_namespaces === true
+    openAICreditsBillingEnabled.value = extra?.openai_credits_billing_enabled === true
     const longContextBillingValue = extra?.openai_long_context_billing_enabled
     openAILongContextBillingEnabled.value = longContextBillingValue === true
     // plan_type 手动覆盖仅 OAuth 有实际调度语义(IsOpenAIChatGPTSubscription 要求 oauth),故只对 oauth 回填
@@ -5242,6 +5253,12 @@ const handleSubmit = async () => {
         newExtra.openai_responses_flatten_namespaces = true
       } else {
         delete newExtra.openai_responses_flatten_namespaces
+      }
+      // CAPYBARA-PATCH: shadow/API Key 不自行选择订阅 credits。
+      if (!isSparkShadow.value && (props.account.type === 'oauth' || props.account.type === 'setup-token')) {
+        newExtra.openai_credits_billing_enabled = openAICreditsBillingEnabled.value
+      } else {
+        delete newExtra.openai_credits_billing_enabled
       }
       if (isSparkShadow.value) {
         delete newExtra.openai_long_context_billing_enabled

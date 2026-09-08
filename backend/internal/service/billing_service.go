@@ -189,6 +189,8 @@ type UsageTokens struct {
 
 // CostBreakdown 费用明细
 type CostBreakdown struct {
+	// CAPYBARA-PATCH: credits 模式的完整业务倍率，包含渠道分时但不含 Free Fast 优惠。
+	BusinessRateMultiplier    *float64
 	InputCost                 float64 // 文本输入费用（不含图片输入，图片输入单独记入 ImageInputCost）
 	ImageInputCost            float64 // 图片输入 token 费用（如 gpt-image-2 图片编辑）
 	OutputCost                float64
@@ -1310,6 +1312,10 @@ type CostInput struct {
 // CalculateCostUnified 统一计费入口，支持三种计费模式。
 // 使用 ModelPricingResolver 解析定价，然后根据 BillingMode 分发计算。
 func (s *BillingService) CalculateCostUnified(input CostInput) (*CostBreakdown, error) {
+	// CAPYBARA-PATCH: 仅显式开启 credits 的账号使用新价卡，其余维持原计费路径。
+	if cost := s.calculateUnifiedOpenAICost(input); cost != nil {
+		return cost, nil
+	}
 	if input.Resolver == nil {
 		// 无 Resolver，回退到旧路径
 		applyLongContextBilling := true
@@ -1658,6 +1664,10 @@ func (s *BillingService) calculateCostInternalWithPolicy(
 	longContextBillingEnabled bool,
 	profile OpenAIBillingProfile,
 ) (*CostBreakdown, error) {
+	// CAPYBARA-PATCH: 无 Resolver 与账号统计复用已开启账号的 credits 入口。
+	if cost := s.calculateUnifiedOpenAICost(CostInput{Model: model, Tokens: tokens, RateMultiplier: rateMultiplier, ServiceTier: serviceTier, OpenAIBillingProfile: profile}); cost != nil {
+		return cost, nil
+	}
 	var pricing *ModelPricing
 	var err error
 	if channelPricing != nil {

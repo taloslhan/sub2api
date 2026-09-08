@@ -20,6 +20,13 @@ import (
 )
 
 func main() {
+	// CAPYBARA-PATCH: credits 模式按各自固定日期和凭据父账号限定；先生成快照再执行。
+	astraCacheRestore := flag.Bool("astra-cache-restore", false, "restore Astra cached-input credits on 2026-09-08 UTC+8")
+	astraCacheDouble := flag.Bool("astra-cache-double", false, "only repair Astra from credits v1 to doubled cached-input credits on 2026-09-07")
+	creditsAccountID := flag.Int64("credits-account-id", 0, "repair only this credential account and its shadows on the mode-specific fixed date")
+	snapshot := flag.String("snapshot", "", "required immutable dry-run snapshot file for credits repair")
+	legacyPricing := flag.String("legacy-pricing-file", "", "frozen pre-change pricing catalog for credits repair")
+
 	fromRaw := flag.String("from", "", "required RFC3339 lower bound (inclusive) on usage_logs.created_at")
 	toRaw := flag.String("to", "", "required RFC3339 upper bound (exclusive) on usage_logs.created_at")
 	execute := flag.Bool("execute", false, "write recomputed costs and rebuild aggregates (default is dry-run)")
@@ -27,7 +34,19 @@ func main() {
 	batchSize := flag.Int("batch-size", 1000, "scan/update batch size (1-5000)")
 	topN := flag.Int("top", 20, "model/user/drift rows to print (0 = all)")
 	flag.Parse()
+	if *creditsAccountID != 0 {
+		if *allowDrift || *fromRaw != "" || *toRaw != "" {
+			log.Fatal("credits repair has a fixed date and never permits --allow-drift")
+		}
+		if err := runCreditsRepair(*creditsAccountID, *snapshot, *legacyPricing, *batchSize, *execute, *astraCacheDouble, *astraCacheRestore); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 
+	if *astraCacheDouble || *astraCacheRestore {
+		log.Fatal("Astra cache repair requires --credits-account-id")
+	}
 	from, to := parseWindow(*fromRaw, *toRaw)
 	if *batchSize < 1 || *batchSize > 5000 {
 		log.Fatal("--batch-size must be between 1 and 5000")

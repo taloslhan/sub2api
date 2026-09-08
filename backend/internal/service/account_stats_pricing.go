@@ -37,6 +37,10 @@ func resolveAccountStatsCost(
 	if len(reasoningEfforts) > 0 {
 		reasoningEffort = reasoningEfforts[0]
 	}
+	// CAPYBARA-PATCH: credits 账号按实际 Fast 档统计，忽略账号统计自定义价。
+	if billingService != nil && profile == OpenAIBillingProfileChatGPTCredits && UnifiedOpenAIModel(upstreamModel) != "" && unifiedOpenAITier(serviceTier) {
+		return tryModelFilePricing(billingService, upstreamModel, tokens, serviceTier, profile, true, reasoningEffort)
+	}
 	if channelService == nil || upstreamModel == "" {
 		return nil
 	}

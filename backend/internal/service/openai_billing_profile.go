@@ -10,6 +10,7 @@ const (
 	OpenAIBillingProfileUnknown             OpenAIBillingProfile = ""
 	OpenAIBillingProfileChatGPTSubscription OpenAIBillingProfile = "chatgpt_subscription"
 	OpenAIBillingProfileAPI                 OpenAIBillingProfile = "api"
+	OpenAIBillingProfileChatGPTCredits      OpenAIBillingProfile = "chatgpt_credits" // 账号显式开启；默认关闭。
 )
 
 // GPT-5.6 ChatGPT/Codex 订阅的 Fast 按 Standard credits 的 2.5 倍消耗。
@@ -18,6 +19,9 @@ const openAIChatGPTFastCreditRatio = 2.5
 func openAIBillingProfileForAccount(account *Account) OpenAIBillingProfile {
 	if account == nil {
 		return OpenAIBillingProfileUnknown
+	}
+	if account.IsOpenAICreditsBillingEnabled() {
+		return OpenAIBillingProfileChatGPTCredits
 	}
 	if account.IsOpenAIOAuthLike() {
 		return OpenAIBillingProfileChatGPTSubscription
@@ -29,7 +33,7 @@ func openAIBillingProfileForAccount(account *Account) OpenAIBillingProfile {
 }
 
 func applyOpenAIBillingProfilePolicy(profile OpenAIBillingProfile, model string, pricing *ModelPricing) *ModelPricing {
-	if profile != OpenAIBillingProfileChatGPTSubscription || pricing == nil {
+	if (profile != OpenAIBillingProfileChatGPTSubscription && profile != OpenAIBillingProfileChatGPTCredits) || pricing == nil {
 		return pricing
 	}
 	isAstra := isOpenAIGPT6AstraModel(model)

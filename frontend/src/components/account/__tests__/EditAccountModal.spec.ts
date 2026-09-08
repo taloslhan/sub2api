@@ -612,6 +612,24 @@ describe('EditAccountModal', () => {
     })
   })
 
+  it('keeps credits billing opt-in and submits only the edited account setting', async () => {
+    const account = buildAccount()
+    account.type = 'oauth'
+    account.extra = { openai_long_context_billing_enabled: true }
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    const toggle = wrapper.get('[data-testid="openai-credits-billing-toggle"]')
+    expect(toggle.attributes('aria-checked')).toBe('false')
+    await toggle.trigger('click')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.openai_credits_billing_enabled).toBe(true)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.openai_long_context_billing_enabled).toBe(true)
+  })
+
   it('loads and submits the per-account OpenAI long-context billing toggle', async () => {
     const account = buildAccount()
     account.extra = {

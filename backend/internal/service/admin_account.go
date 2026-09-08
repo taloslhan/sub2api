@@ -270,6 +270,8 @@ func (s *adminServiceImpl) DuplicateAccount(ctx context.Context, id int64, actor
 	if err != nil {
 		return nil, fmt.Errorf("clone account extra configuration: %w", err)
 	}
+	// CAPYBARA-PATCH: 复制账号仍默认关闭 credits，避免自用计费扩散。
+	delete(extra, OpenAICreditsBillingEnabledKey)
 	if operationID != "" {
 		if extra == nil {
 			extra = make(map[string]any, 1)
@@ -347,6 +349,12 @@ func normalizeAccountConcurrency(platform, accountType string, concurrency int) 
 func ValidateOpenAILongContextBillingExtra(platform string, extra map[string]any) error {
 	if platform != PlatformOpenAI {
 		return nil
+	}
+	// CAPYBARA-PATCH: 共用既有创建、更新、导入校验入口，防止字符串误开启 credits。
+	if raw, exists := extra[OpenAICreditsBillingEnabledKey]; exists {
+		if _, ok := raw.(bool); !ok {
+			return infraerrors.BadRequest("OPENAI_CREDITS_BILLING_INVALID", "openai_credits_billing_enabled must be a boolean")
+		}
 	}
 	raw, exists := extra[openAILongContextBillingEnabledKey]
 	if !exists {
@@ -886,7 +894,8 @@ func (s *adminServiceImpl) UpdateAccountExtra(ctx context.Context, id int64, upd
 	delete(updates, OllamaCloudUsageSessionExtraKey)
 	delete(updates, OllamaCloudUsageAutoRefreshExtraKey)
 	delete(updates, OllamaCloudUsageSnapshotExtraKey)
-	if _, exists := updates[openAILongContextBillingEnabledKey]; exists {
+	_, hasCreditsBilling := updates[OpenAICreditsBillingEnabledKey]
+	if _, exists := updates[openAILongContextBillingEnabledKey]; exists || hasCreditsBilling {
 		account, err := s.accountRepo.GetByID(ctx, id)
 		if err != nil {
 			return err
@@ -904,6 +913,13 @@ func (s *adminServiceImpl) UpdateAccountExtra(ctx context.Context, id int64, upd
 // BulkUpdateAccounts updates multiple accounts in one request.
 // It merges credentials/extra keys instead of overwriting the whole object.
 func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUpdateAccountsInput) (*BulkUpdateAccountsResult, error) {
+	// CAPYBARA-PATCH: 批量 JSONB 合并也必须校验 credits 开关类型。
+	if _, exists := input.Extra[OpenAICreditsBillingEnabledKey]; exists {
+		if err := ValidateOpenAILongContextBillingExtra(PlatformOpenAI, input.Extra); err != nil {
+			return nil, err
+		}
+	}
+
 	// Managed probe/session state may only enter through dedicated typed endpoints.
 	input.Extra = sanitizedCodexFingerprintExtraUpdates(input.Extra)
 	input.Extra = stripOpenAIAutoResetCreditManagedExtra(input.Extra, true)

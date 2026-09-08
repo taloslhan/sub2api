@@ -427,6 +427,10 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	} else {
 		usageLog.RateMultiplier = multiplier
 	}
+	// CAPYBARA-PATCH: 仅 credits 模式记录完整分时业务倍率，旧路径保持原值。
+	if cost != nil && cost.BusinessRateMultiplier != nil {
+		usageLog.RateMultiplier = *cost.BusinessRateMultiplier
+	}
 	usageLog.AccountRateMultiplier = &accountRateMultiplier
 	usageLog.BillingType = billingType
 	usageLog.Stream = result.Stream
@@ -474,6 +478,10 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		usageLog.SubscriptionID = &subscription.ID
 	}
 
+	// CAPYBARA-PATCH: 无分组的 credits 账号也记录实际档费用。
+	if apiKey.GroupID == nil && billingProfile == OpenAIBillingProfileChatGPTCredits {
+		usageLog.AccountStatsCost = tryModelFilePricing(s.billingService, firstUsageBillingModel(billingModels), tokens, serviceTier, billingProfile, true)
+	}
 	// 计算账号统计定价费用（使用最终上游模型匹配自定义规则）
 	if apiKey.GroupID != nil {
 		longContextEnabled := openAIEffectiveLongContextEnabled(s.resolver != nil, apiKey.Group, longContextBillingGate)

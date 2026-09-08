@@ -3118,6 +3118,11 @@
         </div>
       </div>
 
+      <OpenAICreditsBillingSettings
+        v-if="form.platform === 'openai' && accountCategory === 'oauth-based'"
+        v-model="openAICreditsBillingEnabled"
+      />
+
       <!-- OpenAI API 长上下文计费开关 -->
       <div
         v-if="form.platform === 'openai' && !hideAccountLongContextBilling && (accountCategory === 'oauth-based' || accountCategory === 'apikey')"
@@ -3795,6 +3800,8 @@
 </template>
 
 <script setup lang="ts">
+// CAPYBARA-PATCH: 新账号默认沿用原计费，credits 为显式选择。
+import OpenAICreditsBillingSettings from './OpenAICreditsBillingSettings.vue'
 import { ref, reactive, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -4273,6 +4280,7 @@ const autoPauseOnExpired = ref(true)
 const openaiPassthroughEnabled = ref(false)
 // OpenAI Codex namespace 工具摊平兼容开关（仅 OAuth），缺省关闭即原样保留
 const openaiFlattenNamespacesEnabled = ref(false)
+const openAICreditsBillingEnabled = ref(false)
 const openAILongContextBillingEnabled = ref(false)
 const openAILongContextBillingTouched = ref(false)
 const openAICompactMode = ref<OpenAICompactMode>('auto')
@@ -5193,6 +5201,7 @@ const resetForm = () => {
   autoPauseOnExpired.value = true
   openaiPassthroughEnabled.value = false
   openaiFlattenNamespacesEnabled.value = false
+  openAICreditsBillingEnabled.value = false
   openAILongContextBillingEnabled.value = false
   openAILongContextBillingTouched.value = false
   openAICompactMode.value = 'auto'
@@ -5284,6 +5293,12 @@ const buildOpenAIExtra = (base?: Record<string, unknown>): Record<string, unknow
     extra.openai_responses_flatten_namespaces = true
   } else {
     delete extra.openai_responses_flatten_namespaces
+  }
+  // CAPYBARA-PATCH: 缺省不落键，导入/新建账号不会自动启用。
+  if (accountCategory.value === 'oauth-based' && openAICreditsBillingEnabled.value) {
+    extra.openai_credits_billing_enabled = true
+  } else {
+    delete extra.openai_credits_billing_enabled
   }
   extra.openai_long_context_billing_enabled = openAILongContextBillingEnabled.value
 
