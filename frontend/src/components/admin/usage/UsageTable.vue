@@ -205,6 +205,13 @@
           </div>
         </template>
 
+        <!-- CAPYBARA-PATCH: Show service tier directly in usage logs using the cost tooltip labels. -->
+        <template #cell-service_tier="{ row }">
+          <span class="whitespace-nowrap text-sm text-gray-900 dark:text-white">
+            {{ getUsageServiceTierLabel(row.service_tier, t) }}
+          </span>
+        </template>
+
         <template #cell-cost="{ row }">
           <div class="text-sm">
             <div class="flex items-center gap-1.5">
