@@ -102,7 +102,7 @@ func TestDaybreakBlueChannelPricingFallsBackToSol(t *testing.T) {
 			return map[int64]string{groupID: PlatformOpenAI}, nil
 		},
 	}
-	resolver := NewModelPricingResolver(NewChannelService(repo, nil, nil, nil), nil)
+	resolver := NewModelPricingResolver(NewChannelService(repo, nil, nil, nil, nil), nil)
 
 	matched := resolver.lookupChannelPricingNormalized(context.Background(), groupID, openai.DaybreakBlueModelID)
 	require.NotNil(t, matched)
