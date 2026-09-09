@@ -51,3 +51,5 @@
 | 2026-09-08 | `backend/internal/service/{account_stats_pricing.go,gateway_usage_billing.go,openai_gateway_usage.go}`<br>`backend/internal/service/{account_stats_pricing_test.go,openai_astra_billing_profile_test.go,openai_billing_profile_test.go}` | 同步 0.2.3：账号统计统一传递 pricingAt、订阅/credits profile 与长上下文开关，保留 DeepSeek 峰谷时间和 Fable 推理倍率，避免另建计费路径。 |
 | 2026-09-08 | `backend/internal/service/{openai_codex_models_service.go,openai_codex_models_service_test.go}` | 适配 ModelAllowlist 与固定 Codex 目录；保留 Daybreak 分组显式选择及 OAuth 账号双闸门、Fast 元数据，固定目录不注入额外账号别名。 |
 | 2026-09-08 | `backend/internal/handler/openai_gateway_handler.go`<br>`backend/internal/service/openai_ws_forwarder_ingress.go` | 合并上游 WebSocket 后续 turn 白名单/准入和 HTTP bridge 路由修复，同时保留逐 turn 审计关联与原始首帧归档。 |
+
+| 2026-09-09 | `frontend/src/components/account/UsageProgressBar.vue` | 同步 0.2.4：定制 estimateQuota 开启时保留绿色预估徽章及 5% 门槛，上游 estimatedTotalCost 作为未开启定制预估时的显示路径，避免同一窗口重复展示。 |
