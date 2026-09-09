@@ -177,19 +177,21 @@ describe('UsageProgressBar', () => {
 
     it('开启后按 账号计费 ÷ 已用比例 显示预估额度', () => {
       const wrapper = mount(UsageProgressBar, {
-        props: { label: '7d', utilization: 90, color: 'emerald', windowStats, estimateQuota: true }
+        props: { label: '7d', utilization: 90, color: 'emerald', windowStats, estimateQuota: true, estimatedTotalCost: 2655.58 }
       })
 
       expect(wrapper.text()).toContain('≈ $2655.58')
+      expect(wrapper.find('[data-test="estimated-total-cost"]').exists()).toBe(false)
       expect(wrapper.get('[title="usage.estimatedQuota"]').classes()).toContain('bg-emerald-100')
     })
 
     it('已用比例低于 5% 时不做预估', () => {
       const wrapper = mount(UsageProgressBar, {
-        props: { label: '7d', utilization: 3, color: 'emerald', windowStats, estimateQuota: true }
+        props: { label: '7d', utilization: 3, color: 'emerald', windowStats, estimateQuota: true, estimatedTotalCost: 79667.33 }
       })
 
       expect(wrapper.text()).not.toContain('≈ $')
+      expect(wrapper.find('[data-test="estimated-total-cost"]').exists()).toBe(false)
       expect(wrapper.text()).toContain('A $2390.02')
     })
 

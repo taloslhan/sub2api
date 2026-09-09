@@ -105,7 +105,7 @@ func runCreditsRepair(accountID int64, path, legacyPath string, batchSize int, e
 	}
 	defer pricing.Stop()
 	groups := repository.NewGroupRepository(client, drv.DB())
-	channels := service.NewChannelService(repository.NewChannelRepository(drv.DB()), groups, nil, pricing)
+	channels := service.NewChannelService(repository.NewChannelRepository(drv.DB()), groups, nil, pricing, nil)
 	billing := service.NewBillingService(cfg, pricing)
 	r := &creditsRepair{repairer: &repairer{db: drv.DB(), groupRepo: groups, channelService: channels, billingService: billing,
 		resolver: service.NewModelPricingResolver(channels, billing), groupCache: make(map[int64]*service.Group)}, accountID: accountID, astraCacheDouble: astraCacheDouble, astraCacheRestore: astraCacheRestore}

@@ -74,7 +74,7 @@ func main() {
 	groupRepo := repository.NewGroupRepository(client, db)
 	channelRepo := repository.NewChannelRepository(db)
 	billingService := service.NewBillingService(cfg, pricingService)
-	channelService := service.NewChannelService(channelRepo, groupRepo, nil, pricingService)
+	channelService := service.NewChannelService(channelRepo, groupRepo, nil, pricingService, nil)
 	r := &repairer{
 		db:             db,
 		groupRepo:      groupRepo,

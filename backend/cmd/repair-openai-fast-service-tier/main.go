@@ -87,7 +87,7 @@ func main() {
 	channelRepo := repository.NewChannelRepository(db)
 	billingService := service.NewBillingService(cfg, pricingService)
 	// authCacheInvalidator 传 nil：本工具只读渠道配置，不触发任何鉴权缓存失效。
-	channelService := service.NewChannelService(channelRepo, groupRepo, nil, pricingService)
+	channelService := service.NewChannelService(channelRepo, groupRepo, nil, pricingService, nil)
 	resolver := service.NewModelPricingResolver(channelService, billingService)
 
 	ctx := context.Background()
