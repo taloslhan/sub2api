@@ -53,3 +53,5 @@
 | 2026-09-08 | `backend/internal/handler/openai_gateway_handler.go`<br>`backend/internal/service/openai_ws_forwarder_ingress.go` | 合并上游 WebSocket 后续 turn 白名单/准入和 HTTP bridge 路由修复，同时保留逐 turn 审计关联与原始首帧归档。 |
 
 | 2026-09-09 | `frontend/src/components/account/UsageProgressBar.vue` | 同步 0.2.4：定制 estimateQuota 开启时保留绿色预估徽章及 5% 门槛，上游 estimatedTotalCost 作为未开启定制预估时的显示路径，避免同一窗口重复展示。 |
+
+| 2026-09-16 | `backend/internal/handler/{dto/settings.go,setting_handler.go}`<br>`backend/internal/service/setting_public.go`<br>`backend/cmd/server/wire_gen.go` | 同步 0.2.5：公开设置与首屏注入同时保留 Crisp 和上游余额支付开关；重新生成 Wire，保留会话归档依赖并复用前移的 Ollama 配额服务。 |
