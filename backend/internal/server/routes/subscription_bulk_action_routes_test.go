@@ -25,7 +25,11 @@ func TestSubscriptionBulkActionRoutesRequireAdminAuthentication(t *testing.T) {
 	})
 	auditLog := servermiddleware.AuditLogMiddleware(func(c *gin.Context) { c.Next() })
 	stepUp := servermiddleware.StepUpAuthMiddleware(func(c *gin.Context) { c.Next() })
-	RegisterAdminRoutes(router.Group("/api/v1"), handlers, adminAuth, auditLog, stepUp, nil, nil)
+	// CAPYBARA-PATCH: 补齐会话归档的必要审计与限流依赖。
+	requiredAudit := servermiddleware.RequiredAuditMiddleware(func(string) gin.HandlerFunc {
+		return func(c *gin.Context) { c.Next() }
+	})
+	RegisterAdminRoutes(router.Group("/api/v1"), handlers, adminAuth, auditLog, stepUp, requiredAudit, nil, nil, func(c *gin.Context) { c.Next() })
 
 	for _, path := range []string{"/api/v1/admin/subscriptions/bulk-action", "/api/v1/admin/subscriptions/bulk-assign"} {
 		for _, tc := range []struct {

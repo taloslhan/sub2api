@@ -55,3 +55,5 @@
 | 2026-09-09 | `frontend/src/components/account/UsageProgressBar.vue` | 同步 0.2.4：定制 estimateQuota 开启时保留绿色预估徽章及 5% 门槛，上游 estimatedTotalCost 作为未开启定制预估时的显示路径，避免同一窗口重复展示。 |
 
 | 2026-09-16 | `backend/internal/handler/{dto/settings.go,setting_handler.go}`<br>`backend/internal/service/setting_public.go`<br>`backend/cmd/server/wire_gen.go` | 同步 0.2.5：公开设置与首屏注入同时保留 Crisp 和上游余额支付开关；重新生成 Wire，保留会话归档依赖并复用前移的 Ollama 配额服务。 |
+
+| 2026-09-16 | `backend/internal/server/routes/subscription_bulk_action_routes_test.go`<br>`backend/internal/repository/ops_repo_request_details_test.go` | 上游新增回归测试适配二开路由审计参数与 correlation_request_id 查询列序，保留鉴权及延迟排序断言。 |
