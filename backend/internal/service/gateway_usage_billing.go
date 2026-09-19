@@ -1205,6 +1205,9 @@ func (s *GatewayService) buildRecordUsageLog(
 		usageLog.LongContextBillingApplied = cost.LongContextBillingApplied
 	}
 
+	if account.Platform == PlatformOpenAI {
+		applyUsageTurnState(usageLog, result.TurnState)
+	}
 	return usageLog
 }
 

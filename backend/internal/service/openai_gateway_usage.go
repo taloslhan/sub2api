@@ -446,6 +446,9 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	if input.CyberBlocked {
 		usageLog.RequestType = RequestTypeCyberBlocked
 	}
+	if account.Platform == PlatformOpenAI {
+		applyUsageTurnState(usageLog, result.TurnState)
+	}
 	usageLog.OpenAIWSMode = result.OpenAIWSMode
 	usageLog.DurationMs = &durationMs
 	usageLog.FirstTokenMs = result.FirstTokenMs

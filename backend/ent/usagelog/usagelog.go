@@ -14,6 +14,14 @@ const (
 	Label = "usage_log"
 	// FieldID holds the string denoting the id field in the database.
 	FieldID = "id"
+	// FieldUpstreamRequestTurnState holds the string denoting the upstream_request_turn_state field in the database.
+	FieldUpstreamRequestTurnState = "upstream_request_turn_state"
+	// FieldUpstreamResponseTurnState holds the string denoting the upstream_response_turn_state field in the database.
+	FieldUpstreamResponseTurnState = "upstream_response_turn_state"
+	// FieldTurnStateTransport holds the string denoting the turn_state_transport field in the database.
+	FieldTurnStateTransport = "turn_state_transport"
+	// FieldTurnStateConnectionReused holds the string denoting the turn_state_connection_reused field in the database.
+	FieldTurnStateConnectionReused = "turn_state_connection_reused"
 	// FieldUserID holds the string denoting the user_id field in the database.
 	FieldUserID = "user_id"
 	// FieldAPIKeyID holds the string denoting the api_key_id field in the database.
@@ -160,6 +168,10 @@ const (
 // Columns holds all SQL columns for usagelog fields.
 var Columns = []string{
 	FieldID,
+	FieldUpstreamRequestTurnState,
+	FieldUpstreamResponseTurnState,
+	FieldTurnStateTransport,
+	FieldTurnStateConnectionReused,
 	FieldUserID,
 	FieldAPIKeyID,
 	FieldAccountID,
@@ -298,6 +310,26 @@ type OrderOption func(*sql.Selector)
 // ByID orders the results by the id field.
 func ByID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldID, opts...).ToFunc()
+}
+
+// ByUpstreamRequestTurnState orders the results by the upstream_request_turn_state field.
+func ByUpstreamRequestTurnState(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUpstreamRequestTurnState, opts...).ToFunc()
+}
+
+// ByUpstreamResponseTurnState orders the results by the upstream_response_turn_state field.
+func ByUpstreamResponseTurnState(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUpstreamResponseTurnState, opts...).ToFunc()
+}
+
+// ByTurnStateTransport orders the results by the turn_state_transport field.
+func ByTurnStateTransport(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldTurnStateTransport, opts...).ToFunc()
+}
+
+// ByTurnStateConnectionReused orders the results by the turn_state_connection_reused field.
+func ByTurnStateConnectionReused(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldTurnStateConnectionReused, opts...).ToFunc()
 }
 
 // ByUserID orders the results by the user_id field.

@@ -363,7 +363,9 @@ func (s *OpenAIGatewayService) streamRawChatCompletions(
 
 	resultWithUsage := func() *OpenAIForwardResult {
 		return &OpenAIForwardResult{
-			RequestID:                     requestID,
+			RequestID: requestID,
+			// CAPYBARA-PATCH: 快照随本次转发结果传递。
+			TurnState:                     openAIHTTPUsageTurnState(resp),
 			UpstreamHeaders:               resp.Header,
 			Usage:                         usage,
 			Model:                         originalModel,
@@ -532,7 +534,9 @@ func (s *OpenAIGatewayService) bufferRawChatCompletions(
 	_, _ = c.Writer.Write(respBody)
 
 	return &OpenAIForwardResult{
-		RequestID:                     requestID,
+		RequestID: requestID,
+		// CAPYBARA-PATCH: 快照随本次转发结果传递。
+		TurnState:                     openAIHTTPUsageTurnState(resp),
 		UpstreamHeaders:               resp.Header,
 		Usage:                         usage,
 		Model:                         originalModel,

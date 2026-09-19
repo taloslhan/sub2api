@@ -1308,7 +1308,9 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		}
 
 		forwardResult := &OpenAIForwardResult{
-			RequestID:                     resp.Header.Get("x-request-id"),
+			RequestID: resp.Header.Get("x-request-id"),
+			// CAPYBARA-PATCH: 快照随本次转发结果传递。
+			TurnState:                     openAIHTTPUsageTurnState(resp),
 			UpstreamHeaders:               resp.Header,
 			ResponseID:                    responseID,
 			Usage:                         *usage,

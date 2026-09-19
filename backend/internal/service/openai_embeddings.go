@@ -164,7 +164,9 @@ func (s *OpenAIGatewayService) ForwardEmbeddings(
 	writeOpenAIEmbeddingsUpstreamResponse(c, resp, respBody, s.responseHeaderFilter)
 
 	return &OpenAIForwardResult{
-		RequestID:       firstNonEmptyString(resp.Header.Get("x-request-id"), resp.Header.Get("request-id")),
+		RequestID: firstNonEmptyString(resp.Header.Get("x-request-id"), resp.Header.Get("request-id")),
+		// CAPYBARA-PATCH: 快照随本次转发结果传递。
+		TurnState:       openAIHTTPUsageTurnState(resp),
 		UpstreamHeaders: resp.Header,
 		Usage:           extractOpenAIEmbeddingsUsage(respBody),
 		Model:           originalModel,

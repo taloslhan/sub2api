@@ -160,7 +160,9 @@ func (s *OpenAIGatewayService) bufferChatCompletionsAsAnthropic(
 	c.JSON(http.StatusOK, anthropicResp)
 
 	return &OpenAIForwardResult{
-		RequestID:                   requestID,
+		RequestID: requestID,
+		// CAPYBARA-PATCH: 快照随本次转发结果传递。
+		TurnState:                   openAIHTTPUsageTurnState(resp),
 		UpstreamHeaders:             resp.Header,
 		Usage:                       usage,
 		Model:                       originalModel,
@@ -222,7 +224,9 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsAnthropic(
 		// masks the truncation, and surface the error to flag usage incomplete
 		// (mirrors forwardResponsesViaRawChatCompletions).
 		return &OpenAIForwardResult{
-			RequestID:                   requestID,
+			RequestID: requestID,
+			// CAPYBARA-PATCH: 快照随本次转发结果传递。
+			TurnState:                   openAIHTTPUsageTurnState(resp),
 			UpstreamHeaders:             resp.Header,
 			Usage:                       usage,
 			Model:                       originalModel,
@@ -259,7 +263,9 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsAnthropic(
 	}
 
 	return &OpenAIForwardResult{
-		RequestID:                   requestID,
+		RequestID: requestID,
+		// CAPYBARA-PATCH: 快照随本次转发结果传递。
+		TurnState:                   openAIHTTPUsageTurnState(resp),
 		UpstreamHeaders:             resp.Header,
 		Usage:                       usage,
 		Model:                       originalModel,

@@ -416,6 +416,8 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 			markClientDisconnected("request_context_canceled")
 		}
 	}
+	// CAPYBARA-PATCH: 同一轮重复构造结果时仍使用同一快照。
+	turnStateSnapshot := lease.usageTurnState()
 	resultWithUsage := func() *OpenAIForwardResult {
 		return &OpenAIForwardResult{
 			RequestID:                     responseID,
@@ -431,10 +433,12 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 			Stream:                        reqStream,
 			OpenAIWSMode:                  true,
 			UpstreamTerminalEvent:         upstreamTerminalEvent,
-			ResponseHeaders:               lease.HandshakeHeaders(),
-			Duration:                      time.Since(startTime),
-			FirstTokenMs:                  firstTokenMs,
-			ClientDisconnect:              clientDisconnected,
+			// CAPYBARA-PATCH: 区分握手快照与连接复用。
+			TurnState:        turnStateSnapshot,
+			ResponseHeaders:  lease.HandshakeHeaders(),
+			Duration:         time.Since(startTime),
+			FirstTokenMs:     firstTokenMs,
+			ClientDisconnect: clientDisconnected,
 		}
 	}
 

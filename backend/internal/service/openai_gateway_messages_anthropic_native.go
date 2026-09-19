@@ -265,7 +265,9 @@ func (s *OpenAIGatewayService) handleNativeAnthropicBufferedResponse(
 	c.Data(resp.StatusCode, contentType, body)
 
 	return &OpenAIForwardResult{
-		RequestID:        resp.Header.Get("x-request-id"),
+		RequestID: resp.Header.Get("x-request-id"),
+		// CAPYBARA-PATCH: 快照随本次转发结果传递。
+		TurnState:        openAIHTTPUsageTurnState(resp),
 		UpstreamHeaders:  resp.Header,
 		Usage:            claudeUsageToOpenAIUsage(usage),
 		Model:            originalModel,
@@ -539,7 +541,9 @@ func (s *OpenAIGatewayService) nativeAnthropicStreamResult(
 		usage = &ClaudeUsage{}
 	}
 	return &OpenAIForwardResult{
-		RequestID:        resp.Header.Get("x-request-id"),
+		RequestID: resp.Header.Get("x-request-id"),
+		// CAPYBARA-PATCH: 快照随本次转发结果传递。
+		TurnState:        openAIHTTPUsageTurnState(resp),
 		UpstreamHeaders:  resp.Header,
 		Usage:            claudeUsageToOpenAIUsage(usage),
 		Model:            originalModel,

@@ -23,6 +23,14 @@ type UsageLog struct {
 	config `json:"-"`
 	// ID of the ent.
 	ID int64 `json:"id,omitempty"`
+	// UpstreamRequestTurnState holds the value of the "upstream_request_turn_state" field.
+	UpstreamRequestTurnState *string `json:"upstream_request_turn_state,omitempty"`
+	// UpstreamResponseTurnState holds the value of the "upstream_response_turn_state" field.
+	UpstreamResponseTurnState *string `json:"upstream_response_turn_state,omitempty"`
+	// TurnStateTransport holds the value of the "turn_state_transport" field.
+	TurnStateTransport *string `json:"turn_state_transport,omitempty"`
+	// TurnStateConnectionReused holds the value of the "turn_state_connection_reused" field.
+	TurnStateConnectionReused *bool `json:"turn_state_connection_reused,omitempty"`
 	// UserID holds the value of the "user_id" field.
 	UserID int64 `json:"user_id,omitempty"`
 	// APIKeyID holds the value of the "api_key_id" field.
@@ -202,13 +210,13 @@ func (*UsageLog) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case usagelog.FieldImageSizeBreakdown:
 			values[i] = new([]byte)
-		case usagelog.FieldUpstreamModelMismatch, usagelog.FieldLongContextBillingApplied, usagelog.FieldStream, usagelog.FieldCacheTTLOverridden:
+		case usagelog.FieldTurnStateConnectionReused, usagelog.FieldUpstreamModelMismatch, usagelog.FieldLongContextBillingApplied, usagelog.FieldStream, usagelog.FieldCacheTTLOverridden:
 			values[i] = new(sql.NullBool)
 		case usagelog.FieldInputCost, usagelog.FieldOutputCost, usagelog.FieldCacheCreationCost, usagelog.FieldCacheReadCost, usagelog.FieldTotalCost, usagelog.FieldActualCost, usagelog.FieldRateMultiplier, usagelog.FieldAccountRateMultiplier:
 			values[i] = new(sql.NullFloat64)
 		case usagelog.FieldID, usagelog.FieldUserID, usagelog.FieldAPIKeyID, usagelog.FieldAccountID, usagelog.FieldChannelID, usagelog.FieldGroupID, usagelog.FieldSubscriptionID, usagelog.FieldInputTokens, usagelog.FieldOutputTokens, usagelog.FieldCacheCreationTokens, usagelog.FieldCacheReadTokens, usagelog.FieldCacheCreation5mTokens, usagelog.FieldCacheCreation1hTokens, usagelog.FieldBillingType, usagelog.FieldDurationMs, usagelog.FieldFirstTokenMs, usagelog.FieldImageCount, usagelog.FieldVideoCount, usagelog.FieldVideoDurationSeconds:
 			values[i] = new(sql.NullInt64)
-		case usagelog.FieldRequestID, usagelog.FieldModel, usagelog.FieldRequestedModel, usagelog.FieldUpstreamModel, usagelog.FieldUpstreamResponseModel, usagelog.FieldModelMappingChain, usagelog.FieldBillingTier, usagelog.FieldBillingMode, usagelog.FieldUserAgent, usagelog.FieldIPAddress, usagelog.FieldImageSize, usagelog.FieldImageInputSize, usagelog.FieldImageOutputSize, usagelog.FieldImageSizeSource, usagelog.FieldVideoResolution:
+		case usagelog.FieldUpstreamRequestTurnState, usagelog.FieldUpstreamResponseTurnState, usagelog.FieldTurnStateTransport, usagelog.FieldRequestID, usagelog.FieldModel, usagelog.FieldRequestedModel, usagelog.FieldUpstreamModel, usagelog.FieldUpstreamResponseModel, usagelog.FieldModelMappingChain, usagelog.FieldBillingTier, usagelog.FieldBillingMode, usagelog.FieldUserAgent, usagelog.FieldIPAddress, usagelog.FieldImageSize, usagelog.FieldImageInputSize, usagelog.FieldImageOutputSize, usagelog.FieldImageSizeSource, usagelog.FieldVideoResolution:
 			values[i] = new(sql.NullString)
 		case usagelog.FieldCreatedAt:
 			values[i] = new(sql.NullTime)
@@ -233,6 +241,34 @@ func (_m *UsageLog) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field id", value)
 			}
 			_m.ID = int64(value.Int64)
+		case usagelog.FieldUpstreamRequestTurnState:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field upstream_request_turn_state", values[i])
+			} else if value.Valid {
+				_m.UpstreamRequestTurnState = new(string)
+				*_m.UpstreamRequestTurnState = value.String
+			}
+		case usagelog.FieldUpstreamResponseTurnState:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field upstream_response_turn_state", values[i])
+			} else if value.Valid {
+				_m.UpstreamResponseTurnState = new(string)
+				*_m.UpstreamResponseTurnState = value.String
+			}
+		case usagelog.FieldTurnStateTransport:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field turn_state_transport", values[i])
+			} else if value.Valid {
+				_m.TurnStateTransport = new(string)
+				*_m.TurnStateTransport = value.String
+			}
+		case usagelog.FieldTurnStateConnectionReused:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field turn_state_connection_reused", values[i])
+			} else if value.Valid {
+				_m.TurnStateConnectionReused = new(bool)
+				*_m.TurnStateConnectionReused = value.Bool
+			}
 		case usagelog.FieldUserID:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
 				return fmt.Errorf("unexpected type %T for field user_id", values[i])
@@ -599,6 +635,26 @@ func (_m *UsageLog) String() string {
 	var builder strings.Builder
 	builder.WriteString("UsageLog(")
 	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
+	if v := _m.UpstreamRequestTurnState; v != nil {
+		builder.WriteString("upstream_request_turn_state=")
+		builder.WriteString(*v)
+	}
+	builder.WriteString(", ")
+	if v := _m.UpstreamResponseTurnState; v != nil {
+		builder.WriteString("upstream_response_turn_state=")
+		builder.WriteString(*v)
+	}
+	builder.WriteString(", ")
+	if v := _m.TurnStateTransport; v != nil {
+		builder.WriteString("turn_state_transport=")
+		builder.WriteString(*v)
+	}
+	builder.WriteString(", ")
+	if v := _m.TurnStateConnectionReused; v != nil {
+		builder.WriteString("turn_state_connection_reused=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
 	builder.WriteString("user_id=")
 	builder.WriteString(fmt.Sprintf("%v", _m.UserID))
 	builder.WriteString(", ")

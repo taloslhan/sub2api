@@ -678,6 +678,14 @@ type UsageLog struct {
 
 // AdminUsageLog 是管理员接口使用的 usage log DTO（包含管理员字段）。
 type AdminUsageLog struct {
+	// CAPYBARA-PATCH: state 原值只进入管理员 DTO。
+	UpstreamRequestTurnState        *string `json:"upstream_request_turn_state,omitempty"`
+	UpstreamResponseTurnState       *string `json:"upstream_response_turn_state,omitempty"`
+	UpstreamRequestTurnStateLength  *int    `json:"upstream_request_turn_state_length,omitempty"`
+	UpstreamResponseTurnStateLength *int    `json:"upstream_response_turn_state_length,omitempty"`
+	TurnStateTransport              *string `json:"turn_state_transport,omitempty"`
+	TurnStateConnectionReused       *bool   `json:"turn_state_connection_reused,omitempty"`
+
 	UsageLog
 
 	// UpstreamModel is the actual model sent to the upstream provider after mapping.

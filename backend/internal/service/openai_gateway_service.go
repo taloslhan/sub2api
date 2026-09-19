@@ -232,6 +232,8 @@ type OpenAIUsage struct {
 
 // OpenAIForwardResult represents the result of forwarding
 type OpenAIForwardResult struct {
+	// CAPYBARA-PATCH: 管理员使用日志的上游 state 快照。
+	TurnState  *OpenAIUsageTurnState
 	RequestID  string
 	ResponseID string
 	// UpstreamHeaders 是直接上游的响应头，用于按账户配置解析上游请求标识。

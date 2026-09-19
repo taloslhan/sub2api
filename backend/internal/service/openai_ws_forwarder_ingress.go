@@ -1048,6 +1048,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		if lease == nil {
 			return nil, errors.New("upstream websocket lease is nil")
 		}
+		turnStateSnapshot := lease.usageTurnState()
 		turnStart := time.Now()
 		wroteDownstream := false
 		attempts[turn]++
@@ -1352,9 +1353,11 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 					Stream:                        reqStream,
 					OpenAIWSMode:                  true,
 					UpstreamTerminalEvent:         terminalEvent,
-					ResponseHeaders:               lease.HandshakeHeaders(),
-					Duration:                      time.Since(turnStart),
-					FirstTokenMs:                  firstTokenMs,
+					// CAPYBARA-PATCH: 区分握手快照与连接复用。
+					TurnState:       turnStateSnapshot,
+					ResponseHeaders: lease.HandshakeHeaders(),
+					Duration:        time.Since(turnStart),
+					FirstTokenMs:    firstTokenMs,
 				}
 				if replayInput := replayCollector.Items(); len(replayInput) > 0 {
 					result.wsReplayInput = replayInput

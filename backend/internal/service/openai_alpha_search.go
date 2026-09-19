@@ -128,7 +128,9 @@ func (s *OpenAIGatewayService) ForwardAlphaSearch(ctx context.Context, c *gin.Co
 		return nil, nil
 	}
 	return &OpenAIForwardResult{
-		RequestID:       strings.TrimSpace(resp.Header.Get("x-request-id")),
+		RequestID: strings.TrimSpace(resp.Header.Get("x-request-id")),
+		// CAPYBARA-PATCH: 快照随本次转发结果传递。
+		TurnState:       openAIHTTPUsageTurnState(resp),
 		UpstreamHeaders: resp.Header,
 		Model:           requestedModel,
 		UpstreamModel:   upstreamModel,
@@ -212,7 +214,9 @@ func (s *OpenAIGatewayService) forwardAlphaSearchViaResponsesWebSearch(
 	}
 	c.Data(http.StatusOK, "application/json", alphaRespBody)
 	return &OpenAIForwardResult{
-		RequestID:        strings.TrimSpace(resp.Header.Get("x-request-id")),
+		RequestID: strings.TrimSpace(resp.Header.Get("x-request-id")),
+		// CAPYBARA-PATCH: 快照随本次转发结果传递。
+		TurnState:        openAIHTTPUsageTurnState(resp),
 		UpstreamHeaders:  resp.Header,
 		Model:            requestedModel,
 		UpstreamModel:    upstreamModel,

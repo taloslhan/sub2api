@@ -767,20 +767,36 @@ func UsageLogFromServiceAdmin(l *service.UsageLog) *AdminUsageLog {
 	}
 	usageLog := usageLogFromServiceUser(l)
 	usageLog.UpstreamEndpoint = l.UpstreamEndpoint
+	// CAPYBARA-PATCH: Go len(string) 返回 UTF-8 字节数。
+	var requestStateLength, responseStateLength *int
+	if l.UpstreamRequestTurnState != nil {
+		n := len(*l.UpstreamRequestTurnState)
+		requestStateLength = &n
+	}
+	if l.UpstreamResponseTurnState != nil {
+		n := len(*l.UpstreamResponseTurnState)
+		responseStateLength = &n
+	}
 	return &AdminUsageLog{
-		UsageLog:                usageLog,
-		UpstreamModel:           l.UpstreamModel,
-		UpstreamReasoningEffort: adminUpstreamReasoningEffort(l),
-		UpstreamResponseModel:   l.UpstreamResponseModel,
-		UpstreamModelMismatch:   l.UpstreamModelMismatch,
-		ChannelID:               l.ChannelID,
-		ModelMappingChain:       l.ModelMappingChain,
-		UpstreamRequestID:       l.UpstreamRequestID,
-		BillingTier:             l.BillingTier,
-		AccountRateMultiplier:   l.AccountRateMultiplier,
-		AccountStatsCost:        l.AccountStatsCost,
-		IPAddress:               l.IPAddress,
-		Account:                 AccountSummaryFromService(l.Account),
+		UpstreamRequestTurnState:        l.UpstreamRequestTurnState,
+		UpstreamResponseTurnState:       l.UpstreamResponseTurnState,
+		UpstreamRequestTurnStateLength:  requestStateLength,
+		UpstreamResponseTurnStateLength: responseStateLength,
+		TurnStateTransport:              l.TurnStateTransport,
+		TurnStateConnectionReused:       l.TurnStateConnectionReused,
+		UsageLog:                        usageLog,
+		UpstreamModel:                   l.UpstreamModel,
+		UpstreamReasoningEffort:         adminUpstreamReasoningEffort(l),
+		UpstreamResponseModel:           l.UpstreamResponseModel,
+		UpstreamModelMismatch:           l.UpstreamModelMismatch,
+		ChannelID:                       l.ChannelID,
+		ModelMappingChain:               l.ModelMappingChain,
+		UpstreamRequestID:               l.UpstreamRequestID,
+		BillingTier:                     l.BillingTier,
+		AccountRateMultiplier:           l.AccountRateMultiplier,
+		AccountStatsCost:                l.AccountStatsCost,
+		IPAddress:                       l.IPAddress,
+		Account:                         AccountSummaryFromService(l.Account),
 	}
 }
 

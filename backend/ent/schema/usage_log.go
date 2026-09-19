@@ -31,6 +31,11 @@ func (UsageLog) Annotations() []schema.Annotation {
 // Fields 定义使用日志实体的所有字段。
 func (UsageLog) Fields() []ent.Field {
 	return []ent.Field{
+		// CAPYBARA-PATCH: 管理员 state 观测，不改变历史记录。
+		field.String("upstream_request_turn_state").SchemaType(map[string]string{dialect.Postgres: "text"}).Optional().Nillable(),
+		field.String("upstream_response_turn_state").SchemaType(map[string]string{dialect.Postgres: "text"}).Optional().Nillable(),
+		field.String("turn_state_transport").SchemaType(map[string]string{dialect.Postgres: "text"}).Optional().Nillable(),
+		field.Bool("turn_state_connection_reused").Optional().Nillable(),
 		// 关联字段
 		field.Int64("user_id"),
 		field.Int64("api_key_id"),

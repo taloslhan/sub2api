@@ -4,6 +4,42 @@
 
 | 日期 | 文件 | 原因 |
 | --- | --- | --- |
+| 2026-09-19 | `backend/ent/schema/usage_log.go` | 使用日志增加两侧 state 原值与来源，同步插入和扫描顺序，历史 NULL 保持兼容。 |
+| 2026-09-19 | `backend/internal/handler/dto/mappers.go` | 仅管理员接口返回 state 原值与 UTF-8 字节长度，普通用户 DTO 不增加字段。 |
+| 2026-09-19 | `backend/internal/handler/dto/types.go` | 仅管理员接口返回 state 原值与 UTF-8 字节长度，普通用户 DTO 不增加字段。 |
+| 2026-09-19 | `backend/internal/repository/usage_log_repo_insert.go` | 使用日志增加两侧 state 原值与来源，同步插入和扫描顺序，历史 NULL 保持兼容。 |
+| 2026-09-19 | `backend/internal/repository/usage_log_repo_query.go` | 使用日志增加两侧 state 原值与来源，同步插入和扫描顺序，历史 NULL 保持兼容。 |
+| 2026-09-19 | `backend/internal/service/gateway_service.go` | 采集实际出站与上游返回的 state；快照随最终尝试传递，WS 记录握手来源和连接复用。 |
+| 2026-09-19 | `backend/internal/service/gateway_usage_billing.go` | 采集实际出站与上游返回的 state；快照随最终尝试传递，WS 记录握手来源和连接复用。 |
+| 2026-09-19 | `backend/internal/service/openai_alpha_search.go` | 采集实际出站与上游返回的 state；快照随最终尝试传递，WS 记录握手来源和连接复用。 |
+| 2026-09-19 | `backend/internal/service/openai_embeddings.go` | 采集实际出站与上游返回的 state；快照随最终尝试传递，WS 记录握手来源和连接复用。 |
+| 2026-09-19 | `backend/internal/service/openai_gateway_chat_completions.go` | 采集实际出站与上游返回的 state；快照随最终尝试传递，WS 记录握手来源和连接复用。 |
+| 2026-09-19 | `backend/internal/service/openai_gateway_chat_completions_anthropic_native.go` | 采集实际出站与上游返回的 state；快照随最终尝试传递，WS 记录握手来源和连接复用。 |
+| 2026-09-19 | `backend/internal/service/openai_gateway_chat_completions_raw.go` | 采集实际出站与上游返回的 state；快照随最终尝试传递，WS 记录握手来源和连接复用。 |
+| 2026-09-19 | `backend/internal/service/openai_gateway_forward.go` | 采集实际出站与上游返回的 state；快照随最终尝试传递，WS 记录握手来源和连接复用。 |
+| 2026-09-19 | `backend/internal/service/openai_gateway_grok.go` | 采集实际出站与上游返回的 state；快照随最终尝试传递，WS 记录握手来源和连接复用。 |
+| 2026-09-19 | `backend/internal/service/openai_gateway_messages.go` | 采集实际出站与上游返回的 state；快照随最终尝试传递，WS 记录握手来源和连接复用。 |
+| 2026-09-19 | `backend/internal/service/openai_gateway_messages_anthropic_native.go` | 采集实际出站与上游返回的 state；快照随最终尝试传递，WS 记录握手来源和连接复用。 |
+| 2026-09-19 | `backend/internal/service/openai_gateway_messages_chat_fallback.go` | 采集实际出站与上游返回的 state；快照随最终尝试传递，WS 记录握手来源和连接复用。 |
+| 2026-09-19 | `backend/internal/service/openai_gateway_passthrough.go` | 采集实际出站与上游返回的 state；快照随最终尝试传递，WS 记录握手来源和连接复用。 |
+| 2026-09-19 | `backend/internal/service/openai_gateway_responses_anthropic_native.go` | 采集实际出站与上游返回的 state；快照随最终尝试传递，WS 记录握手来源和连接复用。 |
+| 2026-09-19 | `backend/internal/service/openai_gateway_responses_chat_fallback.go` | 采集实际出站与上游返回的 state；快照随最终尝试传递，WS 记录握手来源和连接复用。 |
+| 2026-09-19 | `backend/internal/service/openai_gateway_service.go` | 采集实际出站与上游返回的 state；快照随最终尝试传递，WS 记录握手来源和连接复用。 |
+| 2026-09-19 | `backend/internal/service/openai_gateway_usage.go` | 采集实际出站与上游返回的 state；快照随最终尝试传递，WS 记录握手来源和连接复用。 |
+| 2026-09-19 | `backend/internal/service/openai_images.go` | 采集实际出站与上游返回的 state；快照随最终尝试传递，WS 记录握手来源和连接复用。 |
+| 2026-09-19 | `backend/internal/service/openai_images_responses.go` | 采集实际出站与上游返回的 state；快照随最终尝试传递，WS 记录握手来源和连接复用。 |
+| 2026-09-19 | `backend/internal/service/openai_plugin_transport.go` | 采集实际出站与上游返回的 state；快照随最终尝试传递，WS 记录握手来源和连接复用。 |
+| 2026-09-19 | `backend/internal/service/openai_ws_forwarder_ingress.go` | 采集实际出站与上游返回的 state；快照随最终尝试传递，WS 记录握手来源和连接复用。 |
+| 2026-09-19 | `backend/internal/service/openai_ws_forwarder_v2.go` | 采集实际出站与上游返回的 state；快照随最终尝试传递，WS 记录握手来源和连接复用。 |
+| 2026-09-19 | `backend/internal/service/openai_ws_http_bridge.go` | 采集实际出站与上游返回的 state；快照随最终尝试传递，WS 记录握手来源和连接复用。 |
+| 2026-09-19 | `backend/internal/service/openai_ws_pool.go` | 采集实际出站与上游返回的 state；快照随最终尝试传递，WS 记录握手来源和连接复用。 |
+| 2026-09-19 | `backend/internal/service/openai_ws_v2_passthrough_adapter.go` | 采集实际出站与上游返回的 state；快照随最终尝试传递，WS 记录握手来源和连接复用。 |
+| 2026-09-19 | `backend/internal/service/usage_log.go` | 采集实际出站与上游返回的 state；快照随最终尝试传递，WS 记录握手来源和连接复用。 |
+| 2026-09-19 | `frontend/src/components/admin/usage/UsageTable.vue` | 管理员增加默认可见 State 长度列，区分请求/响应及 WS 握手，点击提示查看原值。 |
+| 2026-09-19 | `frontend/src/i18n/locales/en/dashboard.ts` | 管理员增加默认可见 State 长度列，区分请求/响应及 WS 握手，点击提示查看原值。 |
+| 2026-09-19 | `frontend/src/i18n/locales/zh/dashboard.ts` | 管理员增加默认可见 State 长度列，区分请求/响应及 WS 握手，点击提示查看原值。 |
+| 2026-09-19 | `frontend/src/types/index.ts` | 仅管理员接口返回 state 原值与 UTF-8 字节长度，普通用户 DTO 不增加字段。 |
+| 2026-09-19 | `frontend/src/views/admin/UsageView.vue` | 管理员增加默认可见 State 长度列，区分请求/响应及 WS 握手，点击提示查看原值。 |
 | 2026-09-09 | `frontend/src/components/admin/usage/UsageTable.vue`<br>`frontend/src/views/{admin,user}/UsageView.vue` | 管理员端与用户端使用记录在费用前新增默认可见的服务档位列，复用既有 service_tier 标签与列显隐持久化；保留费用浮层，无接口或计费变更。 |
 | ~~2026-07-13~~<br>2026-08-25 撤除 | ~~`backend/internal/handler/admin/grok_oauth_handler.go`~~ | ~~修复上游 `v0.1.153` 中 Grok 配额重置错误分支触发的 staticcheck SA4023；该接口按设计始终返回“不支持”错误。~~ **已撤除**：上游 `v0.1.181` 的 `cbe258fd1` 已用 `//nolint:staticcheck` 修复同一问题，同步时采用上游版本。 |
 | 2026-07-21 | `backend/Makefile` | 固定默认 `LDFLAGS`，避免 shell 环境变量意外覆盖 Go 链接参数，同时保留命令行显式覆盖能力。 |

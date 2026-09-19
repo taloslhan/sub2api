@@ -696,7 +696,9 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 		if err != nil {
 			if streamCount > 0 {
 				return &OpenAIForwardResult{
-					RequestID:        resp.Header.Get("x-request-id"),
+					RequestID: resp.Header.Get("x-request-id"),
+					// CAPYBARA-PATCH: 快照随本次转发结果传递。
+					TurnState:        openAIHTTPUsageTurnState(resp),
 					UpstreamHeaders:  resp.Header,
 					Usage:            streamUsage,
 					Model:            requestModel,
@@ -718,7 +720,9 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 		imageOutputSizes := streamSizes
 		firstTokenMs = ttft
 		return &OpenAIForwardResult{
-			RequestID:        resp.Header.Get("x-request-id"),
+			RequestID: resp.Header.Get("x-request-id"),
+			// CAPYBARA-PATCH: 快照随本次转发结果传递。
+			TurnState:        openAIHTTPUsageTurnState(resp),
 			UpstreamHeaders:  resp.Header,
 			Usage:            usage,
 			Model:            requestModel,
@@ -742,7 +746,9 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesAPIKey(
 			imageCount = nonStreamCount
 		}
 		return &OpenAIForwardResult{
-			RequestID:        resp.Header.Get("x-request-id"),
+			RequestID: resp.Header.Get("x-request-id"),
+			// CAPYBARA-PATCH: 快照随本次转发结果传递。
+			TurnState:        openAIHTTPUsageTurnState(resp),
 			UpstreamHeaders:  resp.Header,
 			Usage:            usage,
 			Model:            requestModel,

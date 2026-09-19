@@ -32,6 +32,86 @@ func (_u *UsageLogUpdate) Where(ps ...predicate.UsageLog) *UsageLogUpdate {
 	return _u
 }
 
+// SetUpstreamRequestTurnState sets the "upstream_request_turn_state" field.
+func (_u *UsageLogUpdate) SetUpstreamRequestTurnState(v string) *UsageLogUpdate {
+	_u.mutation.SetUpstreamRequestTurnState(v)
+	return _u
+}
+
+// SetNillableUpstreamRequestTurnState sets the "upstream_request_turn_state" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableUpstreamRequestTurnState(v *string) *UsageLogUpdate {
+	if v != nil {
+		_u.SetUpstreamRequestTurnState(*v)
+	}
+	return _u
+}
+
+// ClearUpstreamRequestTurnState clears the value of the "upstream_request_turn_state" field.
+func (_u *UsageLogUpdate) ClearUpstreamRequestTurnState() *UsageLogUpdate {
+	_u.mutation.ClearUpstreamRequestTurnState()
+	return _u
+}
+
+// SetUpstreamResponseTurnState sets the "upstream_response_turn_state" field.
+func (_u *UsageLogUpdate) SetUpstreamResponseTurnState(v string) *UsageLogUpdate {
+	_u.mutation.SetUpstreamResponseTurnState(v)
+	return _u
+}
+
+// SetNillableUpstreamResponseTurnState sets the "upstream_response_turn_state" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableUpstreamResponseTurnState(v *string) *UsageLogUpdate {
+	if v != nil {
+		_u.SetUpstreamResponseTurnState(*v)
+	}
+	return _u
+}
+
+// ClearUpstreamResponseTurnState clears the value of the "upstream_response_turn_state" field.
+func (_u *UsageLogUpdate) ClearUpstreamResponseTurnState() *UsageLogUpdate {
+	_u.mutation.ClearUpstreamResponseTurnState()
+	return _u
+}
+
+// SetTurnStateTransport sets the "turn_state_transport" field.
+func (_u *UsageLogUpdate) SetTurnStateTransport(v string) *UsageLogUpdate {
+	_u.mutation.SetTurnStateTransport(v)
+	return _u
+}
+
+// SetNillableTurnStateTransport sets the "turn_state_transport" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableTurnStateTransport(v *string) *UsageLogUpdate {
+	if v != nil {
+		_u.SetTurnStateTransport(*v)
+	}
+	return _u
+}
+
+// ClearTurnStateTransport clears the value of the "turn_state_transport" field.
+func (_u *UsageLogUpdate) ClearTurnStateTransport() *UsageLogUpdate {
+	_u.mutation.ClearTurnStateTransport()
+	return _u
+}
+
+// SetTurnStateConnectionReused sets the "turn_state_connection_reused" field.
+func (_u *UsageLogUpdate) SetTurnStateConnectionReused(v bool) *UsageLogUpdate {
+	_u.mutation.SetTurnStateConnectionReused(v)
+	return _u
+}
+
+// SetNillableTurnStateConnectionReused sets the "turn_state_connection_reused" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableTurnStateConnectionReused(v *bool) *UsageLogUpdate {
+	if v != nil {
+		_u.SetTurnStateConnectionReused(*v)
+	}
+	return _u
+}
+
+// ClearTurnStateConnectionReused clears the value of the "turn_state_connection_reused" field.
+func (_u *UsageLogUpdate) ClearTurnStateConnectionReused() *UsageLogUpdate {
+	_u.mutation.ClearTurnStateConnectionReused()
+	return _u
+}
+
 // SetUserID sets the "user_id" field.
 func (_u *UsageLogUpdate) SetUserID(v int64) *UsageLogUpdate {
 	_u.mutation.SetUserID(v)
@@ -1135,6 +1215,30 @@ func (_u *UsageLogUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 			}
 		}
 	}
+	if value, ok := _u.mutation.UpstreamRequestTurnState(); ok {
+		_spec.SetField(usagelog.FieldUpstreamRequestTurnState, field.TypeString, value)
+	}
+	if _u.mutation.UpstreamRequestTurnStateCleared() {
+		_spec.ClearField(usagelog.FieldUpstreamRequestTurnState, field.TypeString)
+	}
+	if value, ok := _u.mutation.UpstreamResponseTurnState(); ok {
+		_spec.SetField(usagelog.FieldUpstreamResponseTurnState, field.TypeString, value)
+	}
+	if _u.mutation.UpstreamResponseTurnStateCleared() {
+		_spec.ClearField(usagelog.FieldUpstreamResponseTurnState, field.TypeString)
+	}
+	if value, ok := _u.mutation.TurnStateTransport(); ok {
+		_spec.SetField(usagelog.FieldTurnStateTransport, field.TypeString, value)
+	}
+	if _u.mutation.TurnStateTransportCleared() {
+		_spec.ClearField(usagelog.FieldTurnStateTransport, field.TypeString)
+	}
+	if value, ok := _u.mutation.TurnStateConnectionReused(); ok {
+		_spec.SetField(usagelog.FieldTurnStateConnectionReused, field.TypeBool, value)
+	}
+	if _u.mutation.TurnStateConnectionReusedCleared() {
+		_spec.ClearField(usagelog.FieldTurnStateConnectionReused, field.TypeBool)
+	}
 	if value, ok := _u.mutation.RequestID(); ok {
 		_spec.SetField(usagelog.FieldRequestID, field.TypeString, value)
 	}
@@ -1544,6 +1648,86 @@ type UsageLogUpdateOne struct {
 	fields   []string
 	hooks    []Hook
 	mutation *UsageLogMutation
+}
+
+// SetUpstreamRequestTurnState sets the "upstream_request_turn_state" field.
+func (_u *UsageLogUpdateOne) SetUpstreamRequestTurnState(v string) *UsageLogUpdateOne {
+	_u.mutation.SetUpstreamRequestTurnState(v)
+	return _u
+}
+
+// SetNillableUpstreamRequestTurnState sets the "upstream_request_turn_state" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableUpstreamRequestTurnState(v *string) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetUpstreamRequestTurnState(*v)
+	}
+	return _u
+}
+
+// ClearUpstreamRequestTurnState clears the value of the "upstream_request_turn_state" field.
+func (_u *UsageLogUpdateOne) ClearUpstreamRequestTurnState() *UsageLogUpdateOne {
+	_u.mutation.ClearUpstreamRequestTurnState()
+	return _u
+}
+
+// SetUpstreamResponseTurnState sets the "upstream_response_turn_state" field.
+func (_u *UsageLogUpdateOne) SetUpstreamResponseTurnState(v string) *UsageLogUpdateOne {
+	_u.mutation.SetUpstreamResponseTurnState(v)
+	return _u
+}
+
+// SetNillableUpstreamResponseTurnState sets the "upstream_response_turn_state" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableUpstreamResponseTurnState(v *string) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetUpstreamResponseTurnState(*v)
+	}
+	return _u
+}
+
+// ClearUpstreamResponseTurnState clears the value of the "upstream_response_turn_state" field.
+func (_u *UsageLogUpdateOne) ClearUpstreamResponseTurnState() *UsageLogUpdateOne {
+	_u.mutation.ClearUpstreamResponseTurnState()
+	return _u
+}
+
+// SetTurnStateTransport sets the "turn_state_transport" field.
+func (_u *UsageLogUpdateOne) SetTurnStateTransport(v string) *UsageLogUpdateOne {
+	_u.mutation.SetTurnStateTransport(v)
+	return _u
+}
+
+// SetNillableTurnStateTransport sets the "turn_state_transport" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableTurnStateTransport(v *string) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetTurnStateTransport(*v)
+	}
+	return _u
+}
+
+// ClearTurnStateTransport clears the value of the "turn_state_transport" field.
+func (_u *UsageLogUpdateOne) ClearTurnStateTransport() *UsageLogUpdateOne {
+	_u.mutation.ClearTurnStateTransport()
+	return _u
+}
+
+// SetTurnStateConnectionReused sets the "turn_state_connection_reused" field.
+func (_u *UsageLogUpdateOne) SetTurnStateConnectionReused(v bool) *UsageLogUpdateOne {
+	_u.mutation.SetTurnStateConnectionReused(v)
+	return _u
+}
+
+// SetNillableTurnStateConnectionReused sets the "turn_state_connection_reused" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableTurnStateConnectionReused(v *bool) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetTurnStateConnectionReused(*v)
+	}
+	return _u
+}
+
+// ClearTurnStateConnectionReused clears the value of the "turn_state_connection_reused" field.
+func (_u *UsageLogUpdateOne) ClearTurnStateConnectionReused() *UsageLogUpdateOne {
+	_u.mutation.ClearTurnStateConnectionReused()
+	return _u
 }
 
 // SetUserID sets the "user_id" field.
@@ -2678,6 +2862,30 @@ func (_u *UsageLogUpdateOne) sqlSave(ctx context.Context) (_node *UsageLog, err 
 				ps[i](selector)
 			}
 		}
+	}
+	if value, ok := _u.mutation.UpstreamRequestTurnState(); ok {
+		_spec.SetField(usagelog.FieldUpstreamRequestTurnState, field.TypeString, value)
+	}
+	if _u.mutation.UpstreamRequestTurnStateCleared() {
+		_spec.ClearField(usagelog.FieldUpstreamRequestTurnState, field.TypeString)
+	}
+	if value, ok := _u.mutation.UpstreamResponseTurnState(); ok {
+		_spec.SetField(usagelog.FieldUpstreamResponseTurnState, field.TypeString, value)
+	}
+	if _u.mutation.UpstreamResponseTurnStateCleared() {
+		_spec.ClearField(usagelog.FieldUpstreamResponseTurnState, field.TypeString)
+	}
+	if value, ok := _u.mutation.TurnStateTransport(); ok {
+		_spec.SetField(usagelog.FieldTurnStateTransport, field.TypeString, value)
+	}
+	if _u.mutation.TurnStateTransportCleared() {
+		_spec.ClearField(usagelog.FieldTurnStateTransport, field.TypeString)
+	}
+	if value, ok := _u.mutation.TurnStateConnectionReused(); ok {
+		_spec.SetField(usagelog.FieldTurnStateConnectionReused, field.TypeBool, value)
+	}
+	if _u.mutation.TurnStateConnectionReusedCleared() {
+		_spec.ClearField(usagelog.FieldTurnStateConnectionReused, field.TypeBool)
 	}
 	if value, ok := _u.mutation.RequestID(); ok {
 		_spec.SetField(usagelog.FieldRequestID, field.TypeString, value)

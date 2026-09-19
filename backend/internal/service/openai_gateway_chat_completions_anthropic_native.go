@@ -280,7 +280,9 @@ func (s *OpenAIGatewayService) handleCCBufferedFromNativeAnthropic(
 	}
 
 	return &OpenAIForwardResult{
-		RequestID:        requestID,
+		RequestID: requestID,
+		// CAPYBARA-PATCH: 快照随本次转发结果传递。
+		TurnState:        openAIHTTPUsageTurnState(resp),
 		UpstreamHeaders:  resp.Header,
 		Usage:            claudeUsageToOpenAIUsage(&usage),
 		Model:            originalModel,
@@ -336,7 +338,9 @@ func (s *OpenAIGatewayService) handleCCStreamingFromNativeAnthropic(
 
 	resultWithUsage := func() *OpenAIForwardResult {
 		return &OpenAIForwardResult{
-			RequestID:        requestID,
+			RequestID: requestID,
+			// CAPYBARA-PATCH: 快照随本次转发结果传递。
+			TurnState:        openAIHTTPUsageTurnState(resp),
 			UpstreamHeaders:  resp.Header,
 			Usage:            claudeUsageToOpenAIUsage(&usage),
 			Model:            originalModel,

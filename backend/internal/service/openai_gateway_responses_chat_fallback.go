@@ -157,7 +157,9 @@ func (s *OpenAIGatewayService) bufferChatCompletionsAsResponses(
 	c.JSON(http.StatusOK, responsesResp)
 
 	return &OpenAIForwardResult{
-		RequestID:                   requestID,
+		RequestID: requestID,
+		// CAPYBARA-PATCH: 快照随本次转发结果传递。
+		TurnState:                   openAIHTTPUsageTurnState(resp),
 		UpstreamHeaders:             resp.Header,
 		Usage:                       usage,
 		Model:                       originalModel,
@@ -229,7 +231,9 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
 
 	if scan.Err != nil {
 		return &OpenAIForwardResult{
-			RequestID:                   requestID,
+			RequestID: requestID,
+			// CAPYBARA-PATCH: 快照随本次转发结果传递。
+			TurnState:                   openAIHTTPUsageTurnState(resp),
 			UpstreamHeaders:             resp.Header,
 			Usage:                       scan.Usage,
 			Model:                       originalModel,
@@ -245,7 +249,9 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
 	}
 	if err := state.ValidateToolCallArguments(); err != nil {
 		return &OpenAIForwardResult{
-			RequestID:                   requestID,
+			RequestID: requestID,
+			// CAPYBARA-PATCH: 快照随本次转发结果传递。
+			TurnState:                   openAIHTTPUsageTurnState(resp),
 			UpstreamHeaders:             resp.Header,
 			Usage:                       scan.Usage,
 			Model:                       originalModel,
@@ -277,7 +283,9 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
 	}
 
 	return &OpenAIForwardResult{
-		RequestID:                   requestID,
+		RequestID: requestID,
+		// CAPYBARA-PATCH: 快照随本次转发结果传递。
+		TurnState:                   openAIHTTPUsageTurnState(resp),
 		UpstreamHeaders:             resp.Header,
 		Usage:                       scan.Usage,
 		Model:                       originalModel,

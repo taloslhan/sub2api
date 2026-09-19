@@ -27,6 +27,62 @@ type UsageLogCreate struct {
 	conflict []sql.ConflictOption
 }
 
+// SetUpstreamRequestTurnState sets the "upstream_request_turn_state" field.
+func (_c *UsageLogCreate) SetUpstreamRequestTurnState(v string) *UsageLogCreate {
+	_c.mutation.SetUpstreamRequestTurnState(v)
+	return _c
+}
+
+// SetNillableUpstreamRequestTurnState sets the "upstream_request_turn_state" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableUpstreamRequestTurnState(v *string) *UsageLogCreate {
+	if v != nil {
+		_c.SetUpstreamRequestTurnState(*v)
+	}
+	return _c
+}
+
+// SetUpstreamResponseTurnState sets the "upstream_response_turn_state" field.
+func (_c *UsageLogCreate) SetUpstreamResponseTurnState(v string) *UsageLogCreate {
+	_c.mutation.SetUpstreamResponseTurnState(v)
+	return _c
+}
+
+// SetNillableUpstreamResponseTurnState sets the "upstream_response_turn_state" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableUpstreamResponseTurnState(v *string) *UsageLogCreate {
+	if v != nil {
+		_c.SetUpstreamResponseTurnState(*v)
+	}
+	return _c
+}
+
+// SetTurnStateTransport sets the "turn_state_transport" field.
+func (_c *UsageLogCreate) SetTurnStateTransport(v string) *UsageLogCreate {
+	_c.mutation.SetTurnStateTransport(v)
+	return _c
+}
+
+// SetNillableTurnStateTransport sets the "turn_state_transport" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableTurnStateTransport(v *string) *UsageLogCreate {
+	if v != nil {
+		_c.SetTurnStateTransport(*v)
+	}
+	return _c
+}
+
+// SetTurnStateConnectionReused sets the "turn_state_connection_reused" field.
+func (_c *UsageLogCreate) SetTurnStateConnectionReused(v bool) *UsageLogCreate {
+	_c.mutation.SetTurnStateConnectionReused(v)
+	return _c
+}
+
+// SetNillableTurnStateConnectionReused sets the "turn_state_connection_reused" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableTurnStateConnectionReused(v *bool) *UsageLogCreate {
+	if v != nil {
+		_c.SetTurnStateConnectionReused(*v)
+	}
+	return _c
+}
+
 // SetUserID sets the "user_id" field.
 func (_c *UsageLogCreate) SetUserID(v int64) *UsageLogCreate {
 	_c.mutation.SetUserID(v)
@@ -967,6 +1023,22 @@ func (_c *UsageLogCreate) createSpec() (*UsageLog, *sqlgraph.CreateSpec) {
 		_spec = sqlgraph.NewCreateSpec(usagelog.Table, sqlgraph.NewFieldSpec(usagelog.FieldID, field.TypeInt64))
 	)
 	_spec.OnConflict = _c.conflict
+	if value, ok := _c.mutation.UpstreamRequestTurnState(); ok {
+		_spec.SetField(usagelog.FieldUpstreamRequestTurnState, field.TypeString, value)
+		_node.UpstreamRequestTurnState = &value
+	}
+	if value, ok := _c.mutation.UpstreamResponseTurnState(); ok {
+		_spec.SetField(usagelog.FieldUpstreamResponseTurnState, field.TypeString, value)
+		_node.UpstreamResponseTurnState = &value
+	}
+	if value, ok := _c.mutation.TurnStateTransport(); ok {
+		_spec.SetField(usagelog.FieldTurnStateTransport, field.TypeString, value)
+		_node.TurnStateTransport = &value
+	}
+	if value, ok := _c.mutation.TurnStateConnectionReused(); ok {
+		_spec.SetField(usagelog.FieldTurnStateConnectionReused, field.TypeBool, value)
+		_node.TurnStateConnectionReused = &value
+	}
 	if value, ok := _c.mutation.RequestID(); ok {
 		_spec.SetField(usagelog.FieldRequestID, field.TypeString, value)
 		_node.RequestID = value
@@ -1227,7 +1299,7 @@ func (_c *UsageLogCreate) createSpec() (*UsageLog, *sqlgraph.CreateSpec) {
 // of the `INSERT` statement. For example:
 //
 //	client.UsageLog.Create().
-//		SetUserID(v).
+//		SetUpstreamRequestTurnState(v).
 //		OnConflict(
 //			// Update the row with the new values
 //			// the was proposed for insertion.
@@ -1236,7 +1308,7 @@ func (_c *UsageLogCreate) createSpec() (*UsageLog, *sqlgraph.CreateSpec) {
 //		// Override some of the fields with custom
 //		// update values.
 //		Update(func(u *ent.UsageLogUpsert) {
-//			SetUserID(v+v).
+//			SetUpstreamRequestTurnState(v+v).
 //		}).
 //		Exec(ctx)
 func (_c *UsageLogCreate) OnConflict(opts ...sql.ConflictOption) *UsageLogUpsertOne {
@@ -1271,6 +1343,78 @@ type (
 		*sql.UpdateSet
 	}
 )
+
+// SetUpstreamRequestTurnState sets the "upstream_request_turn_state" field.
+func (u *UsageLogUpsert) SetUpstreamRequestTurnState(v string) *UsageLogUpsert {
+	u.Set(usagelog.FieldUpstreamRequestTurnState, v)
+	return u
+}
+
+// UpdateUpstreamRequestTurnState sets the "upstream_request_turn_state" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateUpstreamRequestTurnState() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldUpstreamRequestTurnState)
+	return u
+}
+
+// ClearUpstreamRequestTurnState clears the value of the "upstream_request_turn_state" field.
+func (u *UsageLogUpsert) ClearUpstreamRequestTurnState() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldUpstreamRequestTurnState)
+	return u
+}
+
+// SetUpstreamResponseTurnState sets the "upstream_response_turn_state" field.
+func (u *UsageLogUpsert) SetUpstreamResponseTurnState(v string) *UsageLogUpsert {
+	u.Set(usagelog.FieldUpstreamResponseTurnState, v)
+	return u
+}
+
+// UpdateUpstreamResponseTurnState sets the "upstream_response_turn_state" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateUpstreamResponseTurnState() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldUpstreamResponseTurnState)
+	return u
+}
+
+// ClearUpstreamResponseTurnState clears the value of the "upstream_response_turn_state" field.
+func (u *UsageLogUpsert) ClearUpstreamResponseTurnState() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldUpstreamResponseTurnState)
+	return u
+}
+
+// SetTurnStateTransport sets the "turn_state_transport" field.
+func (u *UsageLogUpsert) SetTurnStateTransport(v string) *UsageLogUpsert {
+	u.Set(usagelog.FieldTurnStateTransport, v)
+	return u
+}
+
+// UpdateTurnStateTransport sets the "turn_state_transport" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateTurnStateTransport() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldTurnStateTransport)
+	return u
+}
+
+// ClearTurnStateTransport clears the value of the "turn_state_transport" field.
+func (u *UsageLogUpsert) ClearTurnStateTransport() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldTurnStateTransport)
+	return u
+}
+
+// SetTurnStateConnectionReused sets the "turn_state_connection_reused" field.
+func (u *UsageLogUpsert) SetTurnStateConnectionReused(v bool) *UsageLogUpsert {
+	u.Set(usagelog.FieldTurnStateConnectionReused, v)
+	return u
+}
+
+// UpdateTurnStateConnectionReused sets the "turn_state_connection_reused" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateTurnStateConnectionReused() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldTurnStateConnectionReused)
+	return u
+}
+
+// ClearTurnStateConnectionReused clears the value of the "turn_state_connection_reused" field.
+func (u *UsageLogUpsert) ClearTurnStateConnectionReused() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldTurnStateConnectionReused)
+	return u
+}
 
 // SetUserID sets the "user_id" field.
 func (u *UsageLogUpsert) SetUserID(v int64) *UsageLogUpsert {
@@ -2125,6 +2269,90 @@ func (u *UsageLogUpsertOne) Update(set func(*UsageLogUpsert)) *UsageLogUpsertOne
 		set(&UsageLogUpsert{UpdateSet: update})
 	}))
 	return u
+}
+
+// SetUpstreamRequestTurnState sets the "upstream_request_turn_state" field.
+func (u *UsageLogUpsertOne) SetUpstreamRequestTurnState(v string) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetUpstreamRequestTurnState(v)
+	})
+}
+
+// UpdateUpstreamRequestTurnState sets the "upstream_request_turn_state" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateUpstreamRequestTurnState() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateUpstreamRequestTurnState()
+	})
+}
+
+// ClearUpstreamRequestTurnState clears the value of the "upstream_request_turn_state" field.
+func (u *UsageLogUpsertOne) ClearUpstreamRequestTurnState() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearUpstreamRequestTurnState()
+	})
+}
+
+// SetUpstreamResponseTurnState sets the "upstream_response_turn_state" field.
+func (u *UsageLogUpsertOne) SetUpstreamResponseTurnState(v string) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetUpstreamResponseTurnState(v)
+	})
+}
+
+// UpdateUpstreamResponseTurnState sets the "upstream_response_turn_state" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateUpstreamResponseTurnState() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateUpstreamResponseTurnState()
+	})
+}
+
+// ClearUpstreamResponseTurnState clears the value of the "upstream_response_turn_state" field.
+func (u *UsageLogUpsertOne) ClearUpstreamResponseTurnState() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearUpstreamResponseTurnState()
+	})
+}
+
+// SetTurnStateTransport sets the "turn_state_transport" field.
+func (u *UsageLogUpsertOne) SetTurnStateTransport(v string) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetTurnStateTransport(v)
+	})
+}
+
+// UpdateTurnStateTransport sets the "turn_state_transport" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateTurnStateTransport() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateTurnStateTransport()
+	})
+}
+
+// ClearTurnStateTransport clears the value of the "turn_state_transport" field.
+func (u *UsageLogUpsertOne) ClearTurnStateTransport() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearTurnStateTransport()
+	})
+}
+
+// SetTurnStateConnectionReused sets the "turn_state_connection_reused" field.
+func (u *UsageLogUpsertOne) SetTurnStateConnectionReused(v bool) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetTurnStateConnectionReused(v)
+	})
+}
+
+// UpdateTurnStateConnectionReused sets the "turn_state_connection_reused" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateTurnStateConnectionReused() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateTurnStateConnectionReused()
+	})
+}
+
+// ClearTurnStateConnectionReused clears the value of the "turn_state_connection_reused" field.
+func (u *UsageLogUpsertOne) ClearTurnStateConnectionReused() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearTurnStateConnectionReused()
+	})
 }
 
 // SetUserID sets the "user_id" field.
@@ -3207,7 +3435,7 @@ func (_c *UsageLogCreateBulk) ExecX(ctx context.Context) {
 //		// Override some of the fields with custom
 //		// update values.
 //		Update(func(u *ent.UsageLogUpsert) {
-//			SetUserID(v+v).
+//			SetUpstreamRequestTurnState(v+v).
 //		}).
 //		Exec(ctx)
 func (_c *UsageLogCreateBulk) OnConflict(opts ...sql.ConflictOption) *UsageLogUpsertBulk {
@@ -3281,6 +3509,90 @@ func (u *UsageLogUpsertBulk) Update(set func(*UsageLogUpsert)) *UsageLogUpsertBu
 		set(&UsageLogUpsert{UpdateSet: update})
 	}))
 	return u
+}
+
+// SetUpstreamRequestTurnState sets the "upstream_request_turn_state" field.
+func (u *UsageLogUpsertBulk) SetUpstreamRequestTurnState(v string) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetUpstreamRequestTurnState(v)
+	})
+}
+
+// UpdateUpstreamRequestTurnState sets the "upstream_request_turn_state" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateUpstreamRequestTurnState() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateUpstreamRequestTurnState()
+	})
+}
+
+// ClearUpstreamRequestTurnState clears the value of the "upstream_request_turn_state" field.
+func (u *UsageLogUpsertBulk) ClearUpstreamRequestTurnState() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearUpstreamRequestTurnState()
+	})
+}
+
+// SetUpstreamResponseTurnState sets the "upstream_response_turn_state" field.
+func (u *UsageLogUpsertBulk) SetUpstreamResponseTurnState(v string) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetUpstreamResponseTurnState(v)
+	})
+}
+
+// UpdateUpstreamResponseTurnState sets the "upstream_response_turn_state" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateUpstreamResponseTurnState() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateUpstreamResponseTurnState()
+	})
+}
+
+// ClearUpstreamResponseTurnState clears the value of the "upstream_response_turn_state" field.
+func (u *UsageLogUpsertBulk) ClearUpstreamResponseTurnState() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearUpstreamResponseTurnState()
+	})
+}
+
+// SetTurnStateTransport sets the "turn_state_transport" field.
+func (u *UsageLogUpsertBulk) SetTurnStateTransport(v string) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetTurnStateTransport(v)
+	})
+}
+
+// UpdateTurnStateTransport sets the "turn_state_transport" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateTurnStateTransport() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateTurnStateTransport()
+	})
+}
+
+// ClearTurnStateTransport clears the value of the "turn_state_transport" field.
+func (u *UsageLogUpsertBulk) ClearTurnStateTransport() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearTurnStateTransport()
+	})
+}
+
+// SetTurnStateConnectionReused sets the "turn_state_connection_reused" field.
+func (u *UsageLogUpsertBulk) SetTurnStateConnectionReused(v bool) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetTurnStateConnectionReused(v)
+	})
+}
+
+// UpdateTurnStateConnectionReused sets the "turn_state_connection_reused" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateTurnStateConnectionReused() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateTurnStateConnectionReused()
+	})
+}
+
+// ClearTurnStateConnectionReused clears the value of the "turn_state_connection_reused" field.
+func (u *UsageLogUpsertBulk) ClearTurnStateConnectionReused() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearTurnStateConnectionReused()
+	})
 }
 
 // SetUserID sets the "user_id" field.

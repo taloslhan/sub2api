@@ -206,6 +206,11 @@
         </template>
 
         <!-- CAPYBARA-PATCH: Show service tier directly in usage logs using the cost tooltip labels. -->
+        <!-- CAPYBARA-PATCH: 请求与响应 state 分别展示，避免混淆握手复用。 -->
+        <template #cell-turn_state="{ row }">
+          <UsageTurnStateCell :row="row" />
+        </template>
+
         <template #cell-service_tier="{ row }">
           <span class="whitespace-nowrap text-sm text-gray-900 dark:text-white">
             {{ getUsageServiceTierLabel(row.service_tier, t) }}
@@ -604,6 +609,7 @@ function accountBilled(row: { total_cost?: number | null; account_stats_cost?: n
 }
 
 
+import UsageTurnStateCell from './UsageTurnStateCell.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import IpGeoCell from '@/components/common/IpGeoCell.vue'

@@ -622,7 +622,9 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 	c.JSON(http.StatusOK, chatResp)
 
 	result := &OpenAIForwardResult{
-		RequestID:                     requestID,
+		RequestID: requestID,
+		// CAPYBARA-PATCH: 快照随本次转发结果传递。
+		TurnState:                     openAIHTTPUsageTurnState(resp),
 		UpstreamHeaders:               resp.Header,
 		Usage:                         usage,
 		Model:                         originalModel,
@@ -744,7 +746,9 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 
 	resultWithUsage := func() *OpenAIForwardResult {
 		out := &OpenAIForwardResult{
-			RequestID:                     requestID,
+			RequestID: requestID,
+			// CAPYBARA-PATCH: 快照随本次转发结果传递。
+			TurnState:                     openAIHTTPUsageTurnState(resp),
 			UpstreamHeaders:               resp.Header,
 			Usage:                         usage,
 			Model:                         originalModel,

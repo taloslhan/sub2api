@@ -1943,7 +1943,9 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 		if err != nil {
 			if imageCount > 0 {
 				return &OpenAIForwardResult{
-					RequestID:                     resp.Header.Get("x-request-id"),
+					RequestID: resp.Header.Get("x-request-id"),
+					// CAPYBARA-PATCH: 快照随本次转发结果传递。
+					TurnState:                     openAIHTTPUsageTurnState(resp),
 					UpstreamHeaders:               resp.Header,
 					Usage:                         usage,
 					Model:                         requestModel,
@@ -1995,7 +1997,9 @@ func (s *OpenAIGatewayService) forwardOpenAIImagesOAuth(
 		imageCount = parsed.N
 	}
 	return &OpenAIForwardResult{
-		RequestID:                     resp.Header.Get("x-request-id"),
+		RequestID: resp.Header.Get("x-request-id"),
+		// CAPYBARA-PATCH: 快照随本次转发结果传递。
+		TurnState:                     openAIHTTPUsageTurnState(resp),
 		UpstreamHeaders:               resp.Header,
 		Usage:                         usage,
 		Model:                         requestModel,

@@ -279,8 +279,11 @@ func (l *openAIWSConnLease) Release() {
 }
 
 type openAIWSConn struct {
-	id string
-	ws openAIWSClientConn
+	// CAPYBARA-PATCH: 只保存 state，不保留握手认证头。
+	handshakeRequestTurnState string
+	usageStateObserved        atomic.Bool
+	id                        string
+	ws                        openAIWSClientConn
 
 	handshakeHeaders       http.Header
 	handshakeCompatibility openAIWSHandshakeCompatibilityKey
@@ -2149,6 +2152,7 @@ func (p *openAIWSConnPool) dialConn(ctx context.Context, req openAIWSAcquireRequ
 	}
 	id := p.nextConnID(req.Account.ID)
 	pooledConn := newOpenAIWSConn(id, req.Account.ID, conn, handshakeHeaders)
+	pooledConn.handshakeRequestTurnState = extractOpenAICodexTurnState(headers)
 	accountID := req.Account.ID
 	evict := func() { p.evictConn(accountID, id) }
 	pooledConn.onPeerClosed.Store(&evict)

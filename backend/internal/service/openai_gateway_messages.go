@@ -663,7 +663,9 @@ func (s *OpenAIGatewayService) handleAnthropicBufferedStreamingResponse(
 	c.JSON(http.StatusOK, anthropicResp)
 
 	result := &OpenAIForwardResult{
-		RequestID:                     requestID,
+		RequestID: requestID,
+		// CAPYBARA-PATCH: 快照随本次转发结果传递。
+		TurnState:                     openAIHTTPUsageTurnState(resp),
 		UpstreamHeaders:               resp.Header,
 		ResponseID:                    finalResponse.ID,
 		Usage:                         usage,
@@ -970,7 +972,9 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 	// resultWithUsage builds the final result snapshot.
 	resultWithUsage := func() *OpenAIForwardResult {
 		out := &OpenAIForwardResult{
-			RequestID:                     requestID,
+			RequestID: requestID,
+			// CAPYBARA-PATCH: 快照随本次转发结果传递。
+			TurnState:                     openAIHTTPUsageTurnState(resp),
 			UpstreamHeaders:               resp.Header,
 			ResponseID:                    responseID,
 			Usage:                         usage,

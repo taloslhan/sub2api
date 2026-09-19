@@ -55,6 +55,26 @@ func IDLTE(id int64) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldLTE(FieldID, id))
 }
 
+// UpstreamRequestTurnState applies equality check predicate on the "upstream_request_turn_state" field. It's identical to UpstreamRequestTurnStateEQ.
+func UpstreamRequestTurnState(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldUpstreamRequestTurnState, v))
+}
+
+// UpstreamResponseTurnState applies equality check predicate on the "upstream_response_turn_state" field. It's identical to UpstreamResponseTurnStateEQ.
+func UpstreamResponseTurnState(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldUpstreamResponseTurnState, v))
+}
+
+// TurnStateTransport applies equality check predicate on the "turn_state_transport" field. It's identical to TurnStateTransportEQ.
+func TurnStateTransport(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldTurnStateTransport, v))
+}
+
+// TurnStateConnectionReused applies equality check predicate on the "turn_state_connection_reused" field. It's identical to TurnStateConnectionReusedEQ.
+func TurnStateConnectionReused(v bool) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldTurnStateConnectionReused, v))
+}
+
 // UserID applies equality check predicate on the "user_id" field. It's identical to UserIDEQ.
 func UserID(v int64) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldUserID, v))
@@ -283,6 +303,251 @@ func CacheTTLOverridden(v bool) predicate.UsageLog {
 // CreatedAt applies equality check predicate on the "created_at" field. It's identical to CreatedAtEQ.
 func CreatedAt(v time.Time) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldCreatedAt, v))
+}
+
+// UpstreamRequestTurnStateEQ applies the EQ predicate on the "upstream_request_turn_state" field.
+func UpstreamRequestTurnStateEQ(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldUpstreamRequestTurnState, v))
+}
+
+// UpstreamRequestTurnStateNEQ applies the NEQ predicate on the "upstream_request_turn_state" field.
+func UpstreamRequestTurnStateNEQ(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldUpstreamRequestTurnState, v))
+}
+
+// UpstreamRequestTurnStateIn applies the In predicate on the "upstream_request_turn_state" field.
+func UpstreamRequestTurnStateIn(vs ...string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIn(FieldUpstreamRequestTurnState, vs...))
+}
+
+// UpstreamRequestTurnStateNotIn applies the NotIn predicate on the "upstream_request_turn_state" field.
+func UpstreamRequestTurnStateNotIn(vs ...string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotIn(FieldUpstreamRequestTurnState, vs...))
+}
+
+// UpstreamRequestTurnStateGT applies the GT predicate on the "upstream_request_turn_state" field.
+func UpstreamRequestTurnStateGT(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGT(FieldUpstreamRequestTurnState, v))
+}
+
+// UpstreamRequestTurnStateGTE applies the GTE predicate on the "upstream_request_turn_state" field.
+func UpstreamRequestTurnStateGTE(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGTE(FieldUpstreamRequestTurnState, v))
+}
+
+// UpstreamRequestTurnStateLT applies the LT predicate on the "upstream_request_turn_state" field.
+func UpstreamRequestTurnStateLT(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLT(FieldUpstreamRequestTurnState, v))
+}
+
+// UpstreamRequestTurnStateLTE applies the LTE predicate on the "upstream_request_turn_state" field.
+func UpstreamRequestTurnStateLTE(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLTE(FieldUpstreamRequestTurnState, v))
+}
+
+// UpstreamRequestTurnStateContains applies the Contains predicate on the "upstream_request_turn_state" field.
+func UpstreamRequestTurnStateContains(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldContains(FieldUpstreamRequestTurnState, v))
+}
+
+// UpstreamRequestTurnStateHasPrefix applies the HasPrefix predicate on the "upstream_request_turn_state" field.
+func UpstreamRequestTurnStateHasPrefix(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldHasPrefix(FieldUpstreamRequestTurnState, v))
+}
+
+// UpstreamRequestTurnStateHasSuffix applies the HasSuffix predicate on the "upstream_request_turn_state" field.
+func UpstreamRequestTurnStateHasSuffix(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldHasSuffix(FieldUpstreamRequestTurnState, v))
+}
+
+// UpstreamRequestTurnStateIsNil applies the IsNil predicate on the "upstream_request_turn_state" field.
+func UpstreamRequestTurnStateIsNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIsNull(FieldUpstreamRequestTurnState))
+}
+
+// UpstreamRequestTurnStateNotNil applies the NotNil predicate on the "upstream_request_turn_state" field.
+func UpstreamRequestTurnStateNotNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotNull(FieldUpstreamRequestTurnState))
+}
+
+// UpstreamRequestTurnStateEqualFold applies the EqualFold predicate on the "upstream_request_turn_state" field.
+func UpstreamRequestTurnStateEqualFold(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEqualFold(FieldUpstreamRequestTurnState, v))
+}
+
+// UpstreamRequestTurnStateContainsFold applies the ContainsFold predicate on the "upstream_request_turn_state" field.
+func UpstreamRequestTurnStateContainsFold(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldContainsFold(FieldUpstreamRequestTurnState, v))
+}
+
+// UpstreamResponseTurnStateEQ applies the EQ predicate on the "upstream_response_turn_state" field.
+func UpstreamResponseTurnStateEQ(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldUpstreamResponseTurnState, v))
+}
+
+// UpstreamResponseTurnStateNEQ applies the NEQ predicate on the "upstream_response_turn_state" field.
+func UpstreamResponseTurnStateNEQ(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldUpstreamResponseTurnState, v))
+}
+
+// UpstreamResponseTurnStateIn applies the In predicate on the "upstream_response_turn_state" field.
+func UpstreamResponseTurnStateIn(vs ...string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIn(FieldUpstreamResponseTurnState, vs...))
+}
+
+// UpstreamResponseTurnStateNotIn applies the NotIn predicate on the "upstream_response_turn_state" field.
+func UpstreamResponseTurnStateNotIn(vs ...string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotIn(FieldUpstreamResponseTurnState, vs...))
+}
+
+// UpstreamResponseTurnStateGT applies the GT predicate on the "upstream_response_turn_state" field.
+func UpstreamResponseTurnStateGT(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGT(FieldUpstreamResponseTurnState, v))
+}
+
+// UpstreamResponseTurnStateGTE applies the GTE predicate on the "upstream_response_turn_state" field.
+func UpstreamResponseTurnStateGTE(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGTE(FieldUpstreamResponseTurnState, v))
+}
+
+// UpstreamResponseTurnStateLT applies the LT predicate on the "upstream_response_turn_state" field.
+func UpstreamResponseTurnStateLT(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLT(FieldUpstreamResponseTurnState, v))
+}
+
+// UpstreamResponseTurnStateLTE applies the LTE predicate on the "upstream_response_turn_state" field.
+func UpstreamResponseTurnStateLTE(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLTE(FieldUpstreamResponseTurnState, v))
+}
+
+// UpstreamResponseTurnStateContains applies the Contains predicate on the "upstream_response_turn_state" field.
+func UpstreamResponseTurnStateContains(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldContains(FieldUpstreamResponseTurnState, v))
+}
+
+// UpstreamResponseTurnStateHasPrefix applies the HasPrefix predicate on the "upstream_response_turn_state" field.
+func UpstreamResponseTurnStateHasPrefix(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldHasPrefix(FieldUpstreamResponseTurnState, v))
+}
+
+// UpstreamResponseTurnStateHasSuffix applies the HasSuffix predicate on the "upstream_response_turn_state" field.
+func UpstreamResponseTurnStateHasSuffix(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldHasSuffix(FieldUpstreamResponseTurnState, v))
+}
+
+// UpstreamResponseTurnStateIsNil applies the IsNil predicate on the "upstream_response_turn_state" field.
+func UpstreamResponseTurnStateIsNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIsNull(FieldUpstreamResponseTurnState))
+}
+
+// UpstreamResponseTurnStateNotNil applies the NotNil predicate on the "upstream_response_turn_state" field.
+func UpstreamResponseTurnStateNotNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotNull(FieldUpstreamResponseTurnState))
+}
+
+// UpstreamResponseTurnStateEqualFold applies the EqualFold predicate on the "upstream_response_turn_state" field.
+func UpstreamResponseTurnStateEqualFold(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEqualFold(FieldUpstreamResponseTurnState, v))
+}
+
+// UpstreamResponseTurnStateContainsFold applies the ContainsFold predicate on the "upstream_response_turn_state" field.
+func UpstreamResponseTurnStateContainsFold(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldContainsFold(FieldUpstreamResponseTurnState, v))
+}
+
+// TurnStateTransportEQ applies the EQ predicate on the "turn_state_transport" field.
+func TurnStateTransportEQ(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldTurnStateTransport, v))
+}
+
+// TurnStateTransportNEQ applies the NEQ predicate on the "turn_state_transport" field.
+func TurnStateTransportNEQ(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldTurnStateTransport, v))
+}
+
+// TurnStateTransportIn applies the In predicate on the "turn_state_transport" field.
+func TurnStateTransportIn(vs ...string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIn(FieldTurnStateTransport, vs...))
+}
+
+// TurnStateTransportNotIn applies the NotIn predicate on the "turn_state_transport" field.
+func TurnStateTransportNotIn(vs ...string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotIn(FieldTurnStateTransport, vs...))
+}
+
+// TurnStateTransportGT applies the GT predicate on the "turn_state_transport" field.
+func TurnStateTransportGT(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGT(FieldTurnStateTransport, v))
+}
+
+// TurnStateTransportGTE applies the GTE predicate on the "turn_state_transport" field.
+func TurnStateTransportGTE(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGTE(FieldTurnStateTransport, v))
+}
+
+// TurnStateTransportLT applies the LT predicate on the "turn_state_transport" field.
+func TurnStateTransportLT(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLT(FieldTurnStateTransport, v))
+}
+
+// TurnStateTransportLTE applies the LTE predicate on the "turn_state_transport" field.
+func TurnStateTransportLTE(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLTE(FieldTurnStateTransport, v))
+}
+
+// TurnStateTransportContains applies the Contains predicate on the "turn_state_transport" field.
+func TurnStateTransportContains(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldContains(FieldTurnStateTransport, v))
+}
+
+// TurnStateTransportHasPrefix applies the HasPrefix predicate on the "turn_state_transport" field.
+func TurnStateTransportHasPrefix(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldHasPrefix(FieldTurnStateTransport, v))
+}
+
+// TurnStateTransportHasSuffix applies the HasSuffix predicate on the "turn_state_transport" field.
+func TurnStateTransportHasSuffix(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldHasSuffix(FieldTurnStateTransport, v))
+}
+
+// TurnStateTransportIsNil applies the IsNil predicate on the "turn_state_transport" field.
+func TurnStateTransportIsNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIsNull(FieldTurnStateTransport))
+}
+
+// TurnStateTransportNotNil applies the NotNil predicate on the "turn_state_transport" field.
+func TurnStateTransportNotNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotNull(FieldTurnStateTransport))
+}
+
+// TurnStateTransportEqualFold applies the EqualFold predicate on the "turn_state_transport" field.
+func TurnStateTransportEqualFold(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEqualFold(FieldTurnStateTransport, v))
+}
+
+// TurnStateTransportContainsFold applies the ContainsFold predicate on the "turn_state_transport" field.
+func TurnStateTransportContainsFold(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldContainsFold(FieldTurnStateTransport, v))
+}
+
+// TurnStateConnectionReusedEQ applies the EQ predicate on the "turn_state_connection_reused" field.
+func TurnStateConnectionReusedEQ(v bool) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldTurnStateConnectionReused, v))
+}
+
+// TurnStateConnectionReusedNEQ applies the NEQ predicate on the "turn_state_connection_reused" field.
+func TurnStateConnectionReusedNEQ(v bool) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldTurnStateConnectionReused, v))
+}
+
+// TurnStateConnectionReusedIsNil applies the IsNil predicate on the "turn_state_connection_reused" field.
+func TurnStateConnectionReusedIsNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIsNull(FieldTurnStateConnectionReused))
+}
+
+// TurnStateConnectionReusedNotNil applies the NotNil predicate on the "turn_state_connection_reused" field.
+func TurnStateConnectionReusedNotNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotNull(FieldTurnStateConnectionReused))
 }
 
 // UserIDEQ applies the EQ predicate on the "user_id" field.

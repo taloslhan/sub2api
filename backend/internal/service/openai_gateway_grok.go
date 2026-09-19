@@ -249,7 +249,9 @@ func (s *OpenAIGatewayService) forwardGrokResponses(
 	}
 	reasoningEffort := extractOpenAIReasoningEffortFromBody(patchedBody, originalModel)
 	result := &OpenAIForwardResult{
-		RequestID:       firstNonEmpty(resp.Header.Get("x-request-id"), resp.Header.Get("xai-request-id")),
+		RequestID: firstNonEmpty(resp.Header.Get("x-request-id"), resp.Header.Get("xai-request-id")),
+		// CAPYBARA-PATCH: 快照随本次转发结果传递。
+		TurnState:       openAIHTTPUsageTurnState(resp),
 		UpstreamHeaders: resp.Header,
 		ResponseID:      responseID,
 		Usage:           *usage,

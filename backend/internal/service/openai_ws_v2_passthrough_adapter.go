@@ -1248,9 +1248,11 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 					Stream:                        true,
 					OpenAIWSMode:                  true,
 					UpstreamTerminalEvent:         normalizeOpenAIWSTerminalEvent(turn.TerminalEventType),
-					ResponseHeaders:               cloneHeader(handshakeHeaders),
-					Duration:                      turn.Duration,
-					FirstTokenMs:                  turn.FirstTokenMs,
+					// CAPYBARA-PATCH: 直通模式每轮引用同一握手，第二轮起标记复用。
+					TurnState:       openAIWSUsageTurnState(extractOpenAICodexTurnState(headers), handshakeHeaders, turnNo > 1),
+					ResponseHeaders: cloneHeader(handshakeHeaders),
+					Duration:        turn.Duration,
+					FirstTokenMs:    turn.FirstTokenMs,
 				}
 				logOpenAIWSV2Passthrough(
 					"relay_turn_completed account_id=%d turn=%d request_id=%s terminal_event=%s turn_requested_model=%s turn_upstream_model=%s duration_ms=%d first_token_ms=%d input_tokens=%d output_tokens=%d cache_read_tokens=%d",
@@ -1402,6 +1404,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 		Stream:                        true,
 		OpenAIWSMode:                  true,
 		UpstreamTerminalEvent:         normalizeOpenAIWSTerminalEvent(relayResult.TerminalEventType),
+		TurnState:                     openAIWSUsageTurnState(extractOpenAICodexTurnState(headers), handshakeHeaders, completedTurns.Load() > 0),
 		ResponseHeaders:               cloneHeader(handshakeHeaders),
 		Duration:                      relayResult.Duration,
 		FirstTokenMs:                  relayResult.FirstTokenMs,

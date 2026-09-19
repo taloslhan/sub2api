@@ -44530,6 +44530,10 @@ type UsageLogMutation struct {
 	op                           Op
 	typ                          string
 	id                           *int64
+	upstream_request_turn_state  *string
+	upstream_response_turn_state *string
+	turn_state_transport         *string
+	turn_state_connection_reused *bool
 	request_id                   *string
 	model                        *string
 	requested_model              *string
@@ -44705,6 +44709,202 @@ func (m *UsageLogMutation) IDs(ctx context.Context) ([]int64, error) {
 	default:
 		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
 	}
+}
+
+// SetUpstreamRequestTurnState sets the "upstream_request_turn_state" field.
+func (m *UsageLogMutation) SetUpstreamRequestTurnState(s string) {
+	m.upstream_request_turn_state = &s
+}
+
+// UpstreamRequestTurnState returns the value of the "upstream_request_turn_state" field in the mutation.
+func (m *UsageLogMutation) UpstreamRequestTurnState() (r string, exists bool) {
+	v := m.upstream_request_turn_state
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpstreamRequestTurnState returns the old "upstream_request_turn_state" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldUpstreamRequestTurnState(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpstreamRequestTurnState is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpstreamRequestTurnState requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpstreamRequestTurnState: %w", err)
+	}
+	return oldValue.UpstreamRequestTurnState, nil
+}
+
+// ClearUpstreamRequestTurnState clears the value of the "upstream_request_turn_state" field.
+func (m *UsageLogMutation) ClearUpstreamRequestTurnState() {
+	m.upstream_request_turn_state = nil
+	m.clearedFields[usagelog.FieldUpstreamRequestTurnState] = struct{}{}
+}
+
+// UpstreamRequestTurnStateCleared returns if the "upstream_request_turn_state" field was cleared in this mutation.
+func (m *UsageLogMutation) UpstreamRequestTurnStateCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldUpstreamRequestTurnState]
+	return ok
+}
+
+// ResetUpstreamRequestTurnState resets all changes to the "upstream_request_turn_state" field.
+func (m *UsageLogMutation) ResetUpstreamRequestTurnState() {
+	m.upstream_request_turn_state = nil
+	delete(m.clearedFields, usagelog.FieldUpstreamRequestTurnState)
+}
+
+// SetUpstreamResponseTurnState sets the "upstream_response_turn_state" field.
+func (m *UsageLogMutation) SetUpstreamResponseTurnState(s string) {
+	m.upstream_response_turn_state = &s
+}
+
+// UpstreamResponseTurnState returns the value of the "upstream_response_turn_state" field in the mutation.
+func (m *UsageLogMutation) UpstreamResponseTurnState() (r string, exists bool) {
+	v := m.upstream_response_turn_state
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpstreamResponseTurnState returns the old "upstream_response_turn_state" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldUpstreamResponseTurnState(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpstreamResponseTurnState is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpstreamResponseTurnState requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpstreamResponseTurnState: %w", err)
+	}
+	return oldValue.UpstreamResponseTurnState, nil
+}
+
+// ClearUpstreamResponseTurnState clears the value of the "upstream_response_turn_state" field.
+func (m *UsageLogMutation) ClearUpstreamResponseTurnState() {
+	m.upstream_response_turn_state = nil
+	m.clearedFields[usagelog.FieldUpstreamResponseTurnState] = struct{}{}
+}
+
+// UpstreamResponseTurnStateCleared returns if the "upstream_response_turn_state" field was cleared in this mutation.
+func (m *UsageLogMutation) UpstreamResponseTurnStateCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldUpstreamResponseTurnState]
+	return ok
+}
+
+// ResetUpstreamResponseTurnState resets all changes to the "upstream_response_turn_state" field.
+func (m *UsageLogMutation) ResetUpstreamResponseTurnState() {
+	m.upstream_response_turn_state = nil
+	delete(m.clearedFields, usagelog.FieldUpstreamResponseTurnState)
+}
+
+// SetTurnStateTransport sets the "turn_state_transport" field.
+func (m *UsageLogMutation) SetTurnStateTransport(s string) {
+	m.turn_state_transport = &s
+}
+
+// TurnStateTransport returns the value of the "turn_state_transport" field in the mutation.
+func (m *UsageLogMutation) TurnStateTransport() (r string, exists bool) {
+	v := m.turn_state_transport
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTurnStateTransport returns the old "turn_state_transport" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldTurnStateTransport(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTurnStateTransport is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTurnStateTransport requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTurnStateTransport: %w", err)
+	}
+	return oldValue.TurnStateTransport, nil
+}
+
+// ClearTurnStateTransport clears the value of the "turn_state_transport" field.
+func (m *UsageLogMutation) ClearTurnStateTransport() {
+	m.turn_state_transport = nil
+	m.clearedFields[usagelog.FieldTurnStateTransport] = struct{}{}
+}
+
+// TurnStateTransportCleared returns if the "turn_state_transport" field was cleared in this mutation.
+func (m *UsageLogMutation) TurnStateTransportCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldTurnStateTransport]
+	return ok
+}
+
+// ResetTurnStateTransport resets all changes to the "turn_state_transport" field.
+func (m *UsageLogMutation) ResetTurnStateTransport() {
+	m.turn_state_transport = nil
+	delete(m.clearedFields, usagelog.FieldTurnStateTransport)
+}
+
+// SetTurnStateConnectionReused sets the "turn_state_connection_reused" field.
+func (m *UsageLogMutation) SetTurnStateConnectionReused(b bool) {
+	m.turn_state_connection_reused = &b
+}
+
+// TurnStateConnectionReused returns the value of the "turn_state_connection_reused" field in the mutation.
+func (m *UsageLogMutation) TurnStateConnectionReused() (r bool, exists bool) {
+	v := m.turn_state_connection_reused
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldTurnStateConnectionReused returns the old "turn_state_connection_reused" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldTurnStateConnectionReused(ctx context.Context) (v *bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldTurnStateConnectionReused is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldTurnStateConnectionReused requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldTurnStateConnectionReused: %w", err)
+	}
+	return oldValue.TurnStateConnectionReused, nil
+}
+
+// ClearTurnStateConnectionReused clears the value of the "turn_state_connection_reused" field.
+func (m *UsageLogMutation) ClearTurnStateConnectionReused() {
+	m.turn_state_connection_reused = nil
+	m.clearedFields[usagelog.FieldTurnStateConnectionReused] = struct{}{}
+}
+
+// TurnStateConnectionReusedCleared returns if the "turn_state_connection_reused" field was cleared in this mutation.
+func (m *UsageLogMutation) TurnStateConnectionReusedCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldTurnStateConnectionReused]
+	return ok
+}
+
+// ResetTurnStateConnectionReused resets all changes to the "turn_state_connection_reused" field.
+func (m *UsageLogMutation) ResetTurnStateConnectionReused() {
+	m.turn_state_connection_reused = nil
+	delete(m.clearedFields, usagelog.FieldTurnStateConnectionReused)
 }
 
 // SetUserID sets the "user_id" field.
@@ -47279,7 +47479,19 @@ func (m *UsageLogMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UsageLogMutation) Fields() []string {
-	fields := make([]string, 0, 47)
+	fields := make([]string, 0, 51)
+	if m.upstream_request_turn_state != nil {
+		fields = append(fields, usagelog.FieldUpstreamRequestTurnState)
+	}
+	if m.upstream_response_turn_state != nil {
+		fields = append(fields, usagelog.FieldUpstreamResponseTurnState)
+	}
+	if m.turn_state_transport != nil {
+		fields = append(fields, usagelog.FieldTurnStateTransport)
+	}
+	if m.turn_state_connection_reused != nil {
+		fields = append(fields, usagelog.FieldTurnStateConnectionReused)
+	}
 	if m.user != nil {
 		fields = append(fields, usagelog.FieldUserID)
 	}
@@ -47429,6 +47641,14 @@ func (m *UsageLogMutation) Fields() []string {
 // schema.
 func (m *UsageLogMutation) Field(name string) (ent.Value, bool) {
 	switch name {
+	case usagelog.FieldUpstreamRequestTurnState:
+		return m.UpstreamRequestTurnState()
+	case usagelog.FieldUpstreamResponseTurnState:
+		return m.UpstreamResponseTurnState()
+	case usagelog.FieldTurnStateTransport:
+		return m.TurnStateTransport()
+	case usagelog.FieldTurnStateConnectionReused:
+		return m.TurnStateConnectionReused()
 	case usagelog.FieldUserID:
 		return m.UserID()
 	case usagelog.FieldAPIKeyID:
@@ -47532,6 +47752,14 @@ func (m *UsageLogMutation) Field(name string) (ent.Value, bool) {
 // database failed.
 func (m *UsageLogMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
 	switch name {
+	case usagelog.FieldUpstreamRequestTurnState:
+		return m.OldUpstreamRequestTurnState(ctx)
+	case usagelog.FieldUpstreamResponseTurnState:
+		return m.OldUpstreamResponseTurnState(ctx)
+	case usagelog.FieldTurnStateTransport:
+		return m.OldTurnStateTransport(ctx)
+	case usagelog.FieldTurnStateConnectionReused:
+		return m.OldTurnStateConnectionReused(ctx)
 	case usagelog.FieldUserID:
 		return m.OldUserID(ctx)
 	case usagelog.FieldAPIKeyID:
@@ -47635,6 +47863,34 @@ func (m *UsageLogMutation) OldField(ctx context.Context, name string) (ent.Value
 // type.
 func (m *UsageLogMutation) SetField(name string, value ent.Value) error {
 	switch name {
+	case usagelog.FieldUpstreamRequestTurnState:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpstreamRequestTurnState(v)
+		return nil
+	case usagelog.FieldUpstreamResponseTurnState:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpstreamResponseTurnState(v)
+		return nil
+	case usagelog.FieldTurnStateTransport:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTurnStateTransport(v)
+		return nil
+	case usagelog.FieldTurnStateConnectionReused:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetTurnStateConnectionReused(v)
+		return nil
 	case usagelog.FieldUserID:
 		v, ok := value.(int64)
 		if !ok {
@@ -48249,6 +48505,18 @@ func (m *UsageLogMutation) AddField(name string, value ent.Value) error {
 // mutation.
 func (m *UsageLogMutation) ClearedFields() []string {
 	var fields []string
+	if m.FieldCleared(usagelog.FieldUpstreamRequestTurnState) {
+		fields = append(fields, usagelog.FieldUpstreamRequestTurnState)
+	}
+	if m.FieldCleared(usagelog.FieldUpstreamResponseTurnState) {
+		fields = append(fields, usagelog.FieldUpstreamResponseTurnState)
+	}
+	if m.FieldCleared(usagelog.FieldTurnStateTransport) {
+		fields = append(fields, usagelog.FieldTurnStateTransport)
+	}
+	if m.FieldCleared(usagelog.FieldTurnStateConnectionReused) {
+		fields = append(fields, usagelog.FieldTurnStateConnectionReused)
+	}
 	if m.FieldCleared(usagelog.FieldRequestedModel) {
 		fields = append(fields, usagelog.FieldRequestedModel)
 	}
@@ -48329,6 +48597,18 @@ func (m *UsageLogMutation) FieldCleared(name string) bool {
 // error if the field is not defined in the schema.
 func (m *UsageLogMutation) ClearField(name string) error {
 	switch name {
+	case usagelog.FieldUpstreamRequestTurnState:
+		m.ClearUpstreamRequestTurnState()
+		return nil
+	case usagelog.FieldUpstreamResponseTurnState:
+		m.ClearUpstreamResponseTurnState()
+		return nil
+	case usagelog.FieldTurnStateTransport:
+		m.ClearTurnStateTransport()
+		return nil
+	case usagelog.FieldTurnStateConnectionReused:
+		m.ClearTurnStateConnectionReused()
+		return nil
 	case usagelog.FieldRequestedModel:
 		m.ClearRequestedModel()
 		return nil
@@ -48403,6 +48683,18 @@ func (m *UsageLogMutation) ClearField(name string) error {
 // It returns an error if the field is not defined in the schema.
 func (m *UsageLogMutation) ResetField(name string) error {
 	switch name {
+	case usagelog.FieldUpstreamRequestTurnState:
+		m.ResetUpstreamRequestTurnState()
+		return nil
+	case usagelog.FieldUpstreamResponseTurnState:
+		m.ResetUpstreamResponseTurnState()
+		return nil
+	case usagelog.FieldTurnStateTransport:
+		m.ResetTurnStateTransport()
+		return nil
+	case usagelog.FieldTurnStateConnectionReused:
+		m.ResetTurnStateConnectionReused()
+		return nil
 	case usagelog.FieldUserID:
 		m.ResetUserID()
 		return nil

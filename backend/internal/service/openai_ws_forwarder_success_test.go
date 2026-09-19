@@ -1430,6 +1430,14 @@ func TestOpenAIGatewayService_Forward_WSv2_TurnStateAndMetadataReplayOnReconnect
 	require.Equal(t, "turn_meta_1", firstHandshakeHeaders.Get("X-Codex-Turn-Metadata"))
 	require.Equal(t, "turn_meta_2", secondHandshakeHeaders.Get("X-Codex-Turn-Metadata"))
 	require.Equal(t, "turn_state_first", secondHandshakeHeaders.Get("X-Codex-Turn-State"))
+	require.NotNil(t, result1.TurnState)
+	require.Empty(t, result1.TurnState.Request)
+	require.Equal(t, "turn_state_first", result1.TurnState.Response)
+	require.False(t, *result1.TurnState.ConnectionReused)
+	require.NotNil(t, result2.TurnState)
+	require.Equal(t, "turn_state_first", result2.TurnState.Request)
+	require.Equal(t, "ws", result2.TurnState.Transport)
+	require.False(t, *result2.TurnState.ConnectionReused, "new connection after eviction")
 }
 
 func TestOpenAIGatewayService_Forward_WSv2_GeneratePrewarm(t *testing.T) {

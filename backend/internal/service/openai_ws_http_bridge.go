@@ -666,9 +666,11 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 			Stream:                        reqStream,
 			OpenAIWSMode:                  true,
 			UpstreamTerminalEvent:         upstreamTerminalEvent,
-			ResponseHeaders:               cloneHeader(resp.Header),
-			Duration:                      time.Since(turnStart),
-			FirstTokenMs:                  firstTokenMs,
+			// CAPYBARA-PATCH: 下游虽为 WS，实际出站是逐轮 HTTP。
+			TurnState:       openAIHTTPUsageTurnState(resp),
+			ResponseHeaders: cloneHeader(resp.Header),
+			Duration:        time.Since(turnStart),
+			FirstTokenMs:    firstTokenMs,
 		}
 		if replayInput := replayCollector.Items(); len(replayInput) > 0 {
 			result.wsReplayInput = replayInput

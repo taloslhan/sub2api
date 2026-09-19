@@ -105,6 +105,12 @@ func ApplyLegacyRequestFields(requestType RequestType, fallbackStream bool, fall
 }
 
 type UsageLog struct {
+	// CAPYBARA-PATCH: 管理员专属上游 state 原值及来源；长度在 DTO 层计算。
+	UpstreamRequestTurnState  *string
+	UpstreamResponseTurnState *string
+	TurnStateTransport        *string
+	TurnStateConnectionReused *bool
+
 	ID        int64
 	UserID    int64
 	APIKeyID  int64

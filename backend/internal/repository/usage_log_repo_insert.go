@@ -87,6 +87,11 @@ var usageLogInsertArgTypes = [...]string{
 	"text",        // correlation_request_id (CAPYBARA-PATCH: non-billing correlation)
 	"boolean",     // native_compaction_v2
 	"timestamptz", // created_at
+	// CAPYBARA-PATCH: 末尾追加，保留现有位置。
+	"text",    // upstream_request_turn_state
+	"text",    // upstream_response_turn_state
+	"text",    // turn_state_transport
+	"boolean", // turn_state_connection_reused
 }
 
 const (
@@ -288,14 +293,18 @@ func (r *usageLogRepository) createSingle(ctx context.Context, sqlq sqlExecutor,
 			session_id,
 			correlation_request_id,
 			native_compaction_v2,
-			created_at
+			created_at,
+			upstream_request_turn_state,
+			upstream_response_turn_state,
+			turn_state_transport,
+			turn_state_connection_reused
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8, $9,
 			$10, $11,
 			$12, $13, $14, $15,
 			$16, $17, $18, $19,
 			$20, $21, $22, $23, $24, $25,
-			$26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61, $62, $63
+			$26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61, $62, $63, $64, $65, $66, $67
 		)
 		ON CONFLICT (request_id, api_key_id) DO NOTHING
 		RETURNING id, created_at
@@ -749,7 +758,11 @@ func buildUsageLogBatchInsertQuery(keys []string, preparedByKey map[string]usage
 			session_id,
 			correlation_request_id,
 			native_compaction_v2,
-			created_at
+			created_at,
+			upstream_request_turn_state,
+			upstream_response_turn_state,
+			turn_state_transport,
+			turn_state_connection_reused
 		) AS (VALUES `)
 
 	// Each batch row prepends the synthetic input_index before the usage-log values.
@@ -844,7 +857,11 @@ func buildUsageLogBatchInsertQuery(keys []string, preparedByKey map[string]usage
 				session_id,
 				correlation_request_id,
 				native_compaction_v2,
-				created_at
+				created_at,
+				upstream_request_turn_state,
+				upstream_response_turn_state,
+				turn_state_transport,
+				turn_state_connection_reused
 			)
 			SELECT
 				user_id,
@@ -909,7 +926,11 @@ func buildUsageLogBatchInsertQuery(keys []string, preparedByKey map[string]usage
 				session_id,
 				correlation_request_id,
 				native_compaction_v2,
-				created_at
+				created_at,
+				upstream_request_turn_state,
+				upstream_response_turn_state,
+				turn_state_transport,
+				turn_state_connection_reused
 			FROM input
 			ON CONFLICT (request_id, api_key_id) DO NOTHING
 			RETURNING request_id, api_key_id, id, created_at
@@ -1014,7 +1035,11 @@ func buildUsageLogBestEffortInsertQuery(preparedList []usageLogInsertPrepared) (
 			session_id,
 			correlation_request_id,
 			native_compaction_v2,
-			created_at
+			created_at,
+			upstream_request_turn_state,
+			upstream_response_turn_state,
+			turn_state_transport,
+			turn_state_connection_reused
 		) AS (VALUES `)
 
 	args := make([]any, 0, len(preparedList)*len(usageLogInsertArgTypes))
@@ -1105,7 +1130,11 @@ func buildUsageLogBestEffortInsertQuery(preparedList []usageLogInsertPrepared) (
 			session_id,
 			correlation_request_id,
 			native_compaction_v2,
-			created_at
+			created_at,
+			upstream_request_turn_state,
+			upstream_response_turn_state,
+			turn_state_transport,
+			turn_state_connection_reused
 		)
 		SELECT
 			user_id,
@@ -1170,7 +1199,11 @@ func buildUsageLogBestEffortInsertQuery(preparedList []usageLogInsertPrepared) (
 			session_id,
 			correlation_request_id,
 			native_compaction_v2,
-			created_at
+			created_at,
+			upstream_request_turn_state,
+			upstream_response_turn_state,
+			turn_state_transport,
+			turn_state_connection_reused
 		FROM input
 		ON CONFLICT (request_id, api_key_id) DO NOTHING
 	`)
@@ -1243,14 +1276,18 @@ func execUsageLogInsertNoResult(ctx context.Context, sqlq sqlExecutor, prepared 
 			session_id,
 			correlation_request_id,
 			native_compaction_v2,
-			created_at
+			created_at,
+			upstream_request_turn_state,
+			upstream_response_turn_state,
+			turn_state_transport,
+			turn_state_connection_reused
 		) VALUES (
 			$1, $2, $3, $4, $5, $6, $7, $8, $9,
 			$10, $11,
 			$12, $13, $14, $15,
 			$16, $17, $18, $19,
 			$20, $21, $22, $23, $24, $25,
-			$26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61, $62, $63
+			$26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, $37, $38, $39, $40, $41, $42, $43, $44, $45, $46, $47, $48, $49, $50, $51, $52, $53, $54, $55, $56, $57, $58, $59, $60, $61, $62, $63, $64, $65, $66, $67
 		)
 		ON CONFLICT (request_id, api_key_id) DO NOTHING
 	`, prepared.args...)
@@ -1381,6 +1418,10 @@ func prepareUsageLogInsert(log *service.UsageLog) usageLogInsertPrepared {
 			correlationRequestIDArg, // correlation_request_id
 			log.NativeCompactionV2,
 			createdAt,
+			nullString(log.UpstreamRequestTurnState),
+			nullString(log.UpstreamResponseTurnState),
+			nullString(log.TurnStateTransport),
+			nullBool(log.TurnStateConnectionReused),
 		},
 	}
 }

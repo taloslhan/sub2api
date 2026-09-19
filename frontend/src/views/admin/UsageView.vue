@@ -657,6 +657,8 @@ const allColumns = computed(() => [
   { key: 'tokens', label: t('usage.tokens'), sortable: false },
   // CAPYBARA-PATCH: 服务档位默认可见，复用现有列显隐设置。
   { key: 'service_tier', label: t('usage.serviceTier'), sortable: false },
+  // CAPYBARA-PATCH: state 长度默认可见，仅管理员展示。
+  { key: 'turn_state', label: t('usage.stateLength'), sortable: false },
   { key: 'cost', label: t('usage.cost'), sortable: false },
   { key: 'latency', label: t('usage.latency'), sortable: false },
   { key: 'created_at', label: t('usage.time'), sortable: true },

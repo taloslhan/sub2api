@@ -1769,6 +1769,13 @@ export interface UsageLogAccountSummary {
 }
 
 export interface AdminUsageLog extends UsageLog {
+  // CAPYBARA-PATCH: 管理员专属；长度由后端按 UTF-8 字节数计算。
+  upstream_request_turn_state?: string | null
+  upstream_response_turn_state?: string | null
+  upstream_request_turn_state_length?: number | null
+  upstream_response_turn_state_length?: number | null
+  turn_state_transport?: 'http' | 'ws' | null
+  turn_state_connection_reused?: boolean | null
   upstream_model?: string | null
   upstream_reasoning_effort?: string | null
   upstream_response_model?: string | null
