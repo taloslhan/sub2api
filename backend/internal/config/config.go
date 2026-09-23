@@ -107,8 +107,8 @@ type Config struct {
 	BatchImage              BatchImageConfig              `mapstructure:"batch_image"`
 	ImageStorage            ImageStorageConfig            `mapstructure:"image_storage"`
 	// CAPYBARA-PATCH: 内建会话归档保持独立、默认关闭，并使用专用私有对象存储与持久密钥。
-	SessionArchive          SessionArchiveConfig          `mapstructure:"session_archive"`
-	Plugins                 PluginConfig                  `mapstructure:"plugins"`
+	SessionArchive SessionArchiveConfig `mapstructure:"session_archive"`
+	Plugins        PluginConfig         `mapstructure:"plugins"`
 
 	// Enforce only API-key spending windows in simple mode.
 	SimpleModeKeyRateLimitEnabled bool `mapstructure:"simple_mode_key_rate_limit_enabled" yaml:"simple_mode_key_rate_limit_enabled"`
