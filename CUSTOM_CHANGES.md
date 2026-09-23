@@ -93,3 +93,7 @@
 | 2026-09-16 | `backend/internal/handler/{dto/settings.go,setting_handler.go}`<br>`backend/internal/service/setting_public.go`<br>`backend/cmd/server/wire_gen.go` | 同步 0.2.5：公开设置与首屏注入同时保留 Crisp 和上游余额支付开关；重新生成 Wire，保留会话归档依赖并复用前移的 Ollama 配额服务。 |
 
 | 2026-09-16 | `backend/internal/server/routes/subscription_bulk_action_routes_test.go`<br>`backend/internal/repository/ops_repo_request_details_test.go` | 上游新增回归测试适配二开路由审计参数与 correlation_request_id 查询列序，保留鉴权及延迟排序断言。 |
+
+| 2026-09-23 | `backend/internal/service/{billing_service.go,openai_codex_models_service.go}`<br>`backend/internal/repository/http_upstream.go`<br>`backend/internal/{config/config.go,service/admin_account.go}`<br>`backend/cmd/server/wire_gen.go` | 同步 0.2.7：无 Resolver 回退改用上游推理等级倍率表并保留 OpenAI 订阅/credits profile 策略；上游已移除 Fable 5.1 默认 max 倍率，不再保留；GPT-5.6/GPT-6 能力判定保留 Daybreak 能力 ID 并纳入上游 Sol/Luna；上游请求改走 doUpstreamRequest 后仍记录尝试；配置与账号更新同时保留会话归档、credits 开关和上游 OpenCode Go 字段；wire 重新生成结果与合并一致。 |
+
+| 2026-09-23 | `frontend/src/components/account/EditAccountModal.vue`<br>`frontend/src/views/user/__tests__/UsageView.spec.ts`<br>`backend/internal/service/{gateway_image_reasoning_pricing_test.go,reasoning_effort_billing_test.go}` | 同步 0.2.7：账号编辑保留 credits 组件导入并采用上游 onMounted；用量导出保留解码速度列并采用上游缺失推理等级导出为 `-`；上游新测试补传二开 OpenAIBillingProfile 参数。 |

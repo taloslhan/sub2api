@@ -211,7 +211,7 @@ export default {
     channelStatus: '渠道状态',
     riskControl: '风控中心',
     securityAudit: '安全审计',
-    contentModeration: '内容审核',
+    contentModeration: '内容审计',
     promptAudit: '提示词审计',
     // CAPYBARA-PATCH: 会话归档菜单固定可见，默认关闭时仍能进入配置。
     sessionArchive: '会话归档',
