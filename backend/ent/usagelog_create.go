@@ -155,6 +155,20 @@ func (_c *UsageLogCreate) SetNillableUpstreamResponseModel(v *string) *UsageLogC
 	return _c
 }
 
+// SetUpstreamCyberAccessProgram sets the "upstream_cyber_access_program" field.
+func (_c *UsageLogCreate) SetUpstreamCyberAccessProgram(v string) *UsageLogCreate {
+	_c.mutation.SetUpstreamCyberAccessProgram(v)
+	return _c
+}
+
+// SetNillableUpstreamCyberAccessProgram sets the "upstream_cyber_access_program" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableUpstreamCyberAccessProgram(v *string) *UsageLogCreate {
+	if v != nil {
+		_c.SetUpstreamCyberAccessProgram(*v)
+	}
+	return _c
+}
+
 // SetUpstreamModelMismatch sets the "upstream_model_mismatch" field.
 func (_c *UsageLogCreate) SetUpstreamModelMismatch(v bool) *UsageLogCreate {
 	_c.mutation.SetUpstreamModelMismatch(v)
@@ -877,6 +891,11 @@ func (_c *UsageLogCreate) check() error {
 			return &ValidationError{Name: "upstream_response_model", err: fmt.Errorf(`ent: validator failed for field "UsageLog.upstream_response_model": %w`, err)}
 		}
 	}
+	if v, ok := _c.mutation.UpstreamCyberAccessProgram(); ok {
+		if err := usagelog.UpstreamCyberAccessProgramValidator(v); err != nil {
+			return &ValidationError{Name: "upstream_cyber_access_program", err: fmt.Errorf(`ent: validator failed for field "UsageLog.upstream_cyber_access_program": %w`, err)}
+		}
+	}
 	if v, ok := _c.mutation.ModelMappingChain(); ok {
 		if err := usagelog.ModelMappingChainValidator(v); err != nil {
 			return &ValidationError{Name: "model_mapping_chain", err: fmt.Errorf(`ent: validator failed for field "UsageLog.model_mapping_chain": %w`, err)}
@@ -1058,6 +1077,10 @@ func (_c *UsageLogCreate) createSpec() (*UsageLog, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.UpstreamResponseModel(); ok {
 		_spec.SetField(usagelog.FieldUpstreamResponseModel, field.TypeString, value)
 		_node.UpstreamResponseModel = &value
+	}
+	if value, ok := _c.mutation.UpstreamCyberAccessProgram(); ok {
+		_spec.SetField(usagelog.FieldUpstreamCyberAccessProgram, field.TypeString, value)
+		_node.UpstreamCyberAccessProgram = &value
 	}
 	if value, ok := _c.mutation.UpstreamModelMismatch(); ok {
 		_spec.SetField(usagelog.FieldUpstreamModelMismatch, field.TypeBool, value)
@@ -1527,6 +1550,24 @@ func (u *UsageLogUpsert) UpdateUpstreamResponseModel() *UsageLogUpsert {
 // ClearUpstreamResponseModel clears the value of the "upstream_response_model" field.
 func (u *UsageLogUpsert) ClearUpstreamResponseModel() *UsageLogUpsert {
 	u.SetNull(usagelog.FieldUpstreamResponseModel)
+	return u
+}
+
+// SetUpstreamCyberAccessProgram sets the "upstream_cyber_access_program" field.
+func (u *UsageLogUpsert) SetUpstreamCyberAccessProgram(v string) *UsageLogUpsert {
+	u.Set(usagelog.FieldUpstreamCyberAccessProgram, v)
+	return u
+}
+
+// UpdateUpstreamCyberAccessProgram sets the "upstream_cyber_access_program" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateUpstreamCyberAccessProgram() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldUpstreamCyberAccessProgram)
+	return u
+}
+
+// ClearUpstreamCyberAccessProgram clears the value of the "upstream_cyber_access_program" field.
+func (u *UsageLogUpsert) ClearUpstreamCyberAccessProgram() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldUpstreamCyberAccessProgram)
 	return u
 }
 
@@ -2485,6 +2526,27 @@ func (u *UsageLogUpsertOne) UpdateUpstreamResponseModel() *UsageLogUpsertOne {
 func (u *UsageLogUpsertOne) ClearUpstreamResponseModel() *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.ClearUpstreamResponseModel()
+	})
+}
+
+// SetUpstreamCyberAccessProgram sets the "upstream_cyber_access_program" field.
+func (u *UsageLogUpsertOne) SetUpstreamCyberAccessProgram(v string) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetUpstreamCyberAccessProgram(v)
+	})
+}
+
+// UpdateUpstreamCyberAccessProgram sets the "upstream_cyber_access_program" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateUpstreamCyberAccessProgram() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateUpstreamCyberAccessProgram()
+	})
+}
+
+// ClearUpstreamCyberAccessProgram clears the value of the "upstream_cyber_access_program" field.
+func (u *UsageLogUpsertOne) ClearUpstreamCyberAccessProgram() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearUpstreamCyberAccessProgram()
 	})
 }
 
@@ -3725,6 +3787,27 @@ func (u *UsageLogUpsertBulk) UpdateUpstreamResponseModel() *UsageLogUpsertBulk {
 func (u *UsageLogUpsertBulk) ClearUpstreamResponseModel() *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.ClearUpstreamResponseModel()
+	})
+}
+
+// SetUpstreamCyberAccessProgram sets the "upstream_cyber_access_program" field.
+func (u *UsageLogUpsertBulk) SetUpstreamCyberAccessProgram(v string) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetUpstreamCyberAccessProgram(v)
+	})
+}
+
+// UpdateUpstreamCyberAccessProgram sets the "upstream_cyber_access_program" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateUpstreamCyberAccessProgram() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateUpstreamCyberAccessProgram()
+	})
+}
+
+// ClearUpstreamCyberAccessProgram clears the value of the "upstream_cyber_access_program" field.
+func (u *UsageLogUpsertBulk) ClearUpstreamCyberAccessProgram() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearUpstreamCyberAccessProgram()
 	})
 }
 

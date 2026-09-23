@@ -794,6 +794,52 @@ func TestObserveUpstreamMessage_ResponseIDFallbackPolicy(t *testing.T) {
 	require.Equal(t, "resp_fallback", observed.responseID)
 }
 
+func TestObserveUpstreamMessage_CyberAccessProgramIsTurnLocalAndTerminalWins(t *testing.T) {
+	t.Parallel()
+
+	state := &relayState{requestModel: "gpt-daybreak-blue-latest"}
+	startAt := time.Unix(0, 0)
+	now := startAt
+	nowFn := func() time.Time {
+		now = now.Add(5 * time.Millisecond)
+		return now
+	}
+
+	observeUpstreamMessage(
+		state,
+		[]byte(`{"type":"response.created","response":{"id":"resp_1","access_programs":{"cyber":"daybreak_blue"}}}`),
+		startAt,
+		nowFn,
+		nil,
+	)
+	completed := observeUpstreamMessage(
+		state,
+		[]byte(`{"type":"response.completed","response":{"id":"resp_1","access_programs":{"cyber":"daybreak_red"},"usage":{"input_tokens":1,"output_tokens":2}}}`),
+		startAt,
+		nowFn,
+		nil,
+	)
+	require.Equal(t, "daybreak_red", completed.cyberAccessProgram)
+
+	var turn RelayTurnResult
+	emitTurnComplete(func(result RelayTurnResult) { turn = result }, state, completed)
+	require.Equal(t, "daybreak_red", turn.CyberAccessProgram)
+
+	var result RelayResult
+	enrichResult(&result, state, now.Sub(startAt))
+	require.Equal(t, "daybreak_red", result.CyberAccessProgram)
+
+	observeUpstreamMessage(state, []byte(`{"type":"response.created","response":{"id":"resp_2"}}`), startAt, nowFn, nil)
+	second := observeUpstreamMessage(
+		state,
+		[]byte(`{"type":"response.completed","response":{"id":"resp_2","usage":{"input_tokens":3,"output_tokens":4}}}`),
+		startAt,
+		nowFn,
+		nil,
+	)
+	require.Empty(t, second.cyberAccessProgram, "the previous turn must not contaminate this turn")
+}
+
 func TestObserveUpstreamMessage_ResponseServiceTierOnlyFromTerminalEvents(t *testing.T) {
 	t.Parallel()
 

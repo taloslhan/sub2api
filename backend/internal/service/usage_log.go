@@ -129,6 +129,9 @@ type UsageLog struct {
 	// UpstreamResponseModel is the model declared by the successful upstream
 	// response before client-facing model rewrites or protocol conversion.
 	UpstreamResponseModel *string
+	// UpstreamCyberAccessProgram is the access_programs.cyber value declared by
+	// an OpenAI response. Nil means the upstream did not expose the field.
+	UpstreamCyberAccessProgram *string
 	// UpstreamModelMismatch is nil when no upstream model was observed. Otherwise
 	// it compares UpstreamResponseModel with the actual model sent upstream.
 	UpstreamModelMismatch *bool

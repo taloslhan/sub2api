@@ -115,6 +115,11 @@ func UpstreamResponseModel(v string) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldUpstreamResponseModel, v))
 }
 
+// UpstreamCyberAccessProgram applies equality check predicate on the "upstream_cyber_access_program" field. It's identical to UpstreamCyberAccessProgramEQ.
+func UpstreamCyberAccessProgram(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldUpstreamCyberAccessProgram, v))
+}
+
 // UpstreamModelMismatch applies equality check predicate on the "upstream_model_mismatch" field. It's identical to UpstreamModelMismatchEQ.
 func UpstreamModelMismatch(v bool) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldUpstreamModelMismatch, v))
@@ -963,6 +968,81 @@ func UpstreamResponseModelEqualFold(v string) predicate.UsageLog {
 // UpstreamResponseModelContainsFold applies the ContainsFold predicate on the "upstream_response_model" field.
 func UpstreamResponseModelContainsFold(v string) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldContainsFold(FieldUpstreamResponseModel, v))
+}
+
+// UpstreamCyberAccessProgramEQ applies the EQ predicate on the "upstream_cyber_access_program" field.
+func UpstreamCyberAccessProgramEQ(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldUpstreamCyberAccessProgram, v))
+}
+
+// UpstreamCyberAccessProgramNEQ applies the NEQ predicate on the "upstream_cyber_access_program" field.
+func UpstreamCyberAccessProgramNEQ(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldUpstreamCyberAccessProgram, v))
+}
+
+// UpstreamCyberAccessProgramIn applies the In predicate on the "upstream_cyber_access_program" field.
+func UpstreamCyberAccessProgramIn(vs ...string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIn(FieldUpstreamCyberAccessProgram, vs...))
+}
+
+// UpstreamCyberAccessProgramNotIn applies the NotIn predicate on the "upstream_cyber_access_program" field.
+func UpstreamCyberAccessProgramNotIn(vs ...string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotIn(FieldUpstreamCyberAccessProgram, vs...))
+}
+
+// UpstreamCyberAccessProgramGT applies the GT predicate on the "upstream_cyber_access_program" field.
+func UpstreamCyberAccessProgramGT(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGT(FieldUpstreamCyberAccessProgram, v))
+}
+
+// UpstreamCyberAccessProgramGTE applies the GTE predicate on the "upstream_cyber_access_program" field.
+func UpstreamCyberAccessProgramGTE(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGTE(FieldUpstreamCyberAccessProgram, v))
+}
+
+// UpstreamCyberAccessProgramLT applies the LT predicate on the "upstream_cyber_access_program" field.
+func UpstreamCyberAccessProgramLT(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLT(FieldUpstreamCyberAccessProgram, v))
+}
+
+// UpstreamCyberAccessProgramLTE applies the LTE predicate on the "upstream_cyber_access_program" field.
+func UpstreamCyberAccessProgramLTE(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLTE(FieldUpstreamCyberAccessProgram, v))
+}
+
+// UpstreamCyberAccessProgramContains applies the Contains predicate on the "upstream_cyber_access_program" field.
+func UpstreamCyberAccessProgramContains(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldContains(FieldUpstreamCyberAccessProgram, v))
+}
+
+// UpstreamCyberAccessProgramHasPrefix applies the HasPrefix predicate on the "upstream_cyber_access_program" field.
+func UpstreamCyberAccessProgramHasPrefix(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldHasPrefix(FieldUpstreamCyberAccessProgram, v))
+}
+
+// UpstreamCyberAccessProgramHasSuffix applies the HasSuffix predicate on the "upstream_cyber_access_program" field.
+func UpstreamCyberAccessProgramHasSuffix(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldHasSuffix(FieldUpstreamCyberAccessProgram, v))
+}
+
+// UpstreamCyberAccessProgramIsNil applies the IsNil predicate on the "upstream_cyber_access_program" field.
+func UpstreamCyberAccessProgramIsNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIsNull(FieldUpstreamCyberAccessProgram))
+}
+
+// UpstreamCyberAccessProgramNotNil applies the NotNil predicate on the "upstream_cyber_access_program" field.
+func UpstreamCyberAccessProgramNotNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotNull(FieldUpstreamCyberAccessProgram))
+}
+
+// UpstreamCyberAccessProgramEqualFold applies the EqualFold predicate on the "upstream_cyber_access_program" field.
+func UpstreamCyberAccessProgramEqualFold(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEqualFold(FieldUpstreamCyberAccessProgram, v))
+}
+
+// UpstreamCyberAccessProgramContainsFold applies the ContainsFold predicate on the "upstream_cyber_access_program" field.
+func UpstreamCyberAccessProgramContainsFold(v string) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldContainsFold(FieldUpstreamCyberAccessProgram, v))
 }
 
 // UpstreamModelMismatchEQ applies the EQ predicate on the "upstream_model_mismatch" field.

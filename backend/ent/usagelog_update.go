@@ -242,6 +242,26 @@ func (_u *UsageLogUpdate) ClearUpstreamResponseModel() *UsageLogUpdate {
 	return _u
 }
 
+// SetUpstreamCyberAccessProgram sets the "upstream_cyber_access_program" field.
+func (_u *UsageLogUpdate) SetUpstreamCyberAccessProgram(v string) *UsageLogUpdate {
+	_u.mutation.SetUpstreamCyberAccessProgram(v)
+	return _u
+}
+
+// SetNillableUpstreamCyberAccessProgram sets the "upstream_cyber_access_program" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableUpstreamCyberAccessProgram(v *string) *UsageLogUpdate {
+	if v != nil {
+		_u.SetUpstreamCyberAccessProgram(*v)
+	}
+	return _u
+}
+
+// ClearUpstreamCyberAccessProgram clears the value of the "upstream_cyber_access_program" field.
+func (_u *UsageLogUpdate) ClearUpstreamCyberAccessProgram() *UsageLogUpdate {
+	_u.mutation.ClearUpstreamCyberAccessProgram()
+	return _u
+}
+
 // SetUpstreamModelMismatch sets the "upstream_model_mismatch" field.
 func (_u *UsageLogUpdate) SetUpstreamModelMismatch(v bool) *UsageLogUpdate {
 	_u.mutation.SetUpstreamModelMismatch(v)
@@ -1141,6 +1161,11 @@ func (_u *UsageLogUpdate) check() error {
 			return &ValidationError{Name: "upstream_response_model", err: fmt.Errorf(`ent: validator failed for field "UsageLog.upstream_response_model": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.UpstreamCyberAccessProgram(); ok {
+		if err := usagelog.UpstreamCyberAccessProgramValidator(v); err != nil {
+			return &ValidationError{Name: "upstream_cyber_access_program", err: fmt.Errorf(`ent: validator failed for field "UsageLog.upstream_cyber_access_program": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.ModelMappingChain(); ok {
 		if err := usagelog.ModelMappingChainValidator(v); err != nil {
 			return &ValidationError{Name: "model_mapping_chain", err: fmt.Errorf(`ent: validator failed for field "UsageLog.model_mapping_chain": %w`, err)}
@@ -1262,6 +1287,12 @@ func (_u *UsageLogUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.UpstreamResponseModelCleared() {
 		_spec.ClearField(usagelog.FieldUpstreamResponseModel, field.TypeString)
+	}
+	if value, ok := _u.mutation.UpstreamCyberAccessProgram(); ok {
+		_spec.SetField(usagelog.FieldUpstreamCyberAccessProgram, field.TypeString, value)
+	}
+	if _u.mutation.UpstreamCyberAccessProgramCleared() {
+		_spec.ClearField(usagelog.FieldUpstreamCyberAccessProgram, field.TypeString)
 	}
 	if value, ok := _u.mutation.UpstreamModelMismatch(); ok {
 		_spec.SetField(usagelog.FieldUpstreamModelMismatch, field.TypeBool, value)
@@ -1857,6 +1888,26 @@ func (_u *UsageLogUpdateOne) SetNillableUpstreamResponseModel(v *string) *UsageL
 // ClearUpstreamResponseModel clears the value of the "upstream_response_model" field.
 func (_u *UsageLogUpdateOne) ClearUpstreamResponseModel() *UsageLogUpdateOne {
 	_u.mutation.ClearUpstreamResponseModel()
+	return _u
+}
+
+// SetUpstreamCyberAccessProgram sets the "upstream_cyber_access_program" field.
+func (_u *UsageLogUpdateOne) SetUpstreamCyberAccessProgram(v string) *UsageLogUpdateOne {
+	_u.mutation.SetUpstreamCyberAccessProgram(v)
+	return _u
+}
+
+// SetNillableUpstreamCyberAccessProgram sets the "upstream_cyber_access_program" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableUpstreamCyberAccessProgram(v *string) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetUpstreamCyberAccessProgram(*v)
+	}
+	return _u
+}
+
+// ClearUpstreamCyberAccessProgram clears the value of the "upstream_cyber_access_program" field.
+func (_u *UsageLogUpdateOne) ClearUpstreamCyberAccessProgram() *UsageLogUpdateOne {
+	_u.mutation.ClearUpstreamCyberAccessProgram()
 	return _u
 }
 
@@ -2772,6 +2823,11 @@ func (_u *UsageLogUpdateOne) check() error {
 			return &ValidationError{Name: "upstream_response_model", err: fmt.Errorf(`ent: validator failed for field "UsageLog.upstream_response_model": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.UpstreamCyberAccessProgram(); ok {
+		if err := usagelog.UpstreamCyberAccessProgramValidator(v); err != nil {
+			return &ValidationError{Name: "upstream_cyber_access_program", err: fmt.Errorf(`ent: validator failed for field "UsageLog.upstream_cyber_access_program": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.ModelMappingChain(); ok {
 		if err := usagelog.ModelMappingChainValidator(v); err != nil {
 			return &ValidationError{Name: "model_mapping_chain", err: fmt.Errorf(`ent: validator failed for field "UsageLog.model_mapping_chain": %w`, err)}
@@ -2910,6 +2966,12 @@ func (_u *UsageLogUpdateOne) sqlSave(ctx context.Context) (_node *UsageLog, err 
 	}
 	if _u.mutation.UpstreamResponseModelCleared() {
 		_spec.ClearField(usagelog.FieldUpstreamResponseModel, field.TypeString)
+	}
+	if value, ok := _u.mutation.UpstreamCyberAccessProgram(); ok {
+		_spec.SetField(usagelog.FieldUpstreamCyberAccessProgram, field.TypeString, value)
+	}
+	if _u.mutation.UpstreamCyberAccessProgramCleared() {
+		_spec.ClearField(usagelog.FieldUpstreamCyberAccessProgram, field.TypeString)
 	}
 	if value, ok := _u.mutation.UpstreamModelMismatch(); ok {
 		_spec.SetField(usagelog.FieldUpstreamModelMismatch, field.TypeBool, value)

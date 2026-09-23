@@ -252,6 +252,9 @@ type OpenAIForwardResult struct {
 	// response before any client-facing rewrite or protocol conversion.
 	UpstreamResponseModel         string
 	UpstreamResponseModelConflict bool
+	// UpstreamCyberAccessProgram is access_programs.cyber from the successful
+	// upstream response, for example "daybreak_blue". Empty means undeclared.
+	UpstreamCyberAccessProgram string
 	// UpstreamResponseServiceTier is the tier the upstream reports having used
 	// (response service_tier: "priority" / "default" / "flex" / ...); "" when not declared.
 	UpstreamResponseServiceTier string

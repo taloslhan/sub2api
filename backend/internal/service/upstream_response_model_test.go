@@ -18,6 +18,24 @@ func TestUpstreamResponseModelObserverTerminalWinsAndRecordsConflict(t *testing.
 	require.True(t, observer.Conflict())
 }
 
+func TestUpstreamResponseModelObserverCapturesCyberAccessProgram(t *testing.T) {
+	observer := &upstreamResponseModelObserver{}
+
+	observer.ObserveOpenAI([]byte(`{"type":"response.created","response":{"model":"gpt-daybreak-blue-latest","access_programs":{"cyber":"daybreak_blue"}}}`), "response.created")
+	require.Equal(t, "daybreak_blue", observer.CyberAccessProgram())
+
+	observer.ObserveOpenAI([]byte(`{"type":"response.completed","response":{"model":"gpt-5.6-cyber","access_programs":{"cyber":"daybreak_red"}}}`), "response.completed")
+	require.Equal(t, "daybreak_red", observer.CyberAccessProgram(), "terminal declaration must win")
+}
+
+func TestUpstreamResponseModelObserverCapturesTopLevelCyberAccessProgram(t *testing.T) {
+	observer := &upstreamResponseModelObserver{}
+
+	observer.ObserveOpenAI([]byte(`{"model":"gpt-6-sol","access_programs":{"cyber":"standard"}}`), "")
+
+	require.Equal(t, "standard", observer.CyberAccessProgram())
+}
+
 func TestUpstreamResponseModelObserverSupportsAnthropicAndGeminiShapes(t *testing.T) {
 	t.Run("anthropic", func(t *testing.T) {
 		observer := &upstreamResponseModelObserver{}

@@ -217,6 +217,12 @@
           </span>
         </template>
 
+        <template #cell-upstream_cyber_access_program="{ row }">
+          <span class="whitespace-nowrap text-sm text-gray-900 dark:text-white">
+            {{ getCyberAccessProgramLabel(row.upstream_cyber_access_program, t) || '-' }}
+          </span>
+        </template>
+
         <template #cell-cost="{ row }">
           <div class="text-sm">
             <div class="flex items-center gap-1.5">
@@ -570,6 +576,7 @@ import {
 import { formatCacheTokens, formatMultiplier } from '@/utils/formatters'
 import { formatTokenPricePerMillion } from '@/utils/usagePricing'
 import { getUsageServiceTierLabel } from '@/utils/usageServiceTier'
+import { getCyberAccessProgramLabel } from '@/utils/usageCyberAccessProgram'
 import { resolveUsageRequestType } from '@/utils/usageRequestType'
 import {
   LATENCY_BAR_CLASSES,

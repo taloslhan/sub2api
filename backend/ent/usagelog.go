@@ -47,6 +47,8 @@ type UsageLog struct {
 	UpstreamModel *string `json:"upstream_model,omitempty"`
 	// UpstreamResponseModel holds the value of the "upstream_response_model" field.
 	UpstreamResponseModel *string `json:"upstream_response_model,omitempty"`
+	// UpstreamCyberAccessProgram holds the value of the "upstream_cyber_access_program" field.
+	UpstreamCyberAccessProgram *string `json:"upstream_cyber_access_program,omitempty"`
 	// UpstreamModelMismatch holds the value of the "upstream_model_mismatch" field.
 	UpstreamModelMismatch *bool `json:"upstream_model_mismatch,omitempty"`
 	// 渠道 ID
@@ -216,7 +218,7 @@ func (*UsageLog) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullFloat64)
 		case usagelog.FieldID, usagelog.FieldUserID, usagelog.FieldAPIKeyID, usagelog.FieldAccountID, usagelog.FieldChannelID, usagelog.FieldGroupID, usagelog.FieldSubscriptionID, usagelog.FieldInputTokens, usagelog.FieldOutputTokens, usagelog.FieldCacheCreationTokens, usagelog.FieldCacheReadTokens, usagelog.FieldCacheCreation5mTokens, usagelog.FieldCacheCreation1hTokens, usagelog.FieldBillingType, usagelog.FieldDurationMs, usagelog.FieldFirstTokenMs, usagelog.FieldImageCount, usagelog.FieldVideoCount, usagelog.FieldVideoDurationSeconds:
 			values[i] = new(sql.NullInt64)
-		case usagelog.FieldUpstreamRequestTurnState, usagelog.FieldUpstreamResponseTurnState, usagelog.FieldTurnStateTransport, usagelog.FieldRequestID, usagelog.FieldModel, usagelog.FieldRequestedModel, usagelog.FieldUpstreamModel, usagelog.FieldUpstreamResponseModel, usagelog.FieldModelMappingChain, usagelog.FieldBillingTier, usagelog.FieldBillingMode, usagelog.FieldUserAgent, usagelog.FieldIPAddress, usagelog.FieldImageSize, usagelog.FieldImageInputSize, usagelog.FieldImageOutputSize, usagelog.FieldImageSizeSource, usagelog.FieldVideoResolution:
+		case usagelog.FieldUpstreamRequestTurnState, usagelog.FieldUpstreamResponseTurnState, usagelog.FieldTurnStateTransport, usagelog.FieldRequestID, usagelog.FieldModel, usagelog.FieldRequestedModel, usagelog.FieldUpstreamModel, usagelog.FieldUpstreamResponseModel, usagelog.FieldUpstreamCyberAccessProgram, usagelog.FieldModelMappingChain, usagelog.FieldBillingTier, usagelog.FieldBillingMode, usagelog.FieldUserAgent, usagelog.FieldIPAddress, usagelog.FieldImageSize, usagelog.FieldImageInputSize, usagelog.FieldImageOutputSize, usagelog.FieldImageSizeSource, usagelog.FieldVideoResolution:
 			values[i] = new(sql.NullString)
 		case usagelog.FieldCreatedAt:
 			values[i] = new(sql.NullTime)
@@ -319,6 +321,13 @@ func (_m *UsageLog) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.UpstreamResponseModel = new(string)
 				*_m.UpstreamResponseModel = value.String
+			}
+		case usagelog.FieldUpstreamCyberAccessProgram:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field upstream_cyber_access_program", values[i])
+			} else if value.Valid {
+				_m.UpstreamCyberAccessProgram = new(string)
+				*_m.UpstreamCyberAccessProgram = value.String
 			}
 		case usagelog.FieldUpstreamModelMismatch:
 			if value, ok := values[i].(*sql.NullBool); !ok {
@@ -682,6 +691,11 @@ func (_m *UsageLog) String() string {
 	builder.WriteString(", ")
 	if v := _m.UpstreamResponseModel; v != nil {
 		builder.WriteString("upstream_response_model=")
+		builder.WriteString(*v)
+	}
+	builder.WriteString(", ")
+	if v := _m.UpstreamCyberAccessProgram; v != nil {
+		builder.WriteString("upstream_cyber_access_program=")
 		builder.WriteString(*v)
 	}
 	builder.WriteString(", ")

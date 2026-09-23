@@ -132,14 +132,16 @@ func TestUsageLogFromService_UsesRequestedModelAndKeepsUpstreamAdminOnly(t *test
 
 	upstreamModel := "claude-sonnet-4-20250514"
 	upstreamResponseModel := "claude-sonnet-4-20250513"
+	upstreamCyberAccessProgram := "daybreak_blue"
 	upstreamModelMismatch := true
 	log := &service.UsageLog{
-		RequestID:             "req_4",
-		Model:                 upstreamModel,
-		RequestedModel:        "claude-sonnet-4",
-		UpstreamModel:         &upstreamModel,
-		UpstreamResponseModel: &upstreamResponseModel,
-		UpstreamModelMismatch: &upstreamModelMismatch,
+		RequestID:                  "req_4",
+		Model:                      upstreamModel,
+		RequestedModel:             "claude-sonnet-4",
+		UpstreamModel:              &upstreamModel,
+		UpstreamResponseModel:      &upstreamResponseModel,
+		UpstreamCyberAccessProgram: &upstreamCyberAccessProgram,
+		UpstreamModelMismatch:      &upstreamModelMismatch,
 	}
 
 	userDTO := UsageLogFromService(log)
@@ -152,12 +154,14 @@ func TestUsageLogFromService_UsesRequestedModelAndKeepsUpstreamAdminOnly(t *test
 	require.NoError(t, err)
 	require.NotContains(t, string(userJSON), "upstream_model")
 	require.NotContains(t, string(userJSON), "upstream_response_model")
+	require.NotContains(t, string(userJSON), "upstream_cyber_access_program")
 	require.NotContains(t, string(userJSON), "upstream_model_mismatch")
 
 	adminJSON, err := json.Marshal(adminDTO)
 	require.NoError(t, err)
 	require.Contains(t, string(adminJSON), `"upstream_model":"claude-sonnet-4-20250514"`)
 	require.Contains(t, string(adminJSON), `"upstream_response_model":"claude-sonnet-4-20250513"`)
+	require.Contains(t, string(adminJSON), `"upstream_cyber_access_program":"daybreak_blue"`)
 	require.Contains(t, string(adminJSON), `"upstream_model_mismatch":true`)
 }
 

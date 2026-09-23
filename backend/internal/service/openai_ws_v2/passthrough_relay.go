@@ -36,6 +36,7 @@ type RelayResult struct {
 	RequestModel          string
 	ResponseModel         string
 	ResponseModelConflict bool
+	CyberAccessProgram    string
 	// ResponseServiceTier is the raw service_tier declared by the last terminal
 	// response event; "" when the upstream never declared one.
 	ResponseServiceTier     string
@@ -53,6 +54,7 @@ type RelayTurnResult struct {
 	RequestModel          string
 	ResponseModel         string
 	ResponseModelConflict bool
+	CyberAccessProgram    string
 	ResponseServiceTier   string
 	Usage                 Usage
 	RequestID             string
@@ -108,6 +110,7 @@ type relayState struct {
 	pendingTurnStart        atomic.Pointer[time.Time]
 	lastResponseID          string
 	lastResponseModel       string
+	lastCyberAccessProgram  string
 	lastResponseServiceTier string
 	responseConflict        bool
 	terminalEventType       string
@@ -132,17 +135,20 @@ type observedUpstreamEvent struct {
 	startedAt           time.Time
 	responseModel       string
 	responseConflict    bool
+	cyberAccessProgram  string
 	responseServiceTier string
 	duration            time.Duration
 	firstToken          *int
 }
 
 type relayTurnTiming struct {
-	startAt               time.Time
-	firstTokenMs          *int
-	firstResponseModel    string
-	terminalResponseModel string
-	responseModelConflict bool
+	startAt                    time.Time
+	firstTokenMs               *int
+	firstResponseModel         string
+	terminalResponseModel      string
+	responseModelConflict      bool
+	firstCyberAccessProgram    string
+	terminalCyberAccessProgram string
 	// terminalResponseServiceTier is only taken from terminal events: earlier
 	// events echo the requested tier, not the one the upstream actually used.
 	terminalResponseServiceTier string
@@ -801,6 +807,7 @@ func observeUpstreamMessage(
 		turnTiming = state.activeTurn
 	}
 	observeRelayTurnResponseModel(turnTiming, firstRelayResponseModel(message), isTerminalEvent(eventType))
+	observeRelayTurnCyberAccessProgram(turnTiming, firstRelayCyberAccessProgram(message), isTerminalEvent(eventType))
 	if !isTerminalEvent(eventType) {
 		return observed
 	}
@@ -863,9 +870,11 @@ func finalizeObservedRelayTerminal(state *relayState, observed observedUpstreamE
 		if turnTiming, ok := openAIWSRelayDeleteTurnTiming(state, responseID); ok {
 			observed.responseModel = relayTurnResponseModel(&turnTiming)
 			observed.responseConflict = turnTiming.responseModelConflict
+			observed.cyberAccessProgram = relayTurnCyberAccessProgram(&turnTiming)
 			observed.responseServiceTier = turnTiming.terminalResponseServiceTier
 			state.lastResponseModel = observed.responseModel
 			state.responseConflict = observed.responseConflict
+			state.lastCyberAccessProgram = observed.cyberAccessProgram
 			state.lastResponseServiceTier = observed.responseServiceTier
 			duration := now.Sub(turnTiming.startAt)
 			if duration < 0 {
@@ -902,6 +911,7 @@ func emitTurnComplete(
 		RequestModel:          requestModel,
 		ResponseModel:         observed.responseModel,
 		ResponseModelConflict: observed.responseConflict,
+		CyberAccessProgram:    observed.cyberAccessProgram,
 		ResponseServiceTier:   observed.responseServiceTier,
 		Usage:                 observed.usage,
 		RequestID:             responseID,
@@ -957,6 +967,53 @@ func relayTurnResponseModel(turn *relayTurnTiming) string {
 		return turn.terminalResponseModel
 	}
 	return turn.firstResponseModel
+}
+
+func firstRelayCyberAccessProgram(message []byte) string {
+	if len(message) == 0 {
+		return ""
+	}
+	values := gjson.GetManyBytes(message, "response.access_programs.cyber", "access_programs.cyber")
+	for _, value := range values {
+		if value.Type != gjson.String {
+			continue
+		}
+		if program := strings.TrimSpace(value.String()); program != "" {
+			return program
+		}
+	}
+	return ""
+}
+
+func observeRelayTurnCyberAccessProgram(turn *relayTurnTiming, program string, terminal bool) {
+	if turn == nil {
+		return
+	}
+	program = strings.TrimSpace(program)
+	if program == "" {
+		return
+	}
+	runes := []rune(program)
+	if len(runes) > 64 {
+		program = string(runes[:64])
+	}
+	if terminal {
+		turn.terminalCyberAccessProgram = program
+		return
+	}
+	if turn.firstCyberAccessProgram == "" {
+		turn.firstCyberAccessProgram = program
+	}
+}
+
+func relayTurnCyberAccessProgram(turn *relayTurnTiming) string {
+	if turn == nil {
+		return ""
+	}
+	if turn.terminalCyberAccessProgram != "" {
+		return turn.terminalCyberAccessProgram
+	}
+	return turn.firstCyberAccessProgram
 }
 
 func firstRelayResponseServiceTier(message []byte) string {
@@ -1248,6 +1305,7 @@ func enrichResult(result *RelayResult, state *relayState, duration time.Duration
 	result.RequestModel = state.currentRequestModel()
 	result.ResponseModel = state.lastResponseModel
 	result.ResponseModelConflict = state.responseConflict
+	result.CyberAccessProgram = state.lastCyberAccessProgram
 	result.ResponseServiceTier = state.lastResponseServiceTier
 	result.Usage = state.usage
 	result.RequestID = state.lastResponseID

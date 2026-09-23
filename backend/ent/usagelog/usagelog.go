@@ -38,6 +38,8 @@ const (
 	FieldUpstreamModel = "upstream_model"
 	// FieldUpstreamResponseModel holds the string denoting the upstream_response_model field in the database.
 	FieldUpstreamResponseModel = "upstream_response_model"
+	// FieldUpstreamCyberAccessProgram holds the string denoting the upstream_cyber_access_program field in the database.
+	FieldUpstreamCyberAccessProgram = "upstream_cyber_access_program"
 	// FieldUpstreamModelMismatch holds the string denoting the upstream_model_mismatch field in the database.
 	FieldUpstreamModelMismatch = "upstream_model_mismatch"
 	// FieldChannelID holds the string denoting the channel_id field in the database.
@@ -180,6 +182,7 @@ var Columns = []string{
 	FieldRequestedModel,
 	FieldUpstreamModel,
 	FieldUpstreamResponseModel,
+	FieldUpstreamCyberAccessProgram,
 	FieldUpstreamModelMismatch,
 	FieldChannelID,
 	FieldModelMappingChain,
@@ -242,6 +245,8 @@ var (
 	UpstreamModelValidator func(string) error
 	// UpstreamResponseModelValidator is a validator for the "upstream_response_model" field. It is called by the builders before save.
 	UpstreamResponseModelValidator func(string) error
+	// UpstreamCyberAccessProgramValidator is a validator for the "upstream_cyber_access_program" field. It is called by the builders before save.
+	UpstreamCyberAccessProgramValidator func(string) error
 	// ModelMappingChainValidator is a validator for the "model_mapping_chain" field. It is called by the builders before save.
 	ModelMappingChainValidator func(string) error
 	// BillingTierValidator is a validator for the "billing_tier" field. It is called by the builders before save.
@@ -370,6 +375,11 @@ func ByUpstreamModel(opts ...sql.OrderTermOption) OrderOption {
 // ByUpstreamResponseModel orders the results by the upstream_response_model field.
 func ByUpstreamResponseModel(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldUpstreamResponseModel, opts...).ToFunc()
+}
+
+// ByUpstreamCyberAccessProgram orders the results by the upstream_cyber_access_program field.
+func ByUpstreamCyberAccessProgram(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUpstreamCyberAccessProgram, opts...).ToFunc()
 }
 
 // ByUpstreamModelMismatch orders the results by the upstream_model_mismatch field.

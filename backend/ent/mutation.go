@@ -44527,90 +44527,91 @@ func (m *UsageCleanupTaskMutation) ResetEdge(name string) error {
 // UsageLogMutation represents an operation that mutates the UsageLog nodes in the graph.
 type UsageLogMutation struct {
 	config
-	op                           Op
-	typ                          string
-	id                           *int64
-	upstream_request_turn_state  *string
-	upstream_response_turn_state *string
-	turn_state_transport         *string
-	turn_state_connection_reused *bool
-	request_id                   *string
-	model                        *string
-	requested_model              *string
-	upstream_model               *string
-	upstream_response_model      *string
-	upstream_model_mismatch      *bool
-	channel_id                   *int64
-	addchannel_id                *int64
-	model_mapping_chain          *string
-	billing_tier                 *string
-	billing_mode                 *string
-	input_tokens                 *int
-	addinput_tokens              *int
-	output_tokens                *int
-	addoutput_tokens             *int
-	cache_creation_tokens        *int
-	addcache_creation_tokens     *int
-	cache_read_tokens            *int
-	addcache_read_tokens         *int
-	cache_creation_5m_tokens     *int
-	addcache_creation_5m_tokens  *int
-	cache_creation_1h_tokens     *int
-	addcache_creation_1h_tokens  *int
-	input_cost                   *float64
-	addinput_cost                *float64
-	output_cost                  *float64
-	addoutput_cost               *float64
-	cache_creation_cost          *float64
-	addcache_creation_cost       *float64
-	cache_read_cost              *float64
-	addcache_read_cost           *float64
-	total_cost                   *float64
-	addtotal_cost                *float64
-	actual_cost                  *float64
-	addactual_cost               *float64
-	rate_multiplier              *float64
-	addrate_multiplier           *float64
-	long_context_billing_applied *bool
-	account_rate_multiplier      *float64
-	addaccount_rate_multiplier   *float64
-	billing_type                 *int8
-	addbilling_type              *int8
-	stream                       *bool
-	duration_ms                  *int
-	addduration_ms               *int
-	first_token_ms               *int
-	addfirst_token_ms            *int
-	user_agent                   *string
-	ip_address                   *string
-	image_count                  *int
-	addimage_count               *int
-	image_size                   *string
-	image_input_size             *string
-	image_output_size            *string
-	image_size_source            *string
-	image_size_breakdown         *map[string]int
-	video_count                  *int
-	addvideo_count               *int
-	video_resolution             *string
-	video_duration_seconds       *int
-	addvideo_duration_seconds    *int
-	cache_ttl_overridden         *bool
-	created_at                   *time.Time
-	clearedFields                map[string]struct{}
-	user                         *int64
-	cleareduser                  bool
-	api_key                      *int64
-	clearedapi_key               bool
-	account                      *int64
-	clearedaccount               bool
-	group                        *int64
-	clearedgroup                 bool
-	subscription                 *int64
-	clearedsubscription          bool
-	done                         bool
-	oldValue                     func(context.Context) (*UsageLog, error)
-	predicates                   []predicate.UsageLog
+	op                            Op
+	typ                           string
+	id                            *int64
+	upstream_request_turn_state   *string
+	upstream_response_turn_state  *string
+	turn_state_transport          *string
+	turn_state_connection_reused  *bool
+	request_id                    *string
+	model                         *string
+	requested_model               *string
+	upstream_model                *string
+	upstream_response_model       *string
+	upstream_cyber_access_program *string
+	upstream_model_mismatch       *bool
+	channel_id                    *int64
+	addchannel_id                 *int64
+	model_mapping_chain           *string
+	billing_tier                  *string
+	billing_mode                  *string
+	input_tokens                  *int
+	addinput_tokens               *int
+	output_tokens                 *int
+	addoutput_tokens              *int
+	cache_creation_tokens         *int
+	addcache_creation_tokens      *int
+	cache_read_tokens             *int
+	addcache_read_tokens          *int
+	cache_creation_5m_tokens      *int
+	addcache_creation_5m_tokens   *int
+	cache_creation_1h_tokens      *int
+	addcache_creation_1h_tokens   *int
+	input_cost                    *float64
+	addinput_cost                 *float64
+	output_cost                   *float64
+	addoutput_cost                *float64
+	cache_creation_cost           *float64
+	addcache_creation_cost        *float64
+	cache_read_cost               *float64
+	addcache_read_cost            *float64
+	total_cost                    *float64
+	addtotal_cost                 *float64
+	actual_cost                   *float64
+	addactual_cost                *float64
+	rate_multiplier               *float64
+	addrate_multiplier            *float64
+	long_context_billing_applied  *bool
+	account_rate_multiplier       *float64
+	addaccount_rate_multiplier    *float64
+	billing_type                  *int8
+	addbilling_type               *int8
+	stream                        *bool
+	duration_ms                   *int
+	addduration_ms                *int
+	first_token_ms                *int
+	addfirst_token_ms             *int
+	user_agent                    *string
+	ip_address                    *string
+	image_count                   *int
+	addimage_count                *int
+	image_size                    *string
+	image_input_size              *string
+	image_output_size             *string
+	image_size_source             *string
+	image_size_breakdown          *map[string]int
+	video_count                   *int
+	addvideo_count                *int
+	video_resolution              *string
+	video_duration_seconds        *int
+	addvideo_duration_seconds     *int
+	cache_ttl_overridden          *bool
+	created_at                    *time.Time
+	clearedFields                 map[string]struct{}
+	user                          *int64
+	cleareduser                   bool
+	api_key                       *int64
+	clearedapi_key                bool
+	account                       *int64
+	clearedaccount                bool
+	group                         *int64
+	clearedgroup                  bool
+	subscription                  *int64
+	clearedsubscription           bool
+	done                          bool
+	oldValue                      func(context.Context) (*UsageLog, error)
+	predicates                    []predicate.UsageLog
 }
 
 var _ ent.Mutation = (*UsageLogMutation)(nil)
@@ -45232,6 +45233,55 @@ func (m *UsageLogMutation) UpstreamResponseModelCleared() bool {
 func (m *UsageLogMutation) ResetUpstreamResponseModel() {
 	m.upstream_response_model = nil
 	delete(m.clearedFields, usagelog.FieldUpstreamResponseModel)
+}
+
+// SetUpstreamCyberAccessProgram sets the "upstream_cyber_access_program" field.
+func (m *UsageLogMutation) SetUpstreamCyberAccessProgram(s string) {
+	m.upstream_cyber_access_program = &s
+}
+
+// UpstreamCyberAccessProgram returns the value of the "upstream_cyber_access_program" field in the mutation.
+func (m *UsageLogMutation) UpstreamCyberAccessProgram() (r string, exists bool) {
+	v := m.upstream_cyber_access_program
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldUpstreamCyberAccessProgram returns the old "upstream_cyber_access_program" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldUpstreamCyberAccessProgram(ctx context.Context) (v *string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldUpstreamCyberAccessProgram is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldUpstreamCyberAccessProgram requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldUpstreamCyberAccessProgram: %w", err)
+	}
+	return oldValue.UpstreamCyberAccessProgram, nil
+}
+
+// ClearUpstreamCyberAccessProgram clears the value of the "upstream_cyber_access_program" field.
+func (m *UsageLogMutation) ClearUpstreamCyberAccessProgram() {
+	m.upstream_cyber_access_program = nil
+	m.clearedFields[usagelog.FieldUpstreamCyberAccessProgram] = struct{}{}
+}
+
+// UpstreamCyberAccessProgramCleared returns if the "upstream_cyber_access_program" field was cleared in this mutation.
+func (m *UsageLogMutation) UpstreamCyberAccessProgramCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldUpstreamCyberAccessProgram]
+	return ok
+}
+
+// ResetUpstreamCyberAccessProgram resets all changes to the "upstream_cyber_access_program" field.
+func (m *UsageLogMutation) ResetUpstreamCyberAccessProgram() {
+	m.upstream_cyber_access_program = nil
+	delete(m.clearedFields, usagelog.FieldUpstreamCyberAccessProgram)
 }
 
 // SetUpstreamModelMismatch sets the "upstream_model_mismatch" field.
@@ -47479,7 +47529,7 @@ func (m *UsageLogMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UsageLogMutation) Fields() []string {
-	fields := make([]string, 0, 51)
+	fields := make([]string, 0, 52)
 	if m.upstream_request_turn_state != nil {
 		fields = append(fields, usagelog.FieldUpstreamRequestTurnState)
 	}
@@ -47515,6 +47565,9 @@ func (m *UsageLogMutation) Fields() []string {
 	}
 	if m.upstream_response_model != nil {
 		fields = append(fields, usagelog.FieldUpstreamResponseModel)
+	}
+	if m.upstream_cyber_access_program != nil {
+		fields = append(fields, usagelog.FieldUpstreamCyberAccessProgram)
 	}
 	if m.upstream_model_mismatch != nil {
 		fields = append(fields, usagelog.FieldUpstreamModelMismatch)
@@ -47665,6 +47718,8 @@ func (m *UsageLogMutation) Field(name string) (ent.Value, bool) {
 		return m.UpstreamModel()
 	case usagelog.FieldUpstreamResponseModel:
 		return m.UpstreamResponseModel()
+	case usagelog.FieldUpstreamCyberAccessProgram:
+		return m.UpstreamCyberAccessProgram()
 	case usagelog.FieldUpstreamModelMismatch:
 		return m.UpstreamModelMismatch()
 	case usagelog.FieldChannelID:
@@ -47776,6 +47831,8 @@ func (m *UsageLogMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldUpstreamModel(ctx)
 	case usagelog.FieldUpstreamResponseModel:
 		return m.OldUpstreamResponseModel(ctx)
+	case usagelog.FieldUpstreamCyberAccessProgram:
+		return m.OldUpstreamCyberAccessProgram(ctx)
 	case usagelog.FieldUpstreamModelMismatch:
 		return m.OldUpstreamModelMismatch(ctx)
 	case usagelog.FieldChannelID:
@@ -47946,6 +48003,13 @@ func (m *UsageLogMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetUpstreamResponseModel(v)
+		return nil
+	case usagelog.FieldUpstreamCyberAccessProgram:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetUpstreamCyberAccessProgram(v)
 		return nil
 	case usagelog.FieldUpstreamModelMismatch:
 		v, ok := value.(bool)
@@ -48526,6 +48590,9 @@ func (m *UsageLogMutation) ClearedFields() []string {
 	if m.FieldCleared(usagelog.FieldUpstreamResponseModel) {
 		fields = append(fields, usagelog.FieldUpstreamResponseModel)
 	}
+	if m.FieldCleared(usagelog.FieldUpstreamCyberAccessProgram) {
+		fields = append(fields, usagelog.FieldUpstreamCyberAccessProgram)
+	}
 	if m.FieldCleared(usagelog.FieldUpstreamModelMismatch) {
 		fields = append(fields, usagelog.FieldUpstreamModelMismatch)
 	}
@@ -48617,6 +48684,9 @@ func (m *UsageLogMutation) ClearField(name string) error {
 		return nil
 	case usagelog.FieldUpstreamResponseModel:
 		m.ClearUpstreamResponseModel()
+		return nil
+	case usagelog.FieldUpstreamCyberAccessProgram:
+		m.ClearUpstreamCyberAccessProgram()
 		return nil
 	case usagelog.FieldUpstreamModelMismatch:
 		m.ClearUpstreamModelMismatch()
@@ -48718,6 +48788,9 @@ func (m *UsageLogMutation) ResetField(name string) error {
 		return nil
 	case usagelog.FieldUpstreamResponseModel:
 		m.ResetUpstreamResponseModel()
+		return nil
+	case usagelog.FieldUpstreamCyberAccessProgram:
+		m.ResetUpstreamCyberAccessProgram()
 		return nil
 	case usagelog.FieldUpstreamModelMismatch:
 		m.ResetUpstreamModelMismatch()

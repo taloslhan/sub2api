@@ -795,6 +795,7 @@ func UsageLogFromServiceAdmin(l *service.UsageLog) *AdminUsageLog {
 		UpstreamModel:                   l.UpstreamModel,
 		UpstreamReasoningEffort:         adminUpstreamReasoningEffort(l),
 		UpstreamResponseModel:           l.UpstreamResponseModel,
+		UpstreamCyberAccessProgram:      l.UpstreamCyberAccessProgram,
 		UpstreamModelMismatch:           l.UpstreamModelMismatch,
 		ChannelID:                       l.ChannelID,
 		ModelMappingChain:               l.ModelMappingChain,

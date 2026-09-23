@@ -38,6 +38,10 @@ const messages: Record<string, string> = {
 	'usage.sentUpstreamModel': 'Sent upstream model',
 	'usage.upstreamResponseModel': 'Upstream response model',
 	'usage.upstreamModelMismatch': 'Upstream model mismatch',
+	'usage.cyberAccessProgram': 'Cyber access program',
+	'usage.cyberProgramDaybreakBlue': 'Daybreak Blue',
+	'usage.cyberProgramDaybreakRed': 'Daybreak Red',
+	'usage.cyberProgramStandard': 'Standard',
 	'common.yes': 'Yes',
 	'common.no': 'No',
 	'usage.firstToken': 'First token',
@@ -766,6 +770,7 @@ describe('admin UsageView model audit export', () => {
 				upstream_model: 'gpt-5.5',
 				upstream_response_model: 'gpt-5.4',
 				upstream_model_mismatch: true,
+				upstream_cyber_access_program: 'daybreak_blue',
 				request_type: 'sync',
 				input_tokens: 1,
 				output_tokens: 1,
@@ -815,6 +820,8 @@ describe('admin UsageView model audit export', () => {
 		])
 		const row = sheetAddAoa.mock.calls[0][1][0]
 		expect(row.slice(4, 8)).toEqual(['gpt-5.6-sol', 'gpt-5.5', 'gpt-5.4', 'Yes'])
+		expect(headers[8]).toBe('Cyber access program')
+		expect(row[8]).toBe('Daybreak Blue')
 		expect(saveAs).toHaveBeenCalledTimes(1)
 	})
 
@@ -850,14 +857,14 @@ describe('admin UsageView model audit export', () => {
 		await flushPromises()
 
 		const headers = aoaToSheet.mock.calls[0][0][0]
-		expect(headers).toHaveLength(34)
-		expect(headers.slice(27, 30)).toEqual(['First token', 'Duration', 'Decoding Speed (tok/s)'])
+		expect(headers).toHaveLength(35)
+		expect(headers.slice(28, 31)).toEqual(['First token', 'Duration', 'Decoding Speed (tok/s)'])
 
 		const rows = sheetAddAoa.mock.calls[0][1]
-		expect(rows[0]).toHaveLength(34)
-		expect(rows[0][29]).toBe('12.35')
-		expect(rows[1][29]).toBe('')
-		expect(rows[2][29]).toBe('')
+		expect(rows[0]).toHaveLength(35)
+		expect(rows[0][30]).toBe('12.35')
+		expect(rows[1][30]).toBe('')
+		expect(rows[2][30]).toBe('')
 		// 导出的取消与进度逻辑不受影响
 		expect(saveAs).toHaveBeenCalledTimes(1)
 	})

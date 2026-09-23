@@ -1825,6 +1825,8 @@ export interface AdminUsageLog extends UsageLog {
   upstream_model?: string | null
   upstream_reasoning_effort?: string | null
   upstream_response_model?: string | null
+  // CAPYBARA-PATCH: 管理员专属；来自上游响应 access_programs.cyber。
+  upstream_cyber_access_program?: string | null
   upstream_model_mismatch?: boolean | null
   model_mapping_chain?: string | null
   upstream_request_id?: string | null

@@ -10,6 +10,7 @@ import (
 const (
 	upstreamResponseModelObserverContextKey = "upstream_response_model_observer"
 	upstreamResponseModelMaxLength          = 200
+	upstreamCyberAccessProgramMaxLength     = 64
 )
 
 // upstreamResponseModelObserver tracks one forwarding attempt (or one WS turn).
@@ -37,6 +38,11 @@ type upstreamResponseModelObserver struct {
 	firstTier         string
 	firstTierConflict bool
 	terminalTier      string
+
+	// access_programs.cyber follows the same Responses lifecycle as model:
+	// response.completed wins over the earlier response.created declaration.
+	firstCyberAccessProgram    string
+	terminalCyberAccessProgram string
 }
 
 func (o *upstreamResponseModelObserver) Observe(model string, terminal bool) {
@@ -73,6 +79,11 @@ func (o *upstreamResponseModelObserver) ObserveOpenAI(payload []byte, eventType 
 	model := firstValidTrimmedGJSONString(payload, "response.model", "model")
 	terminal := isUpstreamResponseModelTerminalEvent(eventType)
 	o.Observe(model, terminal)
+	o.ObserveCyberAccessProgram(firstValidTrimmedGJSONString(
+		payload,
+		"response.access_programs.cyber",
+		"access_programs.cyber",
+	), terminal)
 	// Every payload that declares a service tier also declares a model, so
 	// model-free delta frames skip the extra lookups entirely.
 	if model == "" {
@@ -86,6 +97,37 @@ func (o *upstreamResponseModelObserver) ObserveOpenAI(payload []byte, eventType 
 	}
 	tier := normalizeObservedOpenAIServiceTier(firstValidTrimmedGJSONString(payload, "response.service_tier", "service_tier"))
 	o.ObserveServiceTier(tier, terminal)
+}
+
+func (o *upstreamResponseModelObserver) ObserveCyberAccessProgram(program string, terminal bool) {
+	if o == nil {
+		return
+	}
+	program = strings.TrimSpace(program)
+	if program == "" {
+		return
+	}
+	runes := []rune(program)
+	if len(runes) > upstreamCyberAccessProgramMaxLength {
+		program = string(runes[:upstreamCyberAccessProgramMaxLength])
+	}
+	if terminal {
+		o.terminalCyberAccessProgram = program
+		return
+	}
+	if o.firstCyberAccessProgram == "" {
+		o.firstCyberAccessProgram = program
+	}
+}
+
+func (o *upstreamResponseModelObserver) CyberAccessProgram() string {
+	if o == nil {
+		return ""
+	}
+	if o.terminalCyberAccessProgram != "" {
+		return o.terminalCyberAccessProgram
+	}
+	return o.firstCyberAccessProgram
 }
 
 func (o *upstreamResponseModelObserver) ObserveAnthropic(payload []byte) {
@@ -216,6 +258,10 @@ func observedUpstreamResponseModelConflict(c *gin.Context) bool {
 
 func observedUpstreamResponseServiceTier(c *gin.Context) string {
 	return upstreamResponseModelObserverFromContext(c).ServiceTier()
+}
+
+func observedUpstreamCyberAccessProgram(c *gin.Context) string {
+	return upstreamResponseModelObserverFromContext(c).CyberAccessProgram()
 }
 
 // resolvedOpenAIUpstreamServiceTierFromObserver preserves the final outbound

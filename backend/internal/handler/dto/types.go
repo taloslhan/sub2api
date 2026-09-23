@@ -698,6 +698,8 @@ type AdminUsageLog struct {
 	UpstreamReasoningEffort *string `json:"upstream_reasoning_effort,omitempty"`
 	// UpstreamResponseModel is the raw model declared by the upstream response.
 	UpstreamResponseModel *string `json:"upstream_response_model,omitempty"`
+	// UpstreamCyberAccessProgram is access_programs.cyber from the upstream response.
+	UpstreamCyberAccessProgram *string `json:"upstream_cyber_access_program,omitempty"`
 	// UpstreamModelMismatch is nil when the upstream did not declare a model.
 	UpstreamModelMismatch *bool `json:"upstream_model_mismatch,omitempty"`
 

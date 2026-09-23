@@ -33,6 +33,9 @@ const messages: Record<string, string> = {
   'usage.serviceTierUltrafast': 'Ultrafast',
   'usage.serviceTierFlex': 'Flex',
   'usage.serviceTierStandard': 'Standard',
+  'usage.cyberProgramDaybreakBlue': 'Daybreak Blue',
+  'usage.cyberProgramDaybreakRed': 'Daybreak Red',
+  'usage.cyberProgramStandard': 'Standard',
   'usage.rate': 'Rate',
   'usage.accountMultiplier': 'Account rate',
   'usage.original': 'Original',
@@ -99,6 +102,7 @@ const DataTableStub = {
         <slot name="cell-billing_mode" :row="row" />
         <slot name="cell-tokens" :row="row" />
         <slot name="cell-cost" :row="row" />
+        <slot name="cell-upstream_cyber_access_program" :row="row" />
         <slot name="cell-request_id" :row="row" />
         <slot name="cell-upstream_request_id" :row="row" />
       </div>
@@ -147,6 +151,31 @@ describe('admin UsageTable tooltip', () => {
       height: 20,
       toJSON: () => ({}),
     } as DOMRect)
+  })
+
+  it.each([
+    ['daybreak_blue', 'Daybreak Blue'],
+    ['daybreak_red', 'Daybreak Red'],
+    ['standard', 'Standard'],
+    [null, '-'],
+  ])('shows cyber access program %s as %s', (program, expected) => {
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [{ ...baseImageRow, upstream_cyber_access_program: program }],
+        loading: false,
+        columns: [],
+      },
+      global: {
+        stubs: {
+          DataTable: DataTableStub,
+          EmptyState: true,
+          Icon: true,
+          Teleport: true,
+        },
+      },
+    })
+
+    expect(wrapper.text()).toContain(expected)
   })
 
   it('marks only usage rows that actually applied long-context billing', () => {

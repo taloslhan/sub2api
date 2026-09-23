@@ -64,6 +64,12 @@ func (UsageLog) Fields() []ent.Field {
 			MaxLen(200).
 			Optional().
 			Nillable(),
+		// UpstreamCyberAccessProgram stores access_programs.cyber from an OpenAI
+		// response. NULL means the upstream did not declare the field.
+		field.String("upstream_cyber_access_program").
+			MaxLen(64).
+			Optional().
+			Nillable(),
 		// UpstreamModelMismatch is tri-state: NULL means the upstream response did
 		// not declare a model (or predates this field); false/true means observed.
 		field.Bool("upstream_model_mismatch").

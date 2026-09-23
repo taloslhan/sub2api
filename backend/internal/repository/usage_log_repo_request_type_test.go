@@ -105,6 +105,7 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			log.NativeCompactionV2,
 			createdAt,
 			nil, nil, nil, nil, // state snapshot absent
+			nil, // upstream_cyber_access_program
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(99), createdAt))
 
@@ -202,6 +203,7 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			log.NativeCompactionV2,
 			createdAt,
 			nil, nil, nil, nil, // state snapshot absent
+			nil, // upstream_cyber_access_program
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(100), createdAt))
 
@@ -282,8 +284,8 @@ func TestPrepareUsageLogInsert_PersistsNativeCompactionV2WithoutChangingRequestT
 	prepared := prepareUsageLogInsert(log)
 
 	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
-	require.Equal(t, "boolean", usageLogInsertArgTypes[len(usageLogInsertArgTypes)-6])
-	require.Equal(t, true, prepared.args[len(prepared.args)-6])
+	require.Equal(t, "boolean", usageLogInsertArgTypes[len(usageLogInsertArgTypes)-7])
+	require.Equal(t, true, prepared.args[len(prepared.args)-7])
 	require.Equal(t, int16(service.RequestTypeStream), prepared.args[30])
 	require.Equal(t, service.RequestTypeStream, log.RequestType)
 	require.True(t, log.Stream)
@@ -1002,7 +1004,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{}, // correlation_request_id
 			false,            // native_compaction_v2
 			now,
-			sql.NullString{}, sql.NullString{}, sql.NullString{}, sql.NullBool{},
+			sql.NullString{}, sql.NullString{}, sql.NullString{}, sql.NullBool{}, sql.NullString{},
 		}})
 		require.NoError(t, err)
 		require.Equal(t, 2, log.ImageCount)
@@ -1084,7 +1086,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},  // correlation_request_id
 			false,             // native_compaction_v2
 			now,
-			sql.NullString{}, sql.NullString{}, sql.NullString{}, sql.NullBool{},
+			sql.NullString{}, sql.NullString{}, sql.NullString{}, sql.NullBool{}, sql.NullString{},
 		}})
 		require.NoError(t, err)
 		require.NotNil(t, log.ServiceTier)
@@ -1149,7 +1151,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},  // correlation_request_id
 			true,              // native_compaction_v2
 			now,
-			sql.NullString{}, sql.NullString{}, sql.NullString{}, sql.NullBool{},
+			sql.NullString{}, sql.NullString{}, sql.NullString{}, sql.NullBool{}, sql.NullString{},
 		}})
 		require.NoError(t, err)
 		require.NotNil(t, log.ServiceTier)
@@ -1215,7 +1217,7 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},  // correlation_request_id
 			false,             // native_compaction_v2
 			now,
-			sql.NullString{}, sql.NullString{}, sql.NullString{}, sql.NullBool{},
+			sql.NullString{}, sql.NullString{}, sql.NullString{}, sql.NullBool{}, sql.NullString{},
 		}})
 		require.NoError(t, err)
 		require.NotNil(t, log.ServiceTier)
