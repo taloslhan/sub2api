@@ -1577,13 +1577,6 @@ func longContextPricingEnabledWithAccountGate(groupEnabled bool, accountGate *bo
 	return groupEnabled || (accountGate != nil && *accountGate)
 }
 
-func openAIEffectiveLongContextEnabled(hasResolver bool, group *Group, accountGate *bool) bool {
-	if hasResolver && group != nil {
-		return longContextPricingEnabledWithAccountGate(group.LongContextPricingEnabled, accountGate)
-	}
-	return accountGate == nil || *accountGate
-}
-
 // computeTokenBreakdown 是 token 计费的核心逻辑，由 calculateTokenCost 和 calculateCostInternal 共用。
 // applyLongCtx 控制是否检查长上下文定价（区间定价已自含上下文分层，不需要额外应用）。
 func (s *BillingService) computeTokenBreakdown(
