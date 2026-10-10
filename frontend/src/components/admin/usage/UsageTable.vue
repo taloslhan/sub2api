@@ -230,8 +230,9 @@
               <span
                 v-if="row.long_context_billing_applied"
                 data-testid="long-context-billing-marker"
+                :title="t('admin.usage.longContextPricingTooltip')"
                 class="inline-flex items-center rounded px-1 py-px text-[10px] font-semibold leading-tight bg-amber-100 text-amber-700 ring-1 ring-inset ring-amber-200 dark:bg-amber-500/20 dark:text-amber-300 dark:ring-amber-500/30"
-              >x2</span>
+              >{{ t('admin.usage.longContext') }}</span>
               <!-- Cost Detail Tooltip -->
               <div
                 class="group relative"
@@ -272,6 +273,8 @@
                 :class="row.output_tokens_per_second != null ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500'"
                 :title="t('usage.outputSpeedHint')"
               >{{ formatOutputTokensPerSecond(row.output_tokens_per_second) }}</span>
+              <span class="text-gray-400 dark:text-gray-500" :title="t('usage.outputTpsHint')">{{ t('usage.outputTps') }}</span>
+              <span data-testid="output-tps" class="font-medium tabular-nums text-gray-700 dark:text-gray-300">{{ formatUsageOutputRate(row) }}</span>
             </div>
           </div>
         </template>
@@ -529,7 +532,7 @@
           </div>
           <div class="flex items-center justify-between gap-6">
             <span class="text-gray-400">{{ t('usage.rate') }}</span>
-            <span class="font-semibold text-blue-400">{{ formatMultiplier(tooltipData?.rate_multiplier || 1) }}x</span>
+            <span class="font-semibold text-blue-400">{{ formatMultiplier(tooltipData?.rate_multiplier ?? 1) }}x</span>
           </div>
           <div class="flex items-center justify-between gap-6">
             <span class="text-gray-400">{{ t('usage.original') }}</span>
@@ -585,6 +588,7 @@ import {
   LATENCY_TEXT_CLASSES,
   durationSeverity,
   firstTokenSeverity,
+  formatUsageOutputRate,
 } from '@/utils/latencyHealth'
 import {
   BILLING_MODE_TOKEN,
